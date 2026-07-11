@@ -1,0 +1,2020 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Meta name="ExplicitAutoJoints">true</Meta>
+	<External>null</External>
+	<External>nil</External>
+	<Item class="Workspace" referent="RBX0">
+		<Properties>
+			<string name="Name">Workspace</string>
+		</Properties>
+	</Item>
+	<Item class="ServerScriptService" referent="RBX1">
+		<Properties>
+			<string name="Name">ServerScriptService</string>
+		</Properties>
+		<Item class="Script" referent="RBX2">
+			<Properties>
+				<string name="Name">AirportServer</string>
+				<ProtectedString name="Source">--[[
+	FLUGHAFEN-JOB-SIMULATOR · Server
+	Baut den kompletten Flughafen beim Start auf (keine externen Assets).
+	Masseinheit: 1 m = 2 Studs (Skalierungsfaktor M).
+	Norden = -Z, Osten = +X. Runway 09/27 entlang der X-Achse.
+
+	Die gesamte Spiellogik (Jobs, Flugphysik, HUD) laeuft im LocalScript
+	"AirportClient" in StarterPlayerScripts — ausgelegt auf Solo-Play.
+]]
+
+local M = 2 -- Meter -&gt; Studs
+
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+-- Alte Version entfernen (bei Re-Run in Studio)
+local old = Workspace:FindFirstChild("Airport")
+if old then old:Destroy() end
+
+local airport = Instance.new("Folder")
+airport.Name = "Airport"
+airport.Parent = Workspace
+
+-- Atmosphaere / Fog
+Lighting.ClockTime = 13
+Lighting.FogColor = Color3.fromRGB(168, 207, 232)
+Lighting.FogStart = 1400 * M
+Lighting.FogEnd = 2800 * M
+Lighting.Brightness = 2
+
+local function part(props)
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Material = Enum.Material.SmoothPlastic
+	for k, v in pairs(props) do
+		p[k] = v
+	end
+	return p
+end
+
+-- Groesse/Position in Metern angeben
+local function mpart(parent, name, sx, sy, sz, x, y, z, color, props)
+	local p = part({
+		Name = name,
+		Size = Vector3.new(sx * M, sy * M, sz * M),
+		CFrame = CFrame.new(x * M, y * M, z * M),
+		Color = color,
+	})
+	if props then
+		for k, v in pairs(props) do p[k] = v end
+	end
+	p.Parent = parent
+	return p
+end
+
+local COL = {
+	grass = Color3.fromRGB(111, 158, 82),
+	asphalt = Color3.fromRGB(60, 63, 69),
+	taxi = Color3.fromRGB(72, 75, 82),
+	apron = Color3.fromRGB(84, 87, 94),
+	white = Color3.fromRGB(232, 232, 232),
+	yellow = Color3.fromRGB(216, 182, 42),
+	wall = Color3.fromRGB(207, 214, 222),
+	glass = Color3.fromRGB(159, 212, 232),
+	dark = Color3.fromRGB(44, 47, 54),
+	blue = Color3.fromRGB(58, 111, 232),
+	orange = Color3.fromRGB(224, 120, 32),
+	red = Color3.fromRGB(194, 59, 46),
+	cream = Color3.fromRGB(245, 240, 232),
+}
+
+---------------------------------------------------------------- Boden
+mpart(airport, "Ground", 7000, 1, 7000, 0, -0.5, 0, COL.grass, { Material = Enum.Material.Grass })
+
+-- ein paar Low-Poly-Baeume und Haeuser als Deko
+local deko = Instance.new("Folder"); deko.Name = "Deko"; deko.Parent = airport
+math.randomseed(42)
+for i = 1, 60 do
+	local x, z
+	repeat
+		x, z = math.random(-2600, 2600), math.random(-2600, 2600)
+	until math.abs(x) &gt; 1350 or z &lt; -300 or z &gt; 450
+	local s = 0.8 + math.random() * 0.8
+	mpart(deko, "Trunk", 1 * s, 5 * s, 1 * s, x, 2.5 * s, z, Color3.fromRGB(110, 74, 47), { CanCollide = false })
+	local crown = mpart(deko, "Crown", 6 * s, 8 * s, 6 * s, x, (5 + 4) * s, z, Color3.fromRGB(57, 112, 46), { CanCollide = false })
+	crown.Shape = Enum.PartType.Ball
+end
+for i = 1, 24 do
+	local x, z
+	repeat
+		x, z = math.random(-2200, 2200), math.random(-2200, 2200)
+	until math.abs(x) &gt; 1400 or z &lt; -350 or z &gt; 500
+	mpart(deko, "House", 9, 6, 8, x, 3, z, Color3.fromRGB(216, 207, 192))
+	local roof = mpart(deko, "Roof", 10, 3, 9, x, 7.5, z, Color3.fromRGB(160, 82, 45))
+	roof.Shape = Enum.PartType.Wedge
+end
+
+---------------------------------------------------------------- Runway 09/27 (1500 m)
+local RWY_L, RWY_W = 1500, 30
+mpart(airport, "Runway", RWY_L + 40, 0.4, RWY_W, 0, 0.05, 0, COL.asphalt, { Material = Enum.Material.Asphalt })
+-- Centerline
+for x = -660, 660, 60 do
+	mpart(airport, "CL", 30, 0.1, 0.9, x, 0.3, 0, COL.white, { CanCollide = false })
+end
+-- Schwellen (Piano Keys) + Aufsetzzonen-Streifen + Nummern
+for _, t in ipairs({ { -750, 1, "09" }, { 750, -1, "27" } }) do
+	local tx, dir, num = t[1], t[2], t[3]
+	for i = 0, 5 do
+		local z = -RWY_W / 2 + 3.2 + i * (RWY_W - 6.4) / 5
+		mpart(airport, "Piano", 18, 0.1, 1.7, tx + dir * 14, 0.3, z, COL.white, { CanCollide = false })
+	end
+	for k = 1, 3 do
+		local x = tx + dir * (90 + k * 75)
+		mpart(airport, "TDZ", 20, 0.1, 1.5, x, 0.3, -7, COL.white, { CanCollide = false })
+		mpart(airport, "TDZ", 20, 0.1, 1.5, x, 0.3, 7, COL.white, { CanCollide = false })
+	end
+	local numP = mpart(airport, "Num" .. num, 10, 0.1, 18, tx + dir * 52, 0.3, 0, COL.asphalt, { CanCollide = false })
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Top
+	sg.CanvasSize = Vector2.new(200, 360)
+	sg.Parent = numP
+	local tl = Instance.new("TextLabel")
+	tl.Size = UDim2.fromScale(1, 1)
+	tl.BackgroundTransparency = 1
+	tl.Text = num
+	tl.TextColor3 = COL.white
+	tl.TextScaled = true
+	tl.Font = Enum.Font.GothamBlack
+	tl.Rotation = (dir == 1) and 90 or -90
+	tl.Parent = sg
+end
+-- Randbefeuerung + Schwellenlichter
+local lights = Instance.new("Folder"); lights.Name = "RunwayLights"; lights.Parent = airport
+for x = -750, 750, 50 do
+	for _, zz in ipairs({ -RWY_W / 2 - 1.5, RWY_W / 2 + 1.5 }) do
+		mpart(lights, "Edge", 0.8, 0.8, 0.8, x, 0.5, zz, Color3.fromRGB(255, 246, 204), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+for i = 0, 8 do
+	local z = -RWY_W / 2 + i * RWY_W / 8
+	mpart(lights, "Grn", 0.7, 0.7, 0.7, -754, 0.4, z, Color3.fromRGB(34, 255, 85), { Material = Enum.Material.Neon, CanCollide = false })
+	mpart(lights, "Red", 0.7, 0.7, 0.7, -756.5, 0.4, z, Color3.fromRGB(255, 51, 51), { Material = Enum.Material.Neon, CanCollide = false })
+	mpart(lights, "Grn", 0.7, 0.7, 0.7, 754, 0.4, z, Color3.fromRGB(34, 255, 85), { Material = Enum.Material.Neon, CanCollide = false })
+	mpart(lights, "Red", 0.7, 0.7, 0.7, 756.5, 0.4, z, Color3.fromRGB(255, 51, 51), { Material = Enum.Material.Neon, CanCollide = false })
+end
+
+-- PAPI: je 4 Lampen (Client faerbt sie rot/weiss)
+local function papi(name, x, z)
+	local m = Instance.new("Model"); m.Name = name; m.Parent = airport
+	for i = 0, 3 do
+		local zz = z + i * 3 * (z &gt; 0 and 1 or -1)
+		mpart(m, "Base", 0.8, 1.1, 0.8, x, 0.55, zz, Color3.fromRGB(51, 51, 51))
+		mpart(m, "Lamp" .. (i + 1), 0.7, 0.5, 0.4, x, 1.0, zz, COL.white, { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+papi("PAPI09", -450, -RWY_W / 2 - 8) -- Anflug von Westen
+papi("PAPI27", 450, RWY_W / 2 + 8)   -- Anflug von Osten
+
+---------------------------------------------------------------- Taxiway + Vorfeld
+mpart(airport, "Taxiway", RWY_L + 40, 0.35, 16, 0, 0.02, 80, COL.taxi)
+for x = -750, 740, 30 do
+	mpart(airport, "TL", 15, 0.1, 0.5, x + 7, 0.3, 80, COL.yellow, { CanCollide = false })
+end
+for _, cx in ipairs({ -700, 0, 700 }) do
+	mpart(airport, "Conn", 16, 0.35, 66, cx, 0.02, 40, COL.taxi)
+	for z = 18, 70, 15 do
+		mpart(airport, "TL", 0.5, 0.1, 8, cx, 0.3, z, COL.yellow, { CanCollide = false })
+	end
+end
+mpart(airport, "Conn2", 20, 0.35, 55, 60, 0.02, 115, COL.taxi)
+mpart(airport, "Apron", 320, 0.35, 95, 45, 0.02, 182, COL.apron, { Material = Enum.Material.Concrete })
+for _, px in ipairs({ -40, 40, 130 }) do
+	mpart(airport, "Stand", 0.6, 0.1, 22, px, 0.3, 176, COL.yellow, { CanCollide = false })
+	mpart(airport, "Stand", 14, 0.1, 0.6, px, 0.3, 165, COL.yellow, { CanCollide = false })
+end
+
+---------------------------------------------------------------- Deko-Jets
+local function makeJet(name, color, x, z, yawDeg)
+	local m = Instance.new("Model"); m.Name = name
+	local root = mpart(m, "Root", 1, 1, 1, 0, 0, 0, color, { Transparency = 1, CanCollide = false })
+	m.PrimaryPart = root
+	-- Zylinderachse liegt in Roblox auf X -&gt; Laenge in X, dann um 90 Grad drehen
+	local fus = mpart(m, "Fus", 26, 3.8, 3.8, 0, 3.2, 0, COL.cream)
+	fus.Shape = Enum.PartType.Cylinder
+	fus.CFrame = CFrame.new(0, 3.2 * M, 0) * CFrame.Angles(0, math.rad(90), 0)
+	local nose = mpart(m, "Nose", 3.8, 3.8, 3.8, 0, 3.2, -13, COL.cream); nose.Shape = Enum.PartType.Ball
+	mpart(m, "Tailc", 1.6, 1.6, 5, 0, 3.9, 15.5, COL.cream)
+	mpart(m, "Wing", 24, 0.35, 4.5, 0, 2.9, 0.5, color)
+	mpart(m, "HStab", 9, 0.25, 2.6, 0, 4.4, 17, color)
+	mpart(m, "VStab", 0.3, 5.5, 3.4, 0, 6.5, 17.5, color)
+	for _, sx in ipairs({ -1, 1 }) do
+		local e = mpart(m, "Eng", 2.1, 2.1, 3.2, sx * 6.5, 1.9, -1.5, Color3.fromRGB(154, 160, 168))
+	end
+	for _, g in ipairs({ { 0, -10 }, { -2.5, 1 }, { 2.5, 1 } }) do
+		mpart(m, "Gear", 0.4, 1.6, 0.4, g[1], 0.8, g[2], Color3.fromRGB(40, 40, 40))
+	end
+	m.Parent = airport
+	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
+	return m
+end
+makeJet("JetA", COL.blue, -40, 165, 0)   -- LH 452 · BLAU
+makeJet("JetB", COL.orange, 40, 165, 0)  -- EW 771 · ORANGE
+local trafficJet = makeJet("TrafficJet", Color3.fromRGB(153, 153, 153), 0, -4000, 0) -- Deko-Verkehr (Client animiert)
+
+---------------------------------------------------------------- Terminal (x -70..75, z 232..302)
+local T = { x1 = -70, x2 = 75, z1 = 232, z2 = 302, h = 11 }
+local term = Instance.new("Model"); term.Name = "Terminal"; term.Parent = airport
+mpart(term, "Floor", T.x2 - T.x1, 0.5, T.z2 - T.z1, (T.x1 + T.x2) / 2, 0.15, (T.z1 + T.z2) / 2, Color3.fromRGB(185, 190, 199))
+mpart(term, "Roof", T.x2 - T.x1 + 4, 0.7, T.z2 - T.z1 + 4, (T.x1 + T.x2) / 2, T.h, (T.z1 + T.z2) / 2, Color3.fromRGB(138, 146, 158))
+local function wallSeg(nm, x1, x2, z, color, transp)
+	mpart(term, nm, x2 - x1, T.h, 0.6, (x1 + x2) / 2, T.h / 2, z, color,
+		transp and { Transparency = 0.6, Material = Enum.Material.Glass } or nil)
+end
+-- Glasfront Nord (zum Vorfeld), Tuer bei x 28..36
+wallSeg("GlassW", T.x1, 28, T.z1, COL.glass, true)
+wallSeg("GlassE", 36, T.x2, T.z1, COL.glass, true)
+-- Suedwand mit Eingang bei x -8..0
+wallSeg("BackW", T.x1, -8, T.z2, COL.wall)
+wallSeg("BackE", 0, T.x2, T.z2, COL.wall)
+mpart(term, "SideW", 0.6, T.h, T.z2 - T.z1, T.x1, T.h / 2, (T.z1 + T.z2) / 2, COL.wall)
+mpart(term, "SideE", 0.6, T.h, T.z2 - T.z1, T.x2, T.h / 2, (T.z1 + T.z2) / 2, COL.wall)
+for x = T.x1 + 15, T.x2 - 5, 22 do
+	local c = mpart(term, "Pillar", 1, T.h, 1, x, T.h / 2, (T.z1 + T.z2) / 2, Color3.fromRGB(170, 178, 188))
+	c.Shape = Enum.PartType.Cylinder
+	c.CFrame = CFrame.new(x * M, T.h / 2 * M, (T.z1 + T.z2) / 2 * M) * CFrame.Angles(0, 0, math.rad(90))
+	c.Size = Vector3.new(T.h * M, 1 * M, 1 * M)
+end
+-- Check-in-Schalter (3 Stueck)
+for i = 0, 2 do
+	local dx = -45 + i * 16
+	mpart(term, "Desk" .. (i + 1), 6, 1.2, 2.2, dx, 0.6, 258, Color3.fromRGB(53, 80, 110))
+	mpart(term, "DeskTop", 6, 0.15, 2.4, dx, 1.25, 258, Color3.fromRGB(94, 200, 255), { CanCollide = false })
+	mpart(term, "DeskBack", 6, 3.2, 0.4, dx, 1.6, 262.5, Color3.fromRGB(45, 61, 82))
+	mpart(term, "DeskSign", 4.4, 1, 0.15, dx, 3.4, 262.4, i == 0 and Color3.fromRGB(94, 200, 255) or Color3.fromRGB(53, 80, 110),
+		{ Material = i == 0 and Enum.Material.Neon or Enum.Material.SmoothPlastic, CanCollide = false })
+end
+mpart(term, "Waage", 2, 0.4, 2, -39.5, 0.2, 255.5, Color3.fromRGB(119, 127, 137))
+-- Gate-Sitzreihen
+for r = 0, 3 do
+	for c = 0, 9 do
+		mpart(term, "Seat", 1.6, 0.9, 1.4, 18 + c * 3.2, 0.45, 244 + r * 4.5, Color3.fromRGB(61, 90, 128))
+	end
+end
+mpart(term, "GateSign", 5, 1.4, 0.2, 34, 4.5, 234, Color3.fromRGB(42, 157, 92), { Material = Enum.Material.Neon, CanCollide = false })
+
+-- Abflugtafel (SurfaceGui, Client haelt die Flugdaten identisch)
+local board = mpart(term, "DepartureBoard", 16, 9, 0.4, -25, 6.2, 297.5, Color3.fromRGB(11, 18, 32))
+local bsg = Instance.new("SurfaceGui")
+bsg.Face = Enum.NormalId.Front -- Front zeigt nach -Z (in die Halle)
+bsg.CanvasSize = Vector2.new(640, 360)
+bsg.Parent = board
+local function boardLine(txt, y, color, size)
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.new(1, -40, 0, size or 30)
+	l.Position = UDim2.new(0, 24, 0, y)
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.Code
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextSize = size or 24
+	l.TextColor3 = color
+	l.Text = txt
+	l.Parent = bsg
+	return l
+end
+boardLine("ABFLÜGE · DEPARTURES", 10, Color3.fromRGB(255, 215, 94), 30)
+boardLine("FLUG    ZIEL          ZEIT   STATUS", 55, Color3.fromRGB(127, 150, 173), 22)
+local FLIGHTS = {
+	{ "LH 452", "MÜNCHEN", "14:20", "OPEN" },
+	{ "AB 118", "BERLIN", "14:35", "BOARDING" },
+	{ "EW 771", "WIEN", "14:50", "OPEN" },
+	{ "FR 903", "PARIS", "15:05", "CLOSED" },
+	{ "KL 233", "AMSTERDAM", "15:20", "OPEN" },
+	{ "SK 660", "OSLO", "15:40", "CLOSED" },
+}
+for i, f in ipairs(FLIGHTS) do
+	local col = f[4] == "OPEN" and Color3.fromRGB(84, 208, 106) or f[4] == "BOARDING" and Color3.fromRGB(255, 215, 94) or Color3.fromRGB(255, 99, 99)
+	boardLine(string.format("%-8s%-14s%-7s%s", f[1], f[2], f[3], f[4]), 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
+	local st = boardLine(f[4], 60 + i * 38, col, 22)
+	st.Position = UDim2.new(0, 470, 0, 60 + i * 38)
+end
+
+---------------------------------------------------------------- Gepaeckband Terminal -&gt; Vorfeld
+local belt = Instance.new("Model"); belt.Name = "Belt"; belt.Parent = airport
+mpart(belt, "BeltBody", 3, 0.9, 64, -20, 0.45, 226, COL.dark)
+mpart(belt, "BeltTop", 3.4, 0.2, 64.4, -20, 0.95, 226, Color3.fromRGB(28, 30, 36))
+mpart(belt, "BeltEndT", 3.6, 1.6, 1.2, -20, 0.8, 257, Color3.fromRGB(96, 103, 116))
+mpart(belt, "BeltEndA", 3.6, 1.6, 1.2, -20, 0.8, 195, Color3.fromRGB(96, 103, 116))
+
+---------------------------------------------------------------- Gepaeckwagen
+local cart = Instance.new("Model"); cart.Name = "Cart"; cart.Parent = airport
+local croot = mpart(cart, "Root", 1, 1, 1, 0, 0, 0, COL.dark, { Transparency = 1, CanCollide = false })
+cart.PrimaryPart = croot
+mpart(cart, "Chassis", 2.4, 0.5, 5.2, 0, 0.65, 0, Color3.fromRGB(42, 109, 181))
+mpart(cart, "Cab", 2.2, 1.5, 1.6, 0, 1.6, 1.6, Color3.fromRGB(42, 109, 181))
+mpart(cart, "Windshield", 2, 0.7, 0.15, 0, 2.0, 0.85, COL.glass, { Transparency = 0.5, CanCollide = false })
+mpart(cart, "Bed", 2.3, 0.15, 3.2, 0, 0.95, -1.4, Color3.fromRGB(139, 149, 161))
+for _, w in ipairs({ { -1.1, -1.8 }, { 1.1, -1.8 }, { -1.1, 1.8 }, { 1.1, 1.8 } }) do
+	local wh = mpart(cart, "Wheel", 0.8, 0.35, 0.8, w[1], 0.4, w[2], Color3.fromRGB(22, 24, 28))
+	wh.Shape = Enum.PartType.Cylinder
+	wh.CFrame = CFrame.new(w[1] * M, 0.4 * M, w[2] * M) * CFrame.Angles(0, 0, math.rad(90))
+	wh.Size = Vector3.new(0.35 * M, 0.8 * M, 0.8 * M)
+end
+cart:PivotTo(CFrame.new(-2 * M, 0, 186 * M) * CFrame.Angles(0, 0.4, 0))
+
+---------------------------------------------------------------- Spieler-Propellerflugzeug
+local plane = Instance.new("Model"); plane.Name = "PlayerPlane"; plane.Parent = airport
+local proot = mpart(plane, "Root", 1, 1, 1, 0, 0, 0, COL.cream, { Transparency = 1, CanCollide = false })
+plane.PrimaryPart = proot
+local function pp(name, sx, sy, sz, x, y, z, color, props)
+	return mpart(plane, name, sx, sy, sz, x, y, z, color, props)
+end
+pp("Fus", 1.3, 1.3, 5.6, 0, 1.35, 0.3, COL.cream)
+pp("Cowl", 1.2, 1.2, 1.1, 0, 1.35, -2.9, COL.red)
+pp("Tailcone", 0.7, 0.7, 2.2, 0, 1.5, 4.0, COL.cream, { CanCollide = false })
+pp("Canopy", 0.9, 0.62, 1.5, 0, 2.05, -0.7, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("Prop1", 0.16, 2.3, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
+pp("Prop2", 2.3, 0.16, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
+pp("Wing", 10.4, 0.16, 1.6, 0, 1.9, -0.4, COL.cream)
+pp("WingStripe", 10.4, 0.06, 0.3, 0, 2.0, -1.1, COL.red, { CanCollide = false })
+pp("AilL", 1.9, 0.1, 0.5, -4.2, 1.9, 0.55, COL.red, { CanCollide = false })
+pp("AilR", 1.9, 0.1, 0.5, 4.2, 1.9, 0.55, COL.red, { CanCollide = false })
+pp("HStab", 3.6, 0.12, 1.0, 0, 1.7, 4.7, COL.cream, { CanCollide = false })
+pp("Elev", 3.6, 0.09, 0.5, 0, 1.7, 5.4, COL.red, { CanCollide = false })
+pp("VStab", 0.12, 1.8, 1.2, 0, 2.6, 4.7, COL.cream, { CanCollide = false })
+pp("Rud", 0.1, 1.6, 0.6, 0, 2.7, 5.6, COL.red, { CanCollide = false })
+for _, g in ipairs({ { "GearN", 0, -2.4 }, { "GearL", -1.3, 0.3 }, { "GearR", 1.3, 0.3 } }) do
+	pp(g[1], 0.14, 0.9, 0.14, g[2], 0.7, g[3], COL.dark, { CanCollide = false })
+	pp(g[1] .. "W", 0.6, 0.22, 0.6, g[2], 0.28, g[3], Color3.fromRGB(22, 24, 28), { CanCollide = false })
+end
+plane:PivotTo(CFrame.new(130 * M, 0, 165 * M) * CFrame.Angles(0, math.rad(180), 0))
+
+---------------------------------------------------------------- Tower, Hangar, Windsack
+local tower = Instance.new("Model"); tower.Name = "Tower"; tower.Parent = airport
+local shaft = mpart(tower, "Shaft", 6, 26, 6, -130, 13, 250, Color3.fromRGB(201, 207, 216))
+shaft.Shape = Enum.PartType.Cylinder
+shaft.CFrame = CFrame.new(-130 * M, 13 * M, 250 * M) * CFrame.Angles(0, 0, math.rad(90))
+shaft.Size = Vector3.new(26 * M, 6 * M, 6 * M)
+mpart(tower, "Cab", 10, 4.5, 10, -130, 28, 250, Color3.fromRGB(36, 55, 74))
+mpart(tower, "CabGlass", 9.4, 2.4, 9.4, -130, 28.4, 250, COL.glass, { Transparency = 0.5, CanCollide = false })
+mpart(tower, "Beacon", 0.8, 0.8, 0.8, -130, 32.5, 250, Color3.fromRGB(255, 136, 0), { Material = Enum.Material.Neon, CanCollide = false })
+
+local hangar = Instance.new("Model"); hangar.Name = "Hangar"; hangar.Parent = airport
+mpart(hangar, "Back", 36, 12, 0.8, 230, 6, 214, Color3.fromRGB(143, 154, 166))
+mpart(hangar, "SideL", 0.8, 12, 28, 212, 6, 200, Color3.fromRGB(143, 154, 166))
+mpart(hangar, "SideR", 0.8, 12, 28, 248, 6, 200, Color3.fromRGB(143, 154, 166))
+mpart(hangar, "HRoof", 38, 0.8, 30, 230, 12.2, 200, Color3.fromRGB(110, 122, 135))
+
+local ws = Instance.new("Model"); ws.Name = "Windsock"; ws.Parent = airport
+mpart(ws, "Pole", 0.3, 8, 0.3, -200, 4, 55, Color3.fromRGB(221, 221, 221))
+local sock = mpart(ws, "Sock", 1.0, 1.0, 3.5, -200, 7.8, 53, Color3.fromRGB(255, 90, 31), { CanCollide = false })
+
+---------------------------------------------------------------- Leuchtende Job-Marker
+local function marker(name, x, z, color)
+	local mk = mpart(airport, name, 2.2, 5, 2.2, x, 2.5, z, color,
+		{ Transparency = 0.72, Material = Enum.Material.Neon, CanCollide = false })
+	mk.Shape = Enum.PartType.Cylinder
+	mk.CFrame = CFrame.new(x * M, 2.5 * M, z * M) * CFrame.Angles(0, 0, math.rad(90))
+	mk.Size = Vector3.new(5 * M, 2.2 * M, 2.2 * M)
+	return mk
+end
+marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
+marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
+marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+
+---------------------------------------------------------------- Spawn im Terminal
+local spawnLoc = Instance.new("SpawnLocation")
+spawnLoc.Name = "Spawn"
+spawnLoc.Size = Vector3.new(6, 1, 6)
+spawnLoc.CFrame = CFrame.new(-30 * M, 0.5, 268 * M)
+spawnLoc.Anchored = true
+spawnLoc.Neutral = true
+spawnLoc.Transparency = 1
+spawnLoc.Parent = airport
+
+print("[Airport] Flughafen aufgebaut. Skalierung: 1 m = " .. M .. " Studs.")
+</ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="StarterPlayer" referent="RBX3">
+		<Properties>
+			<string name="Name">StarterPlayer</string>
+		</Properties>
+		<Item class="StarterPlayerScripts" referent="RBX4">
+			<Properties>
+				<string name="Name">StarterPlayerScripts</string>
+			</Properties>
+			<Item class="LocalScript" referent="RBX5">
+				<Properties>
+					<string name="Name">AirportClient</string>
+					<ProtectedString name="Source">--[[
+	FLUGHAFEN-JOB-SIMULATOR · Client (gesamte Spiellogik, Solo-Play)
+	Drei Jobs: Check-in-Agent -&gt; Ramp Agent (500 Cr) -&gt; Captain (2000 Cr).
+	Physik intern in Metern; Welt-Skalierung: 1 m = 2 Studs (M).
+	KEIN DataStore — Fortschritt lebt nur im Speicher.
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local M = 2 -- Meter -&gt; Studs
+local KT = 1.94384 -- m/s -&gt; Knoten
+local FT = 3.28084 -- m -&gt; Fuss
+local FPM = 196.85 -- m/s -&gt; ft/min
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+local airport = Workspace:WaitForChild("Airport", 30)
+if not airport then error("Airport-Ordner fehlt — AirportServer-Script pruefen!") end
+
+local function waitChar()
+	local ch = player.Character or player.CharacterAdded:Wait()
+	ch:WaitForChild("HumanoidRootPart")
+	ch:WaitForChild("Humanoid")
+	return ch
+end
+local character = waitChar()
+player.CharacterAdded:Connect(function(ch)
+	character = ch
+end)
+
+local function hrp() return character and character:FindFirstChild("HumanoidRootPart") end
+local function humanoid() return character and character:FindFirstChildOfClass("Humanoid") end
+-- Spielerposition in METERN
+local function playerPosM()
+	local r = hrp()
+	if not r then return Vector3.new(0, 0, 0) end
+	return r.Position / M
+end
+
+local function clamp(v, a, b) return math.min(b, math.max(a, v)) end
+local function lerp(a, b, t) return a + (b - a) * t end
+local function damp(a, b, l, dt) return lerp(a, b, 1 - math.exp(-l * dt)) end
+local function angNorm(a)
+	while a &gt; math.pi do a = a - 2 * math.pi end
+	while a &lt; -math.pi do a = a + 2 * math.pi end
+	return a
+end
+
+---------------------------------------------------------------- Spielzustand
+local S = {
+	credits = 0, xp = 0,
+	job = nil,          -- nil | "checkin" | "ramp" | "captain"
+	mode = "walk",      -- walk | cart | fly
+	tutorialSeen = {},
+	camMode = "chase",  -- Flug: chase | cockpit
+}
+local UNLOCK_RAMP, UNLOCK_CAPTAIN = 500, 2000
+local RWY_X1, RWY_X2, RWY_W = -750, 750, 30
+local TDZ = { x1 = RWY_X1 + 60, x2 = RWY_X1 + 400 }
+
+-- Wind: dir = woher (Grad), speed in m/s; vec = wohin er schiebt (m/s)
+local wind = { dir = 210, speed = 2, vec = Vector3.new() }
+local function setWind(dir, speedKt)
+	wind.dir = dir
+	wind.speed = speedKt / KT
+	local to = math.rad(dir + 180)
+	wind.vec = Vector3.new(math.sin(to) * wind.speed, 0, -math.cos(to) * wind.speed)
+end
+setWind(210, 4)
+
+local FLIGHTS = {
+	{ code = "LH 452", dest = "MÜNCHEN", time = "14:20", status = "OPEN" },
+	{ code = "AB 118", dest = "BERLIN", time = "14:35", status = "BOARDING" },
+	{ code = "EW 771", dest = "WIEN", time = "14:50", status = "OPEN" },
+	{ code = "FR 903", dest = "PARIS", time = "15:05", status = "CLOSED" },
+	{ code = "KL 233", dest = "AMSTERDAM", time = "15:20", status = "OPEN" },
+	{ code = "SK 660", dest = "OSLO", time = "15:40", status = "CLOSED" },
+}
+local function findFlight(code)
+	for _, f in ipairs(FLIGHTS) do
+		if f.code == code then return f end
+	end
+	return nil
+end
+
+---------------------------------------------------------------- Eingaben
+local keys = {}
+local keyEdge = {}
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		keys[input.KeyCode] = true
+		keyEdge[input.KeyCode] = true
+	end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		keys[input.KeyCode] = false
+	end
+end)
+local function edge(kc)
+	if keyEdge[kc] then keyEdge[kc] = false; return true end
+	return false
+end
+
+---------------------------------------------------------------- GUI-Grundgeruest
+local gui = Instance.new("ScreenGui")
+gui.Name = "AirportHUD"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local GLASS = Color3.fromRGB(12, 18, 30)
+local TXT = Color3.fromRGB(232, 238, 247)
+local GOLD = Color3.fromRGB(255, 215, 94)
+local CYAN = Color3.fromRGB(94, 200, 255)
+local GREEN = Color3.fromRGB(143, 232, 159)
+local REDC = Color3.fromRGB(255, 99, 99)
+local GREY = Color3.fromRGB(159, 180, 204)
+
+local function frame(parent, pos, size, transp)
+	local f = Instance.new("Frame")
+	f.BackgroundColor3 = GLASS
+	f.BackgroundTransparency = transp or 0.25
+	f.BorderSizePixel = 0
+	f.Position = pos
+	f.Size = size
+	f.Parent = parent
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = f
+	local st = Instance.new("UIStroke"); st.Color = Color3.fromRGB(255, 255, 255); st.Transparency = 0.85; st.Parent = f
+	return f
+end
+local function label(parent, text, pos, size, color, textSize, align)
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Position = pos
+	l.Size = size
+	l.Font = Enum.Font.Gotham
+	l.Text = text
+	l.TextColor3 = color or TXT
+	l.TextSize = textSize or 15
+	l.TextXAlignment = align or Enum.TextXAlignment.Left
+	l.TextWrapped = true
+	l.RichText = true
+	l.Parent = parent
+	return l
+end
+local function button(parent, text, pos, size, color, cb)
+	local b = Instance.new("TextButton")
+	b.BackgroundColor3 = color or Color3.fromRGB(50, 90, 130)
+	b.BackgroundTransparency = 0.2
+	b.Position = pos
+	b.Size = size
+	b.Font = Enum.Font.GothamBold
+	b.Text = text
+	b.TextColor3 = TXT
+	b.TextSize = 15
+	b.Parent = parent
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 9); c.Parent = b
+	if cb then b.MouseButton1Click:Connect(cb) end
+	return b
+end
+
+-- Oben links: Credits / Level / Fortschritt
+local tl = frame(gui, UDim2.new(0, 14, 0, 14), UDim2.new(0, 250, 0, 96))
+local creditsL = label(tl, "0 Credits", UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 0, 26), GOLD, 22)
+creditsL.Font = Enum.Font.GothamBold
+local levelL = label(tl, "Level 1 · 0 XP", UDim2.new(0, 14, 0, 36), UDim2.new(1, -28, 0, 18), GREY, 13)
+local progressL = label(tl, "", UDim2.new(0, 14, 0, 62), UDim2.new(1, -28, 0, 30), GREEN, 13)
+
+-- Oben rechts: Job / Ziel / Timer
+local tr = frame(gui, UDim2.new(1, -334, 0, 14), UDim2.new(0, 320, 0, 110))
+local jobL = label(tr, "Arbeitslos", UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 0, 22), CYAN, 16, Enum.TextXAlignment.Right)
+jobL.Font = Enum.Font.GothamBold
+local objL = label(tr, "", UDim2.new(0, 14, 0, 32), UDim2.new(1, -28, 0, 50), TXT, 13, Enum.TextXAlignment.Right)
+local timerL = label(tr, "", UDim2.new(0, 14, 0, 82), UDim2.new(1, -28, 0, 24), GOLD, 20, Enum.TextXAlignment.Right)
+timerL.Font = Enum.Font.GothamBold
+
+-- Interaktions-Prompt
+local promptF = frame(gui, UDim2.new(0.5, -180, 1, -150), UDim2.new(0, 360, 0, 38))
+local promptL = label(promptF, "", UDim2.new(0, 10, 0, 0), UDim2.new(1, -20, 1, 0), TXT, 15, Enum.TextXAlignment.Center)
+promptF.Visible = false
+
+-- Toasts
+local toastHolder = Instance.new("Frame")
+toastHolder.BackgroundTransparency = 1
+toastHolder.Position = UDim2.new(0.5, -220, 1, -240)
+toastHolder.Size = UDim2.new(0, 440, 0, 90)
+toastHolder.Parent = gui
+local function toast(msg, kind)
+	local col = kind == "good" and GREEN or kind == "bad" and REDC or TXT
+	local f = frame(toastHolder, UDim2.new(0, 0, 1, -30), UDim2.new(1, 0, 0, 28))
+	label(f, msg, UDim2.new(0, 10, 0, 0), UDim2.new(1, -20, 1, 0), col, 14, Enum.TextXAlignment.Center)
+	for _, child in ipairs(toastHolder:GetChildren()) do
+		if child ~= f and child:IsA("Frame") then
+			child.Position = child.Position - UDim2.new(0, 0, 0, 32)
+		end
+	end
+	task.delay(3, function() f:Destroy() end)
+end
+
+-- Steuerungs-Legende (H)
+local legend = frame(gui, UDim2.new(0, 14, 1, -132), UDim2.new(0, 430, 0, 118))
+label(legend,
+	"&lt;b&gt;WASD&lt;/b&gt; Bewegen · &lt;b&gt;Shift&lt;/b&gt; Sprint · &lt;b&gt;E&lt;/b&gt; Interagieren · &lt;b&gt;H&lt;/b&gt; Legende\n" ..
+	"FLUG: &lt;b&gt;W/S&lt;/b&gt; Pitch · &lt;b&gt;A/D&lt;/b&gt; Roll · &lt;b&gt;Q/E&lt;/b&gt; Ruder/Bugrad\n" ..
+	"&lt;b&gt;Shift/Strg&lt;/b&gt; Schub · &lt;b&gt;G&lt;/b&gt; Fahrwerk · &lt;b&gt;B&lt;/b&gt; Bremse · &lt;b&gt;C&lt;/b&gt; Kamera · &lt;b&gt;R&lt;/b&gt; Reset",
+	UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 1, -16), GREY, 14)
+
+-- Modales Panel
+local panelWrap = Instance.new("Frame")
+panelWrap.BackgroundColor3 = Color3.new(0, 0, 0)
+panelWrap.BackgroundTransparency = 0.5
+panelWrap.Size = UDim2.fromScale(1, 1)
+panelWrap.Visible = false
+panelWrap.ZIndex = 5
+panelWrap.Parent = gui
+local panel = frame(panelWrap, UDim2.new(0.5, -240, 0.5, -220), UDim2.new(0, 480, 0, 440), 0.12)
+panel.ZIndex = 6
+local panelOpen = false
+local function clearPanel()
+	for _, c in ipairs(panel:GetChildren()) do
+		if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
+	end
+end
+local function showPanel(build)
+	clearPanel()
+	panelOpen = true
+	panelWrap.Visible = true
+	build(panel)
+end
+local function hidePanel()
+	panelOpen = false
+	panelWrap.Visible = false
+end
+
+-- Tutorial-Overlay (einmal pro Job)
+local function showTutorial(key, title, body, cb)
+	if S.tutorialSeen[key] then if cb then cb() end return end
+	S.tutorialSeen[key] = true
+	showPanel(function(p)
+		local t = label(p, title, UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), GOLD, 20)
+		t.Font = Enum.Font.GothamBold
+		label(p, body, UDim2.new(0, 20, 0, 48), UDim2.new(1, -40, 1, -120), TXT, 14)
+		button(p, "Los geht's!", UDim2.new(0, 20, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel()
+			if cb then cb() end
+		end)
+	end)
+end
+
+---------------------------------------------------------------- HUD-Werte
+local function level() return math.floor(S.xp / 100) + 1 end
+local function updateHUD()
+	creditsL.Text = S.credits .. " Credits"
+	levelL.Text = "Level " .. level() .. " · " .. S.xp .. " XP"
+	if S.credits &lt; UNLOCK_RAMP then
+		progressL.Text = "Noch " .. (UNLOCK_RAMP - S.credits) .. " Credits bis Ramp Agent"
+	elseif S.credits &lt; UNLOCK_CAPTAIN then
+		progressL.Text = "Noch " .. (UNLOCK_CAPTAIN - S.credits) .. " Credits bis Captain"
+	else
+		progressL.Text = "Alle Jobs freigeschaltet ✈"
+	end
+end
+local function addCredits(n)
+	S.credits = math.max(0, S.credits + n)
+	updateHUD()
+end
+local function addXP(n)
+	S.xp = S.xp + n
+	updateHUD()
+end
+local function setJobHUD(name, objective)
+	jobL.Text = name
+	objL.Text = objective
+end
+local function setTimerHUD(sec)
+	if not sec then timerL.Text = "" return end
+	local m = math.floor(sec / 60)
+	local s = math.floor(sec % 60)
+	timerL.Text = string.format("%d:%02d", m, s)
+	timerL.TextColor3 = sec &lt; 20 and REDC or GOLD
+end
+
+---------------------------------------------------------------- Interaktionssystem (E)
+local interactables = {}
+local function addInteract(o) table.insert(interactables, o) end
+local function updateInteract()
+	if panelOpen or S.mode ~= "walk" then
+		if S.mode == "fly" then promptF.Visible = false end
+		return
+	end
+	local pp = playerPosM()
+	local best, bd = nil, 1e9
+	for _, it in ipairs(interactables) do
+		if not it.cond or it.cond() then
+			local x, z = it.x(), it.z()
+			local d = math.sqrt((pp.X - x) ^ 2 + (pp.Z - z) ^ 2)
+			if d &lt; it.r and d &lt; bd then bd = d; best = it end
+		end
+	end
+	if best then
+		promptL.Text = "[E]  " .. best.label()
+		promptF.Visible = true
+		if edge(Enum.KeyCode.E) then best.action() end
+	else
+		promptF.Visible = false
+	end
+end
+
+---------------------------------------------------------------- Charakter-Extras
+local function setCharacterHidden(hidden)
+	local ch = character
+	if not ch then return end
+	for _, d in ipairs(ch:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.LocalTransparencyModifier = hidden and 1 or 0
+		end
+	end
+	local h = humanoid()
+	if h then h.PlatformStand = hidden end
+	local r = hrp()
+	if r then r.Anchored = hidden end
+end
+-- Sprint
+RunService.RenderStepped:Connect(function()
+	local h = humanoid()
+	if h and S.mode == "walk" then
+		h.WalkSpeed = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 24 or 16
+	end
+end)
+
+---------------------------------------------------------------- NPC-Dummy (fuer Check-in)
+local function makeNPC()
+	local m = Instance.new("Model")
+	m.Name = "PassengerNPC"
+	local cols = {
+		Color3.fromRGB(201, 79, 79), Color3.fromRGB(79, 127, 201),
+		Color3.fromRGB(88, 168, 106), Color3.fromRGB(201, 164, 79), Color3.fromRGB(141, 95, 201),
+	}
+	local shirt = cols[math.random(#cols)]
+	local function np(name, sx, sy, sz, x, y, z, color)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Anchored = true
+		p.CanCollide = false
+		p.Material = Enum.Material.SmoothPlastic
+		p.Size = Vector3.new(sx * M, sy * M, sz * M)
+		p.CFrame = CFrame.new(x * M, y * M, z * M)
+		p.Color = color
+		p.Parent = m
+		return p
+	end
+	local root = np("Root", 0.5, 0.5, 0.5, 0, 0, 0, shirt)
+	root.Transparency = 1
+	m.PrimaryPart = root
+	np("LegL", 0.22, 0.75, 0.24, -0.14, 0.38, 0, Color3.fromRGB(51, 58, 68))
+	np("LegR", 0.22, 0.75, 0.24, 0.14, 0.38, 0, Color3.fromRGB(51, 58, 68))
+	np("Torso", 0.55, 0.72, 0.32, 0, 1.12, 0, shirt)
+	np("ArmL", 0.16, 0.62, 0.18, -0.37, 1.12, 0, shirt)
+	np("ArmR", 0.16, 0.62, 0.18, 0.37, 1.12, 0, shirt)
+	local head = np("Head", 0.48, 0.48, 0.48, 0, 1.72, 0, Color3.fromRGB(232, 184, 143))
+	head.Shape = Enum.PartType.Ball
+	np("Bag", 0.55, 0.75, 0.3, 0.55, 0.45, 0, Color3.fromRGB(122, 48, 48))
+	m.Parent = Workspace
+	return m
+end
+-- NPC laeuft in Meter-Koordinaten zu Wegpunkten
+local function npcStep(npc, wpts, state, dt, speed)
+	local target = wpts[state.wp]
+	if not target then return true end
+	local cur = npc.PrimaryPart.Position / M
+	local d = Vector3.new(target.X - cur.X, 0, target.Z - cur.Z)
+	local dist = d.Magnitude
+	if dist &lt; 0.4 then
+		state.wp = state.wp + 1
+		return state.wp &gt; #wpts
+	end
+	d = d.Unit
+	local np = cur + d * (speed or 1.9) * dt
+	local yaw = math.atan2(d.X, d.Z)
+	local bob = math.abs(math.sin(os.clock() * 8)) * 0.06
+	npc:PivotTo(CFrame.new(np.X * M, bob * M, np.Z * M) * CFrame.Angles(0, yaw + math.pi, 0))
+	return false
+end
+
+---------------------------------------------------------------- JOB 1 · CHECK-IN
+local NAMES = { "Anna Berger", "Jonas Weber", "Mia Schulz", "Leon Fischer", "Emma Wagner", "Paul Becker",
+	"Lena Hoffmann", "Finn Schäfer", "Marie Koch", "Luca Bauer", "Sofia Richter", "Noah Klein",
+	"Clara Wolf", "Elias Neumann", "Laura Schwarz", "Tim Zimmermann", "Nina Braun", "Jan Krüger" }
+
+local checkin = { active = false, index = 0, correct = 0, earned = 0, npc = nil, npcState = "none", wpts = {}, wp = 1, current = nil, queue = {} }
+
+local function genShiftCases()
+	local open, closed = {}, {}
+	for _, f in ipairs(FLIGHTS) do
+		if f.status == "CLOSED" then table.insert(closed, f) else table.insert(open, f) end
+	end
+	local nErr = math.random(2, 3)
+	local pool = { "name", "closed", "unknown", "overweight" }
+	local types = {}
+	for i = 1, nErr do table.insert(types, pool[math.random(4)]) end
+	for i = nErr + 1, 8 do table.insert(types, "ok") end
+	for i = #types, 2, -1 do
+		local j = math.random(i)
+		types[i], types[j] = types[j], types[i]
+	end
+	local used, cases = {}, {}
+	for _, tp in ipairs(types) do
+		local name
+		repeat name = NAMES[math.random(#NAMES)] until not used[name]
+		used[name] = true
+		local c = { type = tp, name = name, passName = name, flight = open[math.random(#open)], weight = math.random(9, 22) }
+		if tp == "name" then
+			local other
+			repeat other = NAMES[math.random(#NAMES)] until other ~= name
+			c.passName = other
+		elseif tp == "closed" and #closed &gt; 0 then
+			c.flight = closed[math.random(#closed)]
+		elseif tp == "unknown" then
+			c.flight = { code = "XQ " .. math.random(100, 999), dest = "LISSABON", time = "15:35", status = nil }
+		elseif tp == "overweight" then
+			c.weight = math.random(24, 32)
+		end
+		table.insert(cases, c)
+	end
+	return cases
+end
+
+local spawnPassenger -- forward
+local function endCheckin()
+	checkin.active = false
+	S.job = nil
+	local allOk = checkin.correct == 8
+	if allOk then addCredits(100) end
+	showPanel(function(p)
+		local t = label(p, "Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
+		t.Font = Enum.Font.GothamBold
+		label(p, checkin.correct .. " / 8 korrekt abgefertigt\nVerdient: " .. checkin.earned .. " Credits" ..
+			(allOk and "\nPerfekte Schicht! +100 Bonus" or ""),
+			UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 90), TXT, 15)
+		button(p, "Neue Schicht", UDim2.new(0, 20, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel()
+			startCheckin()
+		end)
+		button(p, "Feierabend", UDim2.new(0, 185, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(60, 70, 85), function()
+			hidePanel()
+			setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+		end)
+	end)
+	setJobHUD("Arbeitslos", "Schicht vorbei.")
+end
+
+spawnPassenger = function()
+	if checkin.index &gt;= 8 then endCheckin() return end
+	checkin.current = checkin.queue[checkin.index + 1]
+	checkin.npc = makeNPC()
+	checkin.npc:PivotTo(CFrame.new(-4 * M, 0, 297 * M))
+	checkin.npcState = "walkin"
+	checkin.wpts = { Vector3.new(-25, 0, 288), Vector3.new(-45, 0, 250), Vector3.new(-45, 0, 255.2) }
+	checkin.wp = 1
+	setJobHUD("CHECK-IN-AGENT", "Passagier " .. (checkin.index + 1) .. "/8 kommt zum Schalter …")
+end
+
+function startCheckin()
+	checkin.active = true
+	checkin.index = 0; checkin.correct = 0; checkin.earned = 0
+	checkin.queue = genShiftCases()
+	S.job = "checkin"
+	setJobHUD("CHECK-IN-AGENT", "Fertige 8 Passagiere ab.\nPrüfe Name, Flug &amp; Gepäckgewicht!")
+	spawnPassenger()
+end
+
+local function resolveCheckin(action)
+	hidePanel()
+	local c = checkin.current
+	local bf = findFlight(c.flight.code)
+	local docsOk = c.passName == c.name and bf ~= nil and bf.status ~= "CLOSED"
+	local correct, reason
+	if not docsOk then
+		correct = action == "reject"
+		if c.passName ~= c.name then reason = "Name auf Pass und Ticket stimmen nicht überein!"
+		elseif not bf then reason = "Diesen Flug gibt es gar nicht!"
+		else reason = "Der Flug ist bereits geschlossen!" end
+	elseif c.weight &gt; 23 then
+		correct = action == "fee"
+		reason = "Übergepäck (" .. c.weight .. " kg) – Gebühr fällig."
+	else
+		correct = action == "accept"
+		reason = "Alles in Ordnung – Passagier war gültig."
+	end
+	if correct then
+		local pay = 60 + (action == "fee" and 50 or 0)
+		checkin.correct = checkin.correct + 1
+		checkin.earned = checkin.earned + pay
+		addCredits(pay); addXP(12)
+		toast("✔ Richtig! +" .. pay .. " Credits · " .. reason, "good")
+	else
+		addCredits(-40)
+		toast("✘ Falsch! −40 Credits · " .. reason, "bad")
+	end
+	local leaveTo = (docsOk and (action == "accept" or action == "fee")) and Vector3.new(34, 0, 250) or Vector3.new(-4, 0, 299)
+	checkin.wpts = { Vector3.new(-38, 0, 250), leaveTo }
+	checkin.wp = 1
+	checkin.npcState = "leave"
+end
+
+local function openCheckinPanel()
+	local c = checkin.current
+	local bf = findFlight(c.flight.code)
+	local boardTxt
+	if bf then
+		boardTxt = bf.code .. " → " .. bf.dest .. " · " .. bf.time .. " · " .. bf.status
+	else
+		boardTxt = "Flug nicht auf der Tafel!"
+	end
+	showPanel(function(p)
+		local t = label(p, "Passagier " .. (checkin.index + 1) .. "/8", UDim2.new(0, 20, 0, 12), UDim2.new(1, -40, 0, 24), CYAN, 19)
+		t.Font = Enum.Font.GothamBold
+		label(p, "✈ TICKET", UDim2.new(0, 20, 0, 44), UDim2.new(0, 210, 0, 16), GREY, 12)
+		label(p, c.name .. "\nFlug " .. c.flight.code .. " nach " .. c.flight.dest .. "\nAbflug " .. c.flight.time,
+			UDim2.new(0, 20, 0, 62), UDim2.new(0, 210, 0, 62), TXT, 14)
+		label(p, "🛂 REISEPASS", UDim2.new(0, 250, 0, 44), UDim2.new(0, 200, 0, 16), GREY, 12)
+		label(p, c.passName .. "\nGültig · Foto passt", UDim2.new(0, 250, 0, 62), UDim2.new(0, 200, 0, 62), TXT, 14)
+		label(p, "🧳 GEPÄCK AUF DER WAAGE", UDim2.new(0, 20, 0, 134), UDim2.new(1, -40, 0, 16), GREY, 12)
+		label(p, c.weight .. " kg  (Freigepäck: 23 kg" .. (c.weight &gt; 23 and (" · " .. (c.weight - 23) .. " kg zu viel!") or "") .. ")",
+			UDim2.new(0, 20, 0, 152), UDim2.new(1, -40, 0, 22), c.weight &gt; 23 and REDC or GREEN, 15)
+		label(p, "🖥 ABFLUGTAFEL SAGT", UDim2.new(0, 20, 0, 186), UDim2.new(1, -40, 0, 16), GREY, 12)
+		label(p, boardTxt, UDim2.new(0, 20, 0, 204), UDim2.new(1, -40, 0, 22),
+			(bf and bf.status ~= "CLOSED") and GREEN or REDC, 15)
+		button(p, "Einchecken", UDim2.new(0, 20, 1, -60), UDim2.new(0, 135, 0, 42), Color3.fromRGB(40, 110, 60), function()
+			resolveCheckin("accept")
+		end)
+		if c.weight &gt; 23 then
+			button(p, "Gebühr (50 Cr) + Check-in", UDim2.new(0, 165, 1, -60), UDim2.new(0, 175, 0, 42), Color3.fromRGB(140, 110, 30), function()
+				resolveCheckin("fee")
+			end)
+		end
+		button(p, "Abweisen", UDim2.new(1, -140, 1, -60), UDim2.new(0, 120, 0, 42), Color3.fromRGB(130, 50, 50), function()
+			resolveCheckin("reject")
+		end)
+	end)
+end
+
+local function updateCheckin(dt)
+	if not checkin.active or not checkin.npc then return end
+	if checkin.npcState == "walkin" then
+		if npcStep(checkin.npc, checkin.wpts, checkin, dt) then
+			checkin.npcState = "waiting"
+			setJobHUD("CHECK-IN-AGENT", "Passagier " .. (checkin.index + 1) .. "/8 wartet.\nGeh hinter den Schalter und drücke E.")
+		end
+	elseif checkin.npcState == "leave" then
+		if npcStep(checkin.npc, checkin.wpts, checkin, dt, 2.2) then
+			checkin.npc:Destroy()
+			checkin.npc = nil
+			checkin.index = checkin.index + 1
+			task.delay(0.7, spawnPassenger)
+		end
+	end
+end
+
+---------------------------------------------------------------- JOB 2 · RAMP AGENT
+local JETS = {
+	{ name = "LH 452 · MÜNCHEN", color = Color3.fromRGB(58, 111, 232), x = -40, z = 165 },
+	{ name = "EW 771 · WIEN", color = Color3.fromRGB(224, 120, 32), x = 40, z = 165 },
+}
+local BELT = { x = -20, z1 = 255, z2 = 196 }
+local ramp = { active = false, cases = {}, spawned = 0, delivered = 0, deliveredOk = 0, timer = 0, carrying = nil, spawnT = 0, collideCd = 0 }
+
+local function makeCase(jetIdx)
+	local p = Instance.new("Part")
+	p.Name = "Suitcase"
+	p.Anchored = true
+	p.CanCollide = false
+	p.Material = Enum.Material.SmoothPlastic
+	p.Size = Vector3.new(0.72 * M, 0.52 * M, 0.44 * M)
+	p.Color = JETS[jetIdx].color
+	p.CFrame = CFrame.new(BELT.x * M, 1.35 * M, (BELT.z1 - 1) * M)
+	p.Parent = Workspace
+	return { obj = p, jetIdx = jetIdx, state = "belt", beltZ = BELT.z1 - 1 }
+end
+
+local function nearestCase()
+	local pp = playerPosM()
+	local best, bd = nil, 2.6
+	for _, c in ipairs(ramp.cases) do
+		if c.state == "queue" then
+			local cp = c.obj.Position / M
+			local d = math.sqrt((pp.X - cp.X) ^ 2 + (pp.Z - cp.Z) ^ 2)
+			if d &lt; bd then bd = d; best = c end
+		end
+	end
+	return best
+end
+
+local function removeCase(c)
+	c.obj:Destroy()
+	for i, cc in ipairs(ramp.cases) do
+		if cc == c then table.remove(ramp.cases, i) break end
+	end
+end
+
+-- Gepaeckwagen-Zustand (kinematisch, Meter)
+local cartModel = airport:WaitForChild("Cart")
+local cart = { pos = cartModel:GetPivot().Position / M, yaw = 0.4, vel = Vector3.new(), load = {} }
+local CART_SLOTS = {}
+for i = 0, 5 do
+	table.insert(CART_SLOTS, Vector3.new((i % 2 == 0) and -0.6 or 0.6, 1.45, -(0.35 + math.floor(i / 2) * 1.0)))
+end
+
+local function deliverAtJet(jetIdx, items)
+	local okPay, badPay = 0, 0
+	for _, c in ipairs(items) do
+		ramp.delivered = ramp.delivered + 1
+		if c.jetIdx == jetIdx then
+			ramp.deliveredOk = ramp.deliveredOk + 1
+			okPay = okPay + 40
+		else
+			badPay = badPay + 30
+		end
+		removeCase(c)
+	end
+	if okPay &gt; 0 then addCredits(okPay); addXP(math.floor(okPay / 5)); toast("✔ Gepäck verladen: +" .. okPay .. " Credits", "good") end
+	if badPay &gt; 0 then addCredits(-badPay); toast("✘ Falscher Flieger! −" .. badPay .. " Credits", "bad") end
+end
+
+local function endRamp()
+	if not ramp.active then return end
+	ramp.active = false
+	S.job = nil
+	setTimerHUD(nil)
+	for _, c in ipairs(ramp.cases) do c.obj:Destroy() end
+	ramp.cases = {}
+	ramp.carrying = nil
+	cart.load = {}
+	local perfect = ramp.deliveredOk == 8
+	local bonus = (perfect and ramp.timer &gt; 0) and 80 or 0
+	if bonus &gt; 0 then addCredits(bonus) end
+	showPanel(function(p)
+		local t = label(p, "Gepäck-Welle beendet", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
+		t.Font = Enum.Font.GothamBold
+		label(p, ramp.deliveredOk .. " / 8 Koffer richtig verladen" ..
+			(bonus &gt; 0 and ("\nRechtzeitig &amp; fehlerfrei: +" .. bonus .. " Bonus!") or ""),
+			UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 70), TXT, 15)
+		button(p, "Nächste Welle", UDim2.new(0, 20, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel(); startRamp()
+		end)
+		button(p, "Feierabend", UDim2.new(0, 185, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(60, 70, 85), function()
+			hidePanel()
+			setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+		end)
+	end)
+end
+
+function startRamp()
+	ramp.active = true
+	ramp.cases = {}; ramp.spawned = 0; ramp.delivered = 0; ramp.deliveredOk = 0
+	ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = nil
+	cart.load = {}
+	S.job = "ramp"
+	setJobHUD("RAMP AGENT", "Bring 8 Koffer zu den richtigen Jets!\nBLAU → LH 452 (links) · ORANGE → EW 771 (rechts)")
+end
+
+local function updateRamp(dt)
+	if not ramp.active then return end
+	ramp.timer = ramp.timer - dt
+	setTimerHUD(math.max(0, ramp.timer))
+	if ramp.timer &lt;= 0 then endRamp() return end
+	if ramp.spawned &lt; 8 then
+		ramp.spawnT = ramp.spawnT - dt
+		if ramp.spawnT &lt;= 0 then
+			table.insert(ramp.cases, makeCase(math.random(1, 2)))
+			ramp.spawned = ramp.spawned + 1
+			ramp.spawnT = 5
+		end
+	end
+	local qCount = 0
+	for _, c in ipairs(ramp.cases) do
+		if c.state == "belt" then
+			c.beltZ = c.beltZ - 2.5 * dt
+			local stopZ = BELT.z2 + 1 + qCount * 1.1
+			if c.beltZ &lt;= stopZ then
+				c.beltZ = stopZ
+				c.state = "queue"
+			end
+			c.obj.CFrame = CFrame.new(BELT.x * M, 1.35 * M, c.beltZ * M)
+			qCount = qCount + 1
+		elseif c.state == "queue" then
+			qCount = qCount + 1
+		end
+	end
+	if ramp.delivered &gt;= 8 then endRamp() end
+end
+
+---------------------------------------------------------------- Gepaeckwagen fahren
+-- 2D-Kollisionsboxen in Metern {x1,z1,x2,z2}: Jets, Flugzeug-Stand, Tower, Hangar
+local CART_COLLIDERS = {
+	{ -53, 150, -27, 183 }, { 27, 150, 53, 183 },   -- Jets
+	{ 124, 158, 136, 172 },                          -- Spieler-Flugzeug
+	{ -134, 246, -126, 254 },                        -- Tower
+	{ 211, 185, 249, 215 },                          -- Hangar
+}
+local function cartCollide(pos, r)
+	local hit = false
+	local x, z = pos.X, pos.Z
+	for _, c in ipairs(CART_COLLIDERS) do
+		local nx = clamp(x, c[1], c[3])
+		local nz = clamp(z, c[2], c[4])
+		local dx, dz = x - nx, z - nz
+		local d2 = dx * dx + dz * dz
+		if d2 &lt; r * r then
+			local d = math.sqrt(d2)
+			if d &lt; 0.001 then dx, d = 1, 1 end
+			x = nx + dx / d * r
+			z = nz + dz / d * r
+			hit = true
+		end
+	end
+	return Vector3.new(x, pos.Y, z), hit
+end
+
+local function enterCart()
+	S.mode = "cart"
+	setCharacterHidden(true)
+	camera.CameraType = Enum.CameraType.Scriptable
+end
+local function exitCart()
+	S.mode = "walk"
+	setCharacterHidden(false)
+	camera.CameraType = Enum.CameraType.Custom
+	local f = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
+	local side = Vector3.new(-f.Z, 0, f.X)
+	local out = (cart.pos + side * 2.4) * M
+	local r = hrp()
+	if r then r.CFrame = CFrame.new(out.X, 3.2, out.Z) end
+end
+
+local function updateCart(dt)
+	if S.mode ~= "cart" then
+		cart.vel = cart.vel * math.exp(-2 * dt)
+		return
+	end
+	local fwd = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
+	local right = Vector3.new(fwd.Z, 0, -fwd.X)
+	local acc = 0
+	if keys[Enum.KeyCode.W] then acc = acc + 7 end
+	if keys[Enum.KeyCode.S] then acc = acc - 5 end
+	cart.vel = cart.vel + fwd * acc * dt
+	local fs = cart.vel:Dot(fwd)
+	local ls = cart.vel:Dot(right)
+	local steer = 0
+	if keys[Enum.KeyCode.A] then steer = steer + 1 end
+	if keys[Enum.KeyCode.D] then steer = steer - 1 end
+	cart.yaw = cart.yaw + steer * 1.7 * clamp(fs / 5, -1, 1) * dt
+	ls = ls * math.exp(-3.2 * dt)           -- leichtes Driften
+	fs = clamp(fs * math.exp(-0.55 * dt), -5, 11)
+	local f2 = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
+	local r2 = Vector3.new(f2.Z, 0, -f2.X)
+	local speedBefore = cart.vel.Magnitude
+	cart.vel = f2 * fs + r2 * ls
+	cart.pos = cart.pos + cart.vel * dt
+	cart.pos = Vector3.new(clamp(cart.pos.X, -800, 800), 0, clamp(cart.pos.Z, -60, 228))
+	if ramp.collideCd &gt; 0 then ramp.collideCd = ramp.collideCd - dt end
+	local newPos, hit = cartCollide(cart.pos, 1.6)
+	if hit then
+		cart.pos = newPos
+		local nearJet = false
+		for _, j in ipairs(JETS) do
+			if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) &lt; 26 then nearJet = true end
+		end
+		if nearJet and speedBefore &gt; 4 and ramp.collideCd &lt;= 0 then
+			ramp.collideCd = 3
+			addCredits(-30)
+			toast("💥 Kollision mit dem Flugzeug! −30 Credits", "bad")
+		end
+		cart.vel = cart.vel * -0.25
+	end
+	cartModel:PivotTo(CFrame.new(cart.pos * M) * CFrame.Angles(0, cart.yaw, 0))
+	-- Koffer auf der Ladeflaeche mitbewegen
+	local pivot = cartModel:GetPivot()
+	for i, c in ipairs(cart.load) do
+		local s = CART_SLOTS[i]
+		c.obj.CFrame = pivot * CFrame.new(s.X * M, s.Y * M, s.Z * M)
+	end
+	-- Charakter unsichtbar am Wagen halten
+	local r = hrp()
+	if r then r.CFrame = pivot * CFrame.new(0, 2 * M, 1.6 * M) end
+	-- Kamera-Verfolger
+	local camPos = pivot * CFrame.new(0, 4.5 * M, 11 * M)
+	camera.CFrame = CFrame.lookAt(camPos.Position, pivot.Position + Vector3.new(0, 1.5 * M, 0))
+	-- E-Logik im Wagen: abladen oder aussteigen
+	local nearJetIdx = nil
+	for i, j in ipairs(JETS) do
+		if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) &lt; 17 then nearJetIdx = i end
+	end
+	if nearJetIdx and #cart.load &gt; 0 then
+		promptL.Text = "[E]  Gepäck abladen bei " .. JETS[nearJetIdx].name
+		promptF.Visible = true
+		if edge(Enum.KeyCode.E) then
+			local items = {}
+			for _, c in ipairs(cart.load) do table.insert(items, c) end
+			cart.load = {}
+			deliverAtJet(nearJetIdx, items)
+		end
+	else
+		promptL.Text = "[E]  Aussteigen"
+		promptF.Visible = true
+		if edge(Enum.KeyCode.E) then exitCart() end
+	end
+end
+
+---------------------------------------------------------------- JOB 3 · CAPTAIN — Flugphysik
+local planeModel = airport:WaitForChild("PlayerPlane")
+local basePivot = planeModel:GetPivot()
+local partOffsets = {}
+for _, p in ipairs(planeModel:GetChildren()) do
+	if p:IsA("BasePart") then
+		partOffsets[p] = basePivot:ToObjectSpace(p.CFrame)
+	end
+end
+local PLANE_STAND = { x = 130, z = 165, yaw = math.pi }
+
+local plane = {
+	pos = Vector3.new(130, 0, 165), vel = Vector3.new(),
+	yaw = math.pi, pitch = 0, roll = 0,
+	throttle = 0, gearDown = true, gearAnim = 1, brake = false,
+	onGround = true, stalled = false, propSpin = 0,
+	ctl = { pitch = 0, roll = 0, yaw = 0 },
+}
+local PHYS = { thrustAcc = 7.6, drag0 = 0.0021, liftK = 0.0098, stallKt = 50, rotateKt = 55 }
+
+local function planeCF()
+	return CFrame.new(plane.pos.X * M, plane.pos.Y * M, plane.pos.Z * M)
+		* CFrame.fromEulerAnglesYXZ(plane.pitch, plane.yaw, -plane.roll)
+end
+local function planeHeading()
+	local h = math.deg(-plane.yaw) % 360
+	if h &lt; 0 then h = h + 360 end
+	return h
+end
+
+local GEAR_HINGES = {
+	GearN = Vector3.new(0, 1.15, -2.4), GearNW = Vector3.new(0, 1.15, -2.4),
+	GearL = Vector3.new(-1.3, 1.15, 0.3), GearLW = Vector3.new(-1.3, 1.15, 0.3),
+	GearR = Vector3.new(1.3, 1.15, 0.3), GearRW = Vector3.new(1.3, 1.15, 0.3),
+}
+local PROP_HUB = CFrame.new(0, 1.35 * M, -3.5 * M)
+
+local function syncPlaneMesh()
+	local cf = planeCF()
+	local propRot = CFrame.Angles(0, 0, plane.propSpin)
+	local gearRot = CFrame.Angles((1 - plane.gearAnim) * 1.9, 0, 0)
+	for p, off in pairs(partOffsets) do
+		local n = p.Name
+		if n == "Prop1" or n == "Prop2" then
+			p.CFrame = cf * PROP_HUB * propRot * PROP_HUB:Inverse() * off
+		elseif GEAR_HINGES[n] then
+			local h = GEAR_HINGES[n]
+			local hc = CFrame.new(h.X * M, h.Y * M, h.Z * M)
+			p.CFrame = cf * hc * gearRot * hc:Inverse() * off
+			p.Transparency = plane.gearAnim &lt; 0.05 and 1 or 0
+		elseif n == "AilL" then
+			p.CFrame = cf * off * CFrame.Angles(-plane.ctl.roll * 0.55, 0, 0)
+		elseif n == "AilR" then
+			p.CFrame = cf * off * CFrame.Angles(plane.ctl.roll * 0.55, 0, 0)
+		elseif n == "Elev" then
+			p.CFrame = cf * off * CFrame.Angles(plane.ctl.pitch * 0.55, 0, 0)
+		elseif n == "Rud" then
+			p.CFrame = cf * off * CFrame.Angles(0, -plane.ctl.yaw * 0.6, 0)
+		else
+			p.CFrame = cf * off
+		end
+	end
+	-- Charakter unsichtbar mitfuehren
+	if S.mode == "fly" then
+		local r = hrp()
+		if r then r.CFrame = cf * CFrame.new(0, 2 * M, 0) end
+	end
+	return cf
+end
+
+local function resetPlaneToStand()
+	plane.pos = Vector3.new(PLANE_STAND.x, 0, PLANE_STAND.z)
+	plane.vel = Vector3.new()
+	plane.yaw = PLANE_STAND.yaw; plane.pitch = 0; plane.roll = 0
+	plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+	plane.onGround = true; plane.stalled = false
+	plane.ctl.pitch = 0; plane.ctl.roll = 0; plane.ctl.yaw = 0
+	syncPlaneMesh()
+end
+
+---------------------------------------------------------------- PAPI
+local papiModels = { { m = airport:WaitForChild("PAPI09"), x = -450, apprSign = -1 }, { m = airport:WaitForChild("PAPI27"), x = 450, apprSign = 1 } }
+local function updatePapis()
+	local px, py = plane.pos.X, plane.pos.Y
+	for _, p in ipairs(papiModels) do
+		local dist = (p.x - px) * -p.apprSign
+		for i = 1, 4 do
+			local lamp = p.m:FindFirstChild("Lamp" .. i)
+			if lamp then
+				local col = Color3.fromRGB(102, 102, 102)
+				if dist &gt; 60 and py &gt; 2 then
+					local ang = math.deg(math.atan2(py, dist))
+					local th = ({ 3.5, 3.2, 2.8, 2.5 })[i]
+					col = ang &gt; th and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(255, 34, 34)
+				end
+				lamp.Color = col
+			end
+		end
+	end
+end
+
+---------------------------------------------------------------- Missionen
+local MISSIONS = {
+	{ name = "RUNDFLUG", base = 200, windDir = 240, windKt = 4,
+		desc = "5 Checkpoint-Ringe rund um den Flughafen, dann landen. Wenig Wind.",
+		rings = { { 500, -450, 140 }, { -150, -750, 190 }, { -850, -450, 220 }, { -900, 250, 180 }, { -100, 450, 130 } },
+		tdzRequired = false, airStart = false },
+	{ name = "PLATZRUNDE", base = 300, windDir = 150, windKt = 8,
+		desc = "Traffic-Pattern auf ~800 ft: Querabflug → Gegenanflug → Queranflug → Endanflug, dann landen.",
+		rings = { { 450, -350, 240 }, { -250, -650, 240 }, { -1000, -500, 220 }, { -1350, 0, 100 } },
+		tdzRequired = false, airStart = false },
+	{ name = "PRÄZISIONSLANDUNG", base = 500, windDir = 180, windKt = 16,
+		desc = "Kurzer Endanflug bei 16 kt Seitenwind. Aufsetzen exakt in der Aufsetzzone!",
+		rings = {}, tdzRequired = true, airStart = true },
+}
+local flight = { active = false, mIdx = 1, phase = "fly", wpIdx = 1, ringModels = {}, landed = false, landStats = nil }
+
+local function clearRings()
+	for _, r in ipairs(flight.ringModels) do r:Destroy() end
+	flight.ringModels = {}
+end
+local function buildRings(mission)
+	clearRings()
+	for _, r in ipairs(mission.rings) do
+		local x, z, y = r[1], r[2], r[3]
+		local model = Instance.new("Model")
+		model.Name = "Ring"
+		for a = 0, 330, 30 do
+			local rad = math.rad(a)
+			local p = Instance.new("Part")
+			p.Anchored = true
+			p.CanCollide = false
+			p.Material = Enum.Material.Neon
+			p.Color = Color3.fromRGB(48, 213, 255)
+			p.Shape = Enum.PartType.Ball
+			p.Size = Vector3.new(4 * M, 4 * M, 4 * M)
+			p.CFrame = CFrame.new((x + math.cos(rad) * 30) * M, (y + math.sin(rad) * 30) * M, z * M)
+			p.Parent = model
+		end
+		model.Parent = Workspace
+		table.insert(flight.ringModels, model)
+	end
+end
+local function currentTarget()
+	local m = MISSIONS[flight.mIdx]
+	if flight.phase == "fly" and flight.wpIdx &lt;= #m.rings then
+		local r = m.rings[flight.wpIdx]
+		return Vector3.new(r[1], r[3], r[2])
+	end
+	return Vector3.new(TDZ.x1 + 80, 0, 0)
+end
+local function missionObjective()
+	local m = MISSIONS[flight.mIdx]
+	if flight.phase == "fly" then
+		local names = m.name == "PLATZRUNDE" and { "Querabflug", "Gegenanflug", "Queranflug", "Endanflug" } or nil
+		local lbl = names and names[flight.wpIdx] or ("Ring " .. flight.wpIdx .. "/" .. #m.rings)
+		local extra = plane.onGround and "\nVollgas (Shift), bei 55 kt ziehen (S), Fahrwerk G!" or ""
+		return "Nächster Wegpunkt: " .. lbl .. extra
+	end
+	return "Lande auf Runway 09" .. (m.tdzRequired and " – in der Aufsetzzone!" or "") .. "\nPAPI: 2× rot / 2× weiß = Gleitpfad."
+end
+
+-- Flug-HUD-Elemente
+local fhud = Instance.new("Frame")
+fhud.BackgroundTransparency = 1
+fhud.Size = UDim2.fromScale(1, 1)
+fhud.Visible = false
+fhud.Parent = gui
+local fSpd = frame(fhud, UDim2.new(0, 14, 0.5, -46), UDim2.new(0, 110, 0, 92))
+label(fSpd, "SPEED", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
+local fSpdV = label(fSpd, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
+fSpdV.Font = Enum.Font.GothamBold
+label(fSpd, "kt", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
+local fAlt = frame(fhud, UDim2.new(1, -124, 0.5, -46), UDim2.new(0, 110, 0, 92))
+label(fAlt, "ALT (ft)", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
+local fAltV = label(fAlt, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
+fAltV.Font = Enum.Font.GothamBold
+local fVsV = label(fAlt, "0 ft/min", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
+local fHdg = frame(fhud, UDim2.new(0.5, -110, 0, 14), UDim2.new(0, 220, 0, 36))
+local fHdgV = label(fHdg, "HDG 090°", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0), TXT, 18, Enum.TextXAlignment.Center)
+fHdgV.Font = Enum.Font.GothamBold
+local fWpt = frame(fhud, UDim2.new(0.5, -110, 0, 58), UDim2.new(0, 220, 0, 64))
+local fArrow = label(fWpt, "▲", UDim2.new(0.5, -16, 0, 2), UDim2.new(0, 32, 0, 32), CYAN, 26, Enum.TextXAlignment.Center)
+local fWptD = label(fWpt, "", UDim2.new(0, 0, 0, 38), UDim2.new(1, 0, 0, 20), TXT, 13, Enum.TextXAlignment.Center)
+local fBot = frame(fhud, UDim2.new(0.5, -190, 1, -66), UDim2.new(0, 380, 0, 52))
+local fThrV = label(fBot, "SCHUB 0%", UDim2.new(0, 14, 0, 0), UDim2.new(0, 110, 1, 0), GREEN, 14)
+local fGearV = label(fBot, "FAHRWERK ✓", UDim2.new(0, 130, 0, 0), UDim2.new(0, 130, 1, 0), GREEN, 14)
+local fWindV = label(fBot, "WIND --", UDim2.new(0, 265, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
+local fWarn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
+fWarn.Font = Enum.Font.GothamBlack
+
+local function setFlightHUD(on)
+	fhud.Visible = on
+	legend.Visible = true
+end
+
+local function endFlightToApron(msg)
+	flight.active = false
+	clearRings()
+	setWind(210, 4)
+	resetPlaneToStand()
+	S.job = nil
+	S.mode = "walk"
+	setCharacterHidden(false)
+	camera.CameraType = Enum.CameraType.Custom
+	local r = hrp()
+	if r then r.CFrame = CFrame.new(122 * M, 3.5, 174 * M) end
+	setFlightHUD(false)
+	setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+	if msg then toast(msg, "info") end
+end
+
+local function crash(reason)
+	toast("💥 CRASH! " .. reason, "bad")
+	flight.active = false
+	showPanel(function(p)
+		local t = label(p, "CRASH!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 28), REDC, 22)
+		t.Font = Enum.Font.GothamBold
+		label(p, reason .. "\nMission fehlgeschlagen – keine Bezahlung.", UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 60), TXT, 15)
+		button(p, "Zurück zum Vorfeld", UDim2.new(0, 20, 1, -56), UDim2.new(0, 190, 0, 40), Color3.fromRGB(60, 70, 85), function()
+			hidePanel()
+			endFlightToApron()
+		end)
+	end)
+end
+
+local function handleTouchdown(vsFpm)
+	local onRwy = math.abs(plane.pos.Z) &lt;= RWY_W / 2 + 2 and plane.pos.X &gt;= RWY_X1 - 15 and plane.pos.X &lt;= RWY_X2 + 15
+	local gearOk = plane.gearAnim &gt; 0.92
+	if not gearOk then crash("Landung ohne Fahrwerk!") return end
+	if not onRwy then crash("Neben der Runway aufgesetzt!") return end
+	if vsFpm &gt; 1000 then crash("Aufschlag mit " .. math.floor(vsFpm) .. " ft/min!") return end
+	if flight.active and flight.phase == "land" then
+		flight.landed = true
+		flight.landStats = {
+			vsFpm = vsFpm,
+			centerDev = math.abs(plane.pos.Z),
+			inTDZ = plane.pos.X &gt;= TDZ.x1 and plane.pos.X &lt;= TDZ.x2,
+		}
+	elseif flight.active then
+		toast("Aufgesetzt – aber erst alle Wegpunkte abfliegen!", "bad")
+	end
+end
+
+local function rateLanding(st)
+	local m = MISSIONS[flight.mIdx]
+	local stars, notes = 5, {}
+	if st.vsFpm &lt; 200 then
+		table.insert(notes, "🧈 Butterweich (" .. math.floor(st.vsFpm) .. " ft/min)")
+	elseif st.vsFpm &lt;= 600 then
+		stars = stars - 1
+		table.insert(notes, "Okay (" .. math.floor(st.vsFpm) .. " ft/min)")
+	else
+		stars = stars - 2
+		table.insert(notes, "Hart! (" .. math.floor(st.vsFpm) .. " ft/min)")
+	end
+	if st.centerDev &lt;= 3 then
+		table.insert(notes, string.format("Perfekt auf der Centerline (%.1f m)", st.centerDev))
+	elseif st.centerDev &lt;= 7 then
+		stars = stars - 1
+		table.insert(notes, string.format("Leicht neben der Centerline (%.1f m)", st.centerDev))
+	else
+		stars = stars - 2
+		table.insert(notes, string.format("Weit neben der Centerline (%.1f m)", st.centerDev))
+	end
+	if st.inTDZ then
+		table.insert(notes, "Aufsetzzone getroffen ✔")
+	else
+		stars = stars - (m.tdzRequired and 2 or 1)
+		table.insert(notes, "Aufsetzzone verfehlt ✘")
+	end
+	return clamp(stars, 1, 5), notes
+end
+
+local function completeMission()
+	local m = MISSIONS[flight.mIdx]
+	local stars, notes = rateLanding(flight.landStats)
+	local pay = m.base * stars
+	addCredits(pay)
+	addXP(30 * stars)
+	flight.active = false
+	showPanel(function(p)
+		local t = label(p, "Mission geschafft: " .. m.name, UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 19)
+		t.Font = Enum.Font.GothamBold
+		local starTxt = string.rep("★", stars) .. string.rep("☆", 5 - stars)
+		local sl = label(p, starTxt, UDim2.new(0, 20, 0, 46), UDim2.new(1, -40, 0, 40), GOLD, 32)
+		sl.Font = Enum.Font.GothamBold
+		label(p, table.concat(notes, "\n") .. "\n\n+" .. pay .. " Credits (" .. m.base .. " Basis × " .. stars .. " Sterne)",
+			UDim2.new(0, 20, 0, 94), UDim2.new(1, -40, 0, 140), TXT, 15)
+		button(p, "Zurück zum Vorfeld", UDim2.new(0, 20, 1, -56), UDim2.new(0, 190, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel()
+			endFlightToApron()
+		end)
+	end)
+end
+
+function startMission(i)
+	hidePanel()
+	local m = MISSIONS[i]
+	flight.active = true; flight.mIdx = i; flight.wpIdx = 1
+	flight.phase = #m.rings &gt; 0 and "fly" or "land"
+	flight.landed = false; flight.landStats = nil
+	setWind(m.windDir, m.windKt)
+	buildRings(m)
+	S.job = "captain"
+	S.mode = "fly"
+	setCharacterHidden(true)
+	camera.CameraType = Enum.CameraType.Scriptable
+	if m.airStart then
+		plane.pos = Vector3.new(RWY_X1 - 1500, 115, 25)
+		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
+		plane.throttle = 40; plane.gearDown = false; plane.gearAnim = 0
+		plane.onGround = false
+		local cf = planeCF()
+		plane.vel = cf.LookVector * 34 + wind.vec
+	else
+		plane.pos = Vector3.new(RWY_X1 + 25, 0, 0)
+		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
+		plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+		plane.onGround = true
+		plane.vel = Vector3.new()
+	end
+	syncPlaneMesh()
+	fWindV.Text = string.format("WIND %03d°/%dkt", m.windDir, m.windKt)
+	setFlightHUD(true)
+	setJobHUD("CAPTAIN · " .. m.name, missionObjective())
+	toast("Mission gestartet: " .. m.name, "info")
+end
+
+local function openMissionSelect()
+	showPanel(function(p)
+		local t = label(p, "Missionsauswahl · Captain", UDim2.new(0, 20, 0, 12), UDim2.new(1, -40, 0, 24), CYAN, 19)
+		t.Font = Enum.Font.GothamBold
+		for i, m in ipairs(MISSIONS) do
+			local y = 20 + i * 88
+			local f = frame(p, UDim2.new(0, 16, 0, y), UDim2.new(1, -32, 0, 80), 0.4)
+			f.ZIndex = 7
+			local h = label(f, i .. ". " .. m.name .. "  ·  bis " .. (m.base * 5) .. " Cr", UDim2.new(0, 12, 0, 6), UDim2.new(1, -24, 0, 18), GOLD, 15)
+			h.ZIndex = 8; h.Font = Enum.Font.GothamBold
+			local d = label(f, m.desc .. string.format("  (Wind %03d°/%d kt)", m.windDir, m.windKt), UDim2.new(0, 12, 0, 26), UDim2.new(1, -24, 0, 50), TXT, 13)
+			d.ZIndex = 8
+			local b = button(f, "Start", UDim2.new(1, -70, 0, 24), UDim2.new(0, 58, 0, 32), Color3.fromRGB(40, 110, 60), function()
+				startMission(i)
+			end)
+			b.ZIndex = 9
+		end
+		button(p, "Abbrechen", UDim2.new(0, 20, 1, -50), UDim2.new(0, 130, 0, 36), Color3.fromRGB(60, 70, 85), hidePanel)
+	end)
+end
+
+---------------------------------------------------------------- Flugphysik-Update (deltaTime)
+local function updateFlightPhysics(dt)
+	local p = plane
+	local tP = (keys[Enum.KeyCode.S] and 1 or 0) - (keys[Enum.KeyCode.W] and 1 or 0) -- S = ziehen
+	local tR = (keys[Enum.KeyCode.D] and 1 or 0) - (keys[Enum.KeyCode.A] and 1 or 0)
+	local tY = (keys[Enum.KeyCode.E] and 1 or 0) - (keys[Enum.KeyCode.Q] and 1 or 0)
+	p.ctl.pitch = damp(p.ctl.pitch, tP, 6, dt)
+	p.ctl.roll = damp(p.ctl.roll, tR, 6, dt)
+	p.ctl.yaw = damp(p.ctl.yaw, tY, 6, dt)
+	if keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift] then
+		p.throttle = clamp(p.throttle + 45 * dt, 0, 100)
+	end
+	if keys[Enum.KeyCode.LeftControl] or keys[Enum.KeyCode.RightControl] then
+		p.throttle = clamp(p.throttle - 45 * dt, 0, 100)
+	end
+	p.brake = keys[Enum.KeyCode.B] == true
+	if edge(Enum.KeyCode.G) then
+		if p.onGround and p.gearDown then
+			toast("Fahrwerk am Boden nicht einfahrbar!", "bad")
+		else
+			p.gearDown = not p.gearDown
+		end
+	end
+	p.gearAnim = clamp(p.gearAnim + (p.gearDown and 1 or -1) * dt / 1.2, 0, 1)
+
+	local cf = planeCF()
+	local fwd, up = cf.LookVector, cf.UpVector
+	local vAir = p.vel - wind.vec
+	local speed = vAir.Magnitude
+	local kt = speed * KT
+	local eff = clamp(kt / 75, 0, 1.35)
+
+	if not p.onGround then
+		local auth = p.stalled and 0.35 or 1
+		p.roll = clamp(p.roll + p.ctl.roll * 2.0 * eff * auth * dt, -1.25, 1.25)
+		p.pitch = clamp(p.pitch + p.ctl.pitch * 0.85 * eff * auth * dt, -0.7, 0.55)
+		p.yaw = p.yaw - p.ctl.yaw * 0.55 * eff * dt
+		if speed &gt; 8 then
+			p.yaw = p.yaw - math.tan(clamp(p.roll, -1.2, 1.2)) * 9.81 / math.max(speed, 18) * dt
+		end
+	else
+		local gs = p.vel.Magnitude
+		p.yaw = p.yaw + (-p.ctl.yaw) * 1.1 * clamp(gs / 4, 0, 1) * clamp(1.6 - gs / 26, 0.22, 1) * dt
+		p.roll = damp(p.roll, 0, 6, dt)
+		if kt &gt;= PHYS.rotateKt and p.ctl.pitch &gt; 0.15 then
+			p.pitch = clamp(p.pitch + 0.55 * dt, 0, 0.28)
+		else
+			p.pitch = damp(p.pitch, 0, 4, dt)
+		end
+	end
+
+	local acc = fwd * (p.throttle / 100 * PHYS.thrustAcc)
+	local gamma = speed &gt; 2 and math.asin(clamp(vAir.Y / speed, -1, 1)) or 0
+	local aoa = p.pitch - gamma
+	local cl = clamp(0.35 + aoa * 4.6, -0.6, 1.7)
+	p.stalled = (not p.onGround) and kt &lt; PHYS.stallKt and p.pos.Y &gt; 1.5
+	if p.stalled then
+		cl = cl * 0.45
+		p.pitch = p.pitch - 0.7 * dt
+		p.roll = p.roll + math.sin(os.clock() * 10) * 0.25 * dt
+	end
+	local liftAcc = clamp(cl * speed * speed * PHYS.liftK, -6, 26)
+	acc = acc + up * liftAcc
+	if speed &gt; 0.5 then
+		local dragK = PHYS.drag0 * (1 + 1.6 * cl * cl) + p.gearAnim * 0.0006
+		acc = acc - vAir.Unit * (dragK * speed * speed)
+	end
+	acc = acc + Vector3.new(0, -9.81, 0)
+
+	vAir = vAir + acc * dt
+	if not p.onGround then
+		local hv = Vector3.new(vAir.X, 0, vAir.Z)
+		local fh = Vector3.new(fwd.X, 0, fwd.Z)
+		if fh.Magnitude &gt; 0.01 then
+			fh = fh.Unit
+			local rh = Vector3.new(fh.Z, 0, -fh.X)
+			local fs = hv:Dot(fh)
+			local ss = hv:Dot(rh) * math.exp(-1.6 * dt)
+			vAir = Vector3.new(fh.X * fs + rh.X * ss, vAir.Y, fh.Z * fs + rh.Z * ss)
+		end
+	end
+	p.vel = vAir + wind.vec
+
+	if p.onGround then
+		local fh = Vector3.new(fwd.X, 0, fwd.Z).Unit
+		local fs = p.vel:Dot(fh)
+		local fr = 0.35 + (p.brake and 5.5 or 0)
+		if fs &gt; 0 then fs = math.max(0, fs - fr * dt) else fs = math.min(0, fs + fr * dt) end
+		local vy = 0
+		if liftAcc &gt; 9.81 then vy = math.max(0, vAir.Y) end
+		p.vel = fh * fs + Vector3.new(0, vy, 0)
+	end
+
+	p.pos = p.pos + p.vel * dt
+
+	local gh = p.gearAnim &gt; 0.5 and 0 or -0.55
+	local sink = -p.vel.Y
+	if p.pos.Y &lt;= gh and p.vel.Y &lt;= 0 then
+		if not p.onGround then
+			handleTouchdown(sink * FPM)
+		end
+		p.pos = Vector3.new(p.pos.X, gh, p.pos.Z)
+		p.onGround = true
+		p.vel = Vector3.new(p.vel.X, 0, p.vel.Z)
+	elseif p.pos.Y &gt; gh + 0.05 then
+		p.onGround = false
+	end
+
+	p.propSpin = p.propSpin + (2 + p.throttle * 0.55) * dt * 10
+	syncPlaneMesh()
+	updatePapis()
+end
+
+local function updateMission(dt)
+	if not flight.active then return end
+	local m = MISSIONS[flight.mIdx]
+	if flight.phase == "fly" then
+		local t = currentTarget()
+		if (plane.pos - t).Magnitude &lt; 45 then
+			local ring = flight.ringModels[flight.wpIdx]
+			if ring then
+				for _, part in ipairs(ring:GetChildren()) do
+					part.Color = Color3.fromRGB(84, 208, 106)
+					part.Transparency = 0.7
+				end
+			end
+			flight.wpIdx = flight.wpIdx + 1
+			if flight.wpIdx &gt; #m.rings then
+				flight.phase = "land"
+				toast("Alle Wegpunkte! Jetzt landen – Runway 09.", "good")
+			else
+				toast("Wegpunkt " .. (flight.wpIdx - 1) .. "/" .. #m.rings .. " ✔", "good")
+			end
+			setJobHUD("CAPTAIN · " .. m.name, missionObjective())
+		end
+	elseif flight.landed then
+		if plane.onGround and plane.vel.Magnitude &lt; 2.5 then
+			flight.landed = false
+			completeMission()
+		elseif not plane.onGround and plane.pos.Y &gt; 8 then
+			flight.landed = false
+		end
+	end
+	if edge(Enum.KeyCode.R) then
+		endFlightToApron("Mission abgebrochen – zurück am Vorfeld.")
+	end
+end
+
+local function updateFlightHUD()
+	local vAir = plane.vel - wind.vec
+	fSpdV.Text = tostring(math.floor(vAir.Magnitude * KT + 0.5))
+	fAltV.Text = tostring(math.max(0, math.floor(plane.pos.Y * FT + 0.5)))
+	local vs = math.floor(plane.vel.Y * FPM / 10 + 0.5) * 10
+	fVsV.Text = (vs &gt; 0 and "+" or "") .. vs .. " ft/min"
+	fHdgV.Text = string.format("HDG %03d°", math.floor(planeHeading() + 0.5) % 360)
+	fThrV.Text = "SCHUB " .. math.floor(plane.throttle) .. "%"
+	if plane.gearAnim &gt; 0.95 then
+		fGearV.Text = "FAHRWERK ✓"
+		fGearV.TextColor3 = GREEN
+	elseif plane.gearAnim &lt; 0.05 then
+		fGearV.Text = "FAHRWERK EIN"
+		fGearV.TextColor3 = GREY
+	else
+		fGearV.Text = "FAHRWERK …"
+		fGearV.TextColor3 = GOLD
+	end
+	local warn = {}
+	if plane.stalled then table.insert(warn, "STALL") end
+	if flight.active and flight.phase == "land" and plane.pos.Y &lt; 150 and plane.vel.Y &lt; 0 and not plane.onGround and plane.gearAnim &lt; 0.95 then
+		table.insert(warn, "GEAR!")
+	end
+	fWarn.Text = table.concat(warn, "   ")
+	fWarn.Visible = #warn &gt; 0 and (math.floor(os.clock() * 3) % 2 == 0)
+	if flight.active then
+		local t = currentTarget()
+		local dx, dz = t.X - plane.pos.X, t.Z - plane.pos.Z
+		local brg = math.deg(math.atan2(dx, -dz)) % 360
+		local rel = (brg - planeHeading() + 540) % 360 - 180
+		fArrow.Rotation = rel
+		local dist = math.sqrt(dx * dx + dz * dz)
+		local what = flight.phase == "fly" and "Wegpunkt" or "Runway 09"
+		if dist &gt; 1000 then
+			fWptD.Text = what .. " · " .. string.format("%.1f km", dist / 1000)
+		else
+			fWptD.Text = what .. " · " .. math.floor(dist) .. " m"
+		end
+	end
+end
+
+local camP = Vector3.new(0, 10, 0)
+local function updateFlightCamera(dt)
+	if edge(Enum.KeyCode.C) then
+		S.camMode = S.camMode == "chase" and "cockpit" or "chase"
+	end
+	local cf = planeCF()
+	if S.camMode == "cockpit" then
+		camera.CFrame = cf * CFrame.new(0, 1.95 * M, 0.55 * M)
+		return
+	end
+	local fwd = cf.LookVector
+	local fh = Vector3.new(fwd.X, 0, fwd.Z)
+	if fh.Magnitude &gt; 0.01 then fh = fh.Unit end
+	local wantM = plane.pos - fh * 16 + Vector3.new(0, 5.5, 0)
+	local want = Vector3.new(wantM.X * M, math.max(wantM.Y, 1.2) * M, wantM.Z * M)
+	local k = 1 - math.exp(-4.2 * dt)
+	camP = camP:Lerp(want, k)
+	local look = (plane.pos + fwd * 12) * M + cf.UpVector * 1.5 * M
+	camera.CFrame = CFrame.lookAt(camP, look)
+end
+
+---------------------------------------------------------------- Windsack · Deko-Verkehr · Ambient-NPCs
+local sockPart = airport:WaitForChild("Windsock"):WaitForChild("Sock")
+local function updateWindsock()
+	local toDir = math.rad(wind.dir + 180)
+	local liftT = clamp(wind.speed / 8, 0.06, 1)
+	local droop = -(1 - liftT) * 1.25 + math.sin(os.clock() * 4) * 0.06 * (1.2 - liftT)
+	sockPart.CFrame = CFrame.new(-200 * M, 7.8 * M, 55 * M)
+		* CFrame.Angles(0, -toDir, 0)
+		* CFrame.Angles(droop, 0, 0)
+		* CFrame.new(0, 0, -1.9 * M)
+end
+
+local trafficJet = airport:WaitForChild("TrafficJet")
+local traffic = { state = "idle", t = 0, nextT = 12, takeoff = true }
+local function updateTraffic(dt)
+	if traffic.state == "idle" then
+		traffic.nextT = traffic.nextT - dt
+		if traffic.nextT &lt;= 0 then
+			traffic.state = traffic.takeoff and "to" or "ldg"
+			traffic.takeoff = not traffic.takeoff
+			traffic.t = 0
+			traffic.nextT = 90
+		end
+		return
+	end
+	traffic.t = traffic.t + dt
+	local x, y, pitch, yaw
+	if traffic.state == "to" then
+		local v0, a = 4, 3.2
+		x = -700 + v0 * traffic.t + 0.5 * a * traffic.t * traffic.t
+		local spd = v0 + a * traffic.t
+		yaw = -math.pi / 2
+		if spd &gt; 68 then
+			local tc = traffic.t - (68 - v0) / a
+			y = math.min(300, 0.5 * 9 * tc * tc * 0.35 + tc * 8)
+			pitch = 0.14
+		else
+			y = 0; pitch = 0
+		end
+		if x &gt; 2600 then
+			traffic.state = "idle"
+			trafficJet:PivotTo(CFrame.new(0, 0, -4000 * M))
+			return
+		end
+	else
+		x = 2400 - 70 * traffic.t
+		yaw = math.pi / 2
+		y = x &gt; 620 and (x - 620) * 0.052 or 0
+		pitch = 0
+		if x &lt; -680 then
+			traffic.state = "idle"
+			trafficJet:PivotTo(CFrame.new(0, 0, -4000 * M))
+			return
+		end
+	end
+	trafficJet:PivotTo(CFrame.new(x * M, y * M, 0) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0))
+end
+
+-- Ambient-NPCs in der Halle
+local ambient = {}
+for i = 1, 6 do
+	local npc = makeNPC()
+	local st = { npc = npc, wpts = { Vector3.new(math.random(-50, 55), 0, math.random(240, 294)) }, wp = 1, wait = math.random(0, 4) }
+	npc:PivotTo(CFrame.new(math.random(-50, 55) * M, 0, math.random(240, 294) * M))
+	table.insert(ambient, st)
+end
+local function updateAmbient(dt)
+	for _, a in ipairs(ambient) do
+		if a.wait &gt; 0 then
+			a.wait = a.wait - dt
+			if a.wait &lt;= 0 then
+				a.wpts = { Vector3.new(math.random(-50, 55), 0, math.random(240, 294)) }
+				a.wp = 1
+			end
+		else
+			if npcStep(a.npc, a.wpts, a, dt, 1.5) then
+				a.wait = math.random(2, 8)
+			end
+		end
+	end
+end
+
+---------------------------------------------------------------- Stationen (E-Interaktionen)
+addInteract({
+	x = function() return -45 end, z = function() return 260.7 end, r = 3.6,
+	cond = function() return S.mode == "walk" and S.job ~= "ramp" and S.job ~= "captain" end,
+	label = function()
+		if checkin.active then
+			return checkin.npcState == "waiting" and "Passagier abfertigen" or "Warten auf Passagier …"
+		end
+		return "Check-in-Schicht starten"
+	end,
+	action = function()
+		if checkin.active then
+			if checkin.npcState == "waiting" then openCheckinPanel() end
+			return
+		end
+		showTutorial("checkin", "JOB: Check-in-Agent",
+			"Passagiere kommen zu deinem Schalter. Prüfe:\n· Name auf Ticket und Pass muss übereinstimmen\n· Der Flug muss auf der Tafel stehen und offen sein (nicht CLOSED)\n· Gepäck über 23 kg → Übergepäck-Gebühr kassieren\n\nRichtig = Credits + XP · Fehler durchgewunken = Abzug!",
+			startCheckin)
+	end,
+})
+addInteract({
+	x = function() return -14 end, z = function() return 192 end, r = 4,
+	cond = function() return S.mode == "walk" and not checkin.active and S.job ~= "captain" end,
+	label = function()
+		if ramp.active then return "Welle läuft …" end
+		if S.credits &gt;= UNLOCK_RAMP then return "Gepäck-Schicht starten (Ramp Agent)" end
+		return "Ramp Agent – gesperrt (" .. UNLOCK_RAMP .. " Credits nötig)"
+	end,
+	action = function()
+		if ramp.active then return end
+		if S.credits &lt; UNLOCK_RAMP then
+			toast("Du brauchst " .. UNLOCK_RAMP .. " Credits für diesen Job!", "bad")
+			return
+		end
+		showTutorial("ramp", "JOB: Ramp Agent",
+			"Koffer kommen aufs Band – farbcodiert:\n· BLAU → LH 452 (linker Jet) · ORANGE → EW 771 (rechter Jet)\n· E: Koffer aufnehmen, am Wagen E: aufladen (max. 6)\n· In den Wagen einsteigen (E), zum Jet fahren, dort abladen\n· Kollision mit einem Flugzeug kostet Credits!\n\n8 Koffer in 3 Minuten – fehlerfrei &amp; rechtzeitig gibt Bonus.",
+			startRamp)
+	end,
+})
+addInteract({
+	x = function()
+		local c = nearestCase()
+		return c and c.obj.Position.X / M or 99999
+	end,
+	z = function()
+		local c = nearestCase()
+		return c and c.obj.Position.Z / M or 99999
+	end,
+	r = 2.6,
+	cond = function() return S.mode == "walk" and ramp.active and not ramp.carrying end,
+	label = function() return "Koffer aufnehmen" end,
+	action = function()
+		local c = nearestCase()
+		if not c then return end
+		c.state = "carried"
+		ramp.carrying = c
+	end,
+})
+addInteract({
+	x = function() return cart.pos.X end, z = function() return cart.pos.Z end, r = 3.6,
+	cond = function() return S.mode == "walk" and ramp.carrying ~= nil end,
+	label = function()
+		return #cart.load &lt; 6 and ("Auf Wagen laden (" .. #cart.load .. "/6)") or "Wagen ist voll!"
+	end,
+	action = function()
+		if #cart.load &gt;= 6 then return end
+		local c = ramp.carrying
+		ramp.carrying = nil
+		c.state = "cart"
+		table.insert(cart.load, c)
+		local s = CART_SLOTS[#cart.load]
+		c.obj.CFrame = cartModel:GetPivot() * CFrame.new(s.X * M, s.Y * M, s.Z * M)
+	end,
+})
+for i, j in ipairs(JETS) do
+	addInteract({
+		x = function() return j.x end, z = function() return j.z end, r = 14,
+		cond = function() return S.mode == "walk" and ramp.carrying ~= nil end,
+		label = function() return "Koffer abgeben bei " .. j.name end,
+		action = function()
+			local c = ramp.carrying
+			ramp.carrying = nil
+			deliverAtJet(i, { c })
+		end,
+	})
+end
+addInteract({
+	x = function() return cart.pos.X end, z = function() return cart.pos.Z end, r = 3.2,
+	cond = function() return S.mode == "walk" and not ramp.carrying end,
+	label = function() return "Gepäckwagen fahren" end,
+	action = enterCart,
+})
+addInteract({
+	x = function() return 124 end, z = function() return 172 end, r = 5,
+	cond = function() return S.mode == "walk" and not checkin.active and not ramp.active end,
+	label = function()
+		if S.credits &gt;= UNLOCK_CAPTAIN then return "Ins Flugzeug steigen (Captain)" end
+		return "Captain – gesperrt (" .. UNLOCK_CAPTAIN .. " Credits nötig)"
+	end,
+	action = function()
+		if S.credits &lt; UNLOCK_CAPTAIN then
+			toast("Du brauchst " .. UNLOCK_CAPTAIN .. " Credits für die Captain-Lizenz!", "bad")
+			return
+		end
+		showTutorial("captain", "JOB: Captain",
+			"Dein eigenes Propellerflugzeug!\n· Shift/Strg Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft &lt; 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
+			openMissionSelect)
+	end,
+})
+
+---------------------------------------------------------------- Hauptschleife
+updateHUD()
+setJobHUD("Arbeitslos", "Geh zum leuchtenden Check-in-Schalter im Terminal und drücke E.")
+resetPlaneToStand()
+task.defer(function()
+	showTutorial("welcome", "Willkommen am Flughafen!",
+		"Du fängst ganz unten an: am Check-in-Schalter. Verdiene Credits, schalte den Ramp-Agent-Job frei (500 Cr) und arbeite dich zum Captain hoch (2000 Cr)!\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen\n· H blendet die Steuerungslegende ein/aus")
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+	dt = math.min(dt, 0.05)
+	if edge(Enum.KeyCode.H) then legend.Visible = not legend.Visible end
+	if not panelOpen then
+		if S.mode == "fly" then
+			updateFlightPhysics(dt)
+			updateMission(dt)
+			updateFlightHUD()
+			updateFlightCamera(dt)
+		else
+			updateCheckin(dt)
+			updateRamp(dt)
+			updateCart(dt)
+			updateInteract()
+			-- getragener Koffer folgt dem Charakter
+			if ramp.carrying then
+				local r = hrp()
+				if r then
+					ramp.carrying.obj.CFrame = r.CFrame * CFrame.new(0, -0.3, -2.4)
+				end
+			end
+		end
+	end
+	updateAmbient(dt)
+	updateTraffic(dt)
+	updateWindsock()
+	keyEdge = {}
+end)
+
+print("[Airport] Client bereit — viel Spass!")
+</ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+</roblox>
