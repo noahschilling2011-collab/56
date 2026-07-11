@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flughafen-Job-Simulator</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#0a0e14; font-family:'Segoe UI',system-ui,sans-serif; }
+  canvas { display:block; }
+  .glass {
+    background:rgba(10,16,28,0.74);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:12px;
+    color:#e8eef7;
+  }
+  #hud-topleft { position:fixed; top:14px; left:14px; padding:12px 16px; min-width:220px; z-index:10; }
+  #hud-credits { font-size:22px; font-weight:700; color:#ffd75e; }
+  #hud-level { font-size:13px; color:#9fb4cc; margin-top:2px; }
+  #hud-xpbar { height:5px; background:rgba(255,255,255,0.1); border-radius:3px; margin-top:5px; overflow:hidden; }
+  #hud-xpfill { height:100%; width:0%; background:#5ec8ff; border-radius:3px; transition:width .3s; }
+  #hud-progress { font-size:12px; color:#8fd18f; margin-top:7px; }
+  #hud-job { position:fixed; top:14px; right:14px; padding:12px 16px; min-width:250px; max-width:330px; z-index:10; text-align:right; }
+  #hud-jobname { font-size:15px; font-weight:700; color:#5ec8ff; }
+  #hud-objective { font-size:13px; color:#cfdcec; margin-top:4px; line-height:1.4; }
+  #hud-timer { font-size:20px; font-weight:700; color:#ffd75e; margin-top:4px; display:none; }
+  #prompt { position:fixed; bottom:130px; left:50%; transform:translateX(-50%); padding:9px 18px; font-size:15px; z-index:10; display:none; white-space:nowrap; }
+  #prompt b { color:#ffd75e; background:rgba(255,255,255,0.12); border-radius:5px; padding:1px 8px; margin-right:6px; }
+  #toasts { position:fixed; bottom:190px; left:50%; transform:translateX(-50%); z-index:11; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; }
+  .toast { padding:8px 18px; font-size:14px; animation:toastin .25s ease-out; }
+  .toast.good { color:#8fe89f; } .toast.bad { color:#ff8f8f; } .toast.info { color:#e8eef7; }
+  @keyframes toastin { from { opacity:0; transform:translateY(12px);} to { opacity:1; transform:none; } }
+  #legend { position:fixed; bottom:14px; left:14px; padding:10px 14px; font-size:12px; color:#b9c8da; z-index:10; line-height:1.55; }
+  #legend b { color:#ffd75e; display:inline-block; min-width:64px; }
+  #panel-wrap { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); }
+  #panel { padding:22px 26px; min-width:420px; max-width:560px; max-height:82vh; overflow-y:auto; }
+  #panel h2 { font-size:19px; color:#5ec8ff; margin-bottom:12px; }
+  #panel .doc { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:9px; padding:10px 14px; margin:8px 0; font-size:14px; }
+  #panel .doc h3 { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#9fb4cc; margin-bottom:5px; }
+  #panel .doc .big { font-size:17px; font-weight:600; }
+  #panel .row { display:flex; gap:10px; }
+  #panel .row .doc { flex:1; }
+  .btn { display:inline-block; margin:6px 6px 0 0; padding:9px 16px; border-radius:9px; border:1px solid rgba(255,255,255,0.18);
+    background:rgba(94,200,255,0.16); color:#e8eef7; font-size:14px; cursor:pointer; font-family:inherit; }
+  .btn:hover { background:rgba(94,200,255,0.32); }
+  .btn.green { background:rgba(120,220,130,0.18); } .btn.green:hover { background:rgba(120,220,130,0.36); }
+  .btn.red { background:rgba(255,110,110,0.16); } .btn.red:hover { background:rgba(255,110,110,0.34); }
+  .btn.gold { background:rgba(255,215,94,0.16); } .btn.gold:hover { background:rgba(255,215,94,0.34); }
+  .btn:disabled { opacity:.35; cursor:default; }
+  .mission { border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:12px 15px; margin:9px 0; cursor:pointer; background:rgba(255,255,255,0.04); }
+  .mission:hover { background:rgba(94,200,255,0.12); }
+  .mission h3 { color:#ffd75e; font-size:15px; }
+  .mission p { font-size:13px; color:#b9c8da; margin-top:4px; line-height:1.4; }
+  .mission .pay { color:#8fe89f; font-weight:600; }
+  #flighthud { position:fixed; inset:0; z-index:9; display:none; pointer-events:none; }
+  .fbox { position:fixed; padding:8px 14px; font-variant-numeric:tabular-nums; }
+  #f-speed { left:14px; top:50%; transform:translateY(-50%); text-align:center; }
+  #f-alt   { right:14px; top:50%; transform:translateY(-50%); text-align:center; }
+  .fbox .val { font-size:26px; font-weight:700; color:#e8eef7; }
+  .fbox .lab { font-size:10px; letter-spacing:2px; color:#9fb4cc; }
+  .fbox .sub { font-size:13px; color:#9fb4cc; margin-top:2px; }
+  #f-heading { top:14px; left:50%; transform:translateX(-50%); padding:4px 8px 6px; }
+  #headingCanvas { display:block; }
+  #f-bottom { left:50%; bottom:14px; transform:translateX(-50%); display:flex; gap:22px; align-items:center; padding:8px 18px; }
+  #f-bottom .item { text-align:center; }
+  #f-bottom .item .lab { font-size:10px; letter-spacing:1px; color:#9fb4cc; }
+  #f-bottom .item .val { font-size:16px; font-weight:600; }
+  #f-thr-bar { width:80px; height:8px; background:rgba(255,255,255,0.12); border-radius:4px; overflow:hidden; margin-top:3px; }
+  #f-thr-fill { height:100%; background:#8fe89f; width:0%; }
+  #f-gear.down { color:#8fe89f; } #f-gear.up { color:#9fb4cc; } #f-gear.transit { color:#ffd75e; }
+  #f-warn { position:fixed; top:24%; left:50%; transform:translateX(-50%); text-align:center; }
+  .warnbox { font-size:26px; font-weight:800; letter-spacing:3px; color:#ff5252; text-shadow:0 0 18px rgba(255,60,60,.7);
+    animation:blink .5s steps(2) infinite; margin:4px 0; }
+  @keyframes blink { 50% { opacity:.25; } }
+  #f-wpt { position:fixed; top:110px; left:50%; transform:translateX(-50%); text-align:center; padding:6px 16px; }
+  #f-wpt-arrow { font-size:26px; display:inline-block; transition:transform .1s linear; color:#5ec8ff; }
+  #f-wpt-dist { font-size:13px; color:#cfdcec; }
+  #f-msg { position:fixed; top:60%; left:50%; transform:translateX(-50%); font-size:16px; color:#ffd75e; text-shadow:0 1px 4px #000; }
+  #tut-wrap { position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.5); }
+  #tut { padding:24px 28px; max-width:520px; }
+  #tut h2 { color:#ffd75e; font-size:20px; margin-bottom:10px; }
+  #tut p, #tut li { font-size:14px; color:#cfdcec; line-height:1.6; }
+  #tut ul { margin:8px 0 8px 20px; }
+  #stars { font-size:34px; color:#ffd75e; letter-spacing:6px; margin:8px 0; }
+  #hint-click { position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:8; padding:7px 16px; font-size:13px; color:#9fb4cc; }
+</style>
+</head>
+<body>
+<div id="hud-topleft" class="glass">
+  <div id="hud-credits">0 Credits</div>
+  <div id="hud-level">Level 1 &nbsp;·&nbsp; 0 XP</div>
+  <div id="hud-xpbar"><div id="hud-xpfill"></div></div>
+  <div id="hud-progress"></div>
+</div>
+<div id="hud-job" class="glass">
+  <div id="hud-jobname">Arbeitslos</div>
+  <div id="hud-objective">Geh zum leuchtenden Check-in-Schalter im Terminal und drücke E.</div>
+  <div id="hud-timer">0:00</div>
+</div>
+<div id="prompt" class="glass"><b>E</b><span id="prompt-text"></span></div>
+<div id="toasts"></div>
+<div id="legend" class="glass">
+  <div><b>WASD</b> Bewegen · <b>Shift</b> Sprint · <b>E</b> Interagieren</div>
+  <div><b>Maus</b> Kamera (Klick = Fangen) · <b>H</b> Legende an/aus</div>
+  <div style="margin-top:5px;color:#7f96ad">FLUG: <b>W/S</b> Pitch · <b>A/D</b> Roll · <b>Q/E</b> Ruder/Lenkung</div>
+  <div style="color:#7f96ad"><b>Shift/Strg</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset</div>
+</div>
+<div id="hint-click" class="glass">Klicke ins Bild, um die Maus zu fangen (ESC gibt sie frei)</div>
+<div id="panel-wrap"><div id="panel" class="glass"></div></div>
+<div id="tut-wrap"><div id="tut" class="glass"></div></div>
+<div id="flighthud">
+  <div id="f-speed" class="fbox glass"><div class="lab">SPEED</div><div class="val" id="f-spd-v">0</div><div class="sub">kt</div></div>
+  <div id="f-alt" class="fbox glass"><div class="lab">ALT</div><div class="val" id="f-alt-v">0</div><div class="sub">ft</div><div class="sub" id="f-vs-v">0 ft/min</div></div>
+  <div id="f-heading" class="fbox glass"><canvas id="headingCanvas" width="360" height="34"></canvas></div>
+  <div id="f-wpt" class="glass"><span id="f-wpt-arrow">▲</span><div id="f-wpt-dist"></div></div>
+  <div id="f-bottom" class="fbox glass">
+    <div class="item"><div class="lab">SCHUB</div><div class="val" id="f-thr-v">0%</div><div id="f-thr-bar"><div id="f-thr-fill"></div></div></div>
+    <div class="item"><div class="lab">FAHRWERK</div><div class="val" id="f-gear">AUSGEFAHREN</div></div>
+    <div class="item"><div class="lab">WIND</div><div class="val" id="f-wind">--</div></div>
+  </div>
+  <div id="f-warn"></div>
+  <div id="f-msg"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   FLUGHAFEN-JOB-SIMULATOR  ·  Eine Datei · Three.js · kein Storage
+   Einheiten: 1 Unit = 1 Meter. Norden = -Z, Osten = +X.
+   ============================================================ */
+const KT = 1.94384;      // m/s -> Knoten
+const FT = 3.28084;      // m -> Fuß
+const FPM = 196.85;      // m/s -> ft/min
+const DEG = Math.PI/180;
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const damp = (a,b,l,dt)=>lerp(a,b,1-Math.exp(-l*dt));
+const rand = (a,b)=>a+Math.random()*(b-a);
+const randi = (a,b)=>Math.floor(rand(a,b+1));
+const pick = arr=>arr[Math.floor(Math.random()*arr.length)];
+function angNorm(a){ while(a>Math.PI)a-=Math.PI*2; while(a<-Math.PI)a+=Math.PI*2; return a; }
+// Heading in Grad (0=N, 90=O) aus Blickrichtung
+function headingOf(fx,fz){ let h=Math.atan2(fx,-fz)/DEG; if(h<0)h+=360; return h; }
+// billiges Value-Noise
+function noise2(x,y){
+  const s = Math.sin(x*12.9898+y*78.233)*43758.5453;
+  return s-Math.floor(s);
+}
+function smoothNoise(x,y){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  return lerp(lerp(noise2(xi,yi),noise2(xi+1,yi),u), lerp(noise2(xi,yi+1),noise2(xi+1,yi+1),u), v);
+}
+
+/* ---------------- Renderer / Szene ---------------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const SKY = 0xa8cfe8;
+scene.background = new THREE.Color(SKY);
+scene.fog = new THREE.Fog(SKY, 700, 2600);
+
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 6000);
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x5a6b4a, 0.75);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff3dd, 1.15);
+sun.position.set(-320, 420, -180);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -420; sun.shadow.camera.right = 420;
+sun.shadow.camera.top = 420; sun.shadow.camera.bottom = -420;
+sun.shadow.camera.far = 1400;
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(sun.target);
+
+function mat(color, opts){ return new THREE.MeshLambertMaterial(Object.assign({ color }, opts||{})); }
+function emat(color, intensity){ return new THREE.MeshLambertMaterial({ color, emissive:color, emissiveIntensity: intensity===undefined?1:intensity }); }
+function box(w,h,d,material,x,y,z){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), material);
+  m.position.set(x||0,y||0,z||0);
+  return m;
+}
+function cyl(rt,rb,h,seg,material,x,y,z){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg), material);
+  m.position.set(x||0,y||0,z||0);
+  return m;
+}
+
+/* ---------------- Terrain ---------------- */
+// Flughafen-Flachzone: x -1300..1300, z -260..420
+function airportFlat(x,z){
+  const dx = Math.max(0, Math.abs(x)-1300);
+  const dz = Math.max(0, Math.max(-260-z, z-420));
+  const d = Math.sqrt(dx*dx+dz*dz);
+  return clamp(d/260, 0, 1); // 0 = flach
+}
+(function buildTerrain(){
+  const size = 7000, seg = 72;
+  const geo = new THREE.PlaneGeometry(size, size, seg, seg);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i);
+    const n = smoothNoise(x*0.0012+7, z*0.0012+3)*24 + smoothNoise(x*0.006, z*0.006)*5;
+    pos.setY(i, (n-9) * airportFlat(x,z) - 0.25);
+  }
+  geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo, mat(0x6f9e52, { flatShading:true }));
+  ground.receiveShadow = true;
+  scene.add(ground);
+})();
+
+/* Bäume + Häuser als Instancing */
+(function buildDeko(){
+  const N = 260;
+  const trunkG = new THREE.CylinderGeometry(0.5,0.7,5,5);
+  const crownG = new THREE.ConeGeometry(3.4,8,6);
+  const trunks = new THREE.InstancedMesh(trunkG, mat(0x6e4a2f), N);
+  const crowns = new THREE.InstancedMesh(crownG, mat(0x39702e, { flatShading:true }), N);
+  const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const s = new THREE.Vector3();
+  let placed = 0, tries = 0;
+  while(placed<N && tries<4000){
+    tries++;
+    const x = rand(-3200,3200), z = rand(-3200,3200);
+    if(airportFlat(x,z) < 0.55) continue;
+    const y = 0; const sc = rand(0.7,1.6);
+    q.setFromEuler(new THREE.Euler(0, rand(0,6.28), 0));
+    s.set(sc,sc,sc);
+    m4.compose(new THREE.Vector3(x, y+2.5*sc, z), q, s); trunks.setMatrixAt(placed, m4);
+    m4.compose(new THREE.Vector3(x, y+(5+3.4)*sc, z), q, s); crowns.setMatrixAt(placed, m4);
+    placed++;
+  }
+  trunks.count = crowns.count = placed;
+  scene.add(trunks, crowns);
+  // Häuser
+  const H = 70;
+  const bodyG = new THREE.BoxGeometry(9,6,8);
+  const roofG = new THREE.ConeGeometry(7.5,4,4);
+  const bodies = new THREE.InstancedMesh(bodyG, mat(0xd8cfc0), H);
+  const roofs = new THREE.InstancedMesh(roofG, mat(0xa0522d, { flatShading:true }), H);
+  let hp=0; tries=0;
+  while(hp<H && tries<3000){
+    tries++;
+    const x = rand(-2800,2800), z = rand(-2800,2800);
+    if(airportFlat(x,z) < 0.75) continue;
+    const rot = Math.floor(rand(0,4))*Math.PI/2;
+    q.setFromEuler(new THREE.Euler(0, rot, 0)); s.set(rand(0.8,1.5),rand(0.8,1.3),rand(0.8,1.5));
+    m4.compose(new THREE.Vector3(x, 3*s.y, z), q, s); bodies.setMatrixAt(hp, m4);
+    q.setFromEuler(new THREE.Euler(0, rot+Math.PI/4, 0));
+    m4.compose(new THREE.Vector3(x, 6*s.y+2*s.y, z), q, s); roofs.setMatrixAt(hp, m4);
+    hp++;
+  }
+  bodies.count = roofs.count = hp;
+  scene.add(bodies, roofs);
+})();
+
+/* ============================================================
+   FLUGHAFEN  ·  Runway 09/27 (1500 m), Taxiway, Terminal, Apron
+   ============================================================ */
+const colliders = []; // 2D-AABBs {x1,z1,x2,z2} für den Fußgänger
+function addCollider(x1,z1,x2,z2){ colliders.push({x1:Math.min(x1,x2),z1:Math.min(z1,z2),x2:Math.max(x1,x2),z2:Math.max(z1,z2)}); }
+
+const wind = { dir: 210, speed: 2.0, vec: new THREE.Vector3() }; // dir = woher (Grad), speed m/s
+function setWind(dir, speedKt){
+  wind.dir = dir; wind.speed = speedKt/KT;
+  const to = (dir+180)*DEG;
+  wind.vec.set(Math.sin(to)*wind.speed, 0, -Math.cos(to)*wind.speed);
+}
+setWind(210, 4);
+
+const RWY_LEN = 1500, RWY_W = 30, RWY_X1 = -750, RWY_X2 = 750;
+
+(function buildRunway(){
+  const g = new THREE.Group();
+  // Asphalt
+  const asphalt = box(RWY_LEN+40, 0.2, RWY_W, mat(0x3c3f45), 0, 0.0, 0);
+  asphalt.receiveShadow = true; g.add(asphalt);
+  const white = mat(0xe8e8e8), yellow = mat(0xd8b62a);
+  // Centerline (gestrichelt)
+  for(let x=RWY_X1+90; x<RWY_X2-80; x+=60){
+    g.add(box(30,0.05,0.9, white, x+15, 0.16, 0));
+  }
+  // Schwellenmarkierung (Piano Keys)
+  for(const [tx,dir] of [[RWY_X1, 1],[RWY_X2, -1]]){
+    for(let i=0;i<6;i++){
+      const z = -RWY_W/2 + 3.2 + i*(RWY_W-6.4)/5;
+      g.add(box(18,0.05,1.7, white, tx+dir*14, 0.16, z));
+    }
+    // Aufsetzzonen-Streifen (3 Paare)
+    for(let k=1;k<=3;k++){
+      const x = tx + dir*(90 + k*75);
+      g.add(box(20,0.05,1.5, white, x, 0.16, -7));
+      g.add(box(20,0.05,1.5, white, x, 0.16, 7));
+    }
+  }
+  // Nummern 09 / 27 als Canvas-Textur
+  function numberPlane(text, x, rotY){
+    const cv = document.createElement('canvas'); cv.width=128; cv.height=256;
+    const c = cv.getContext('2d');
+    c.fillStyle='#fff'; c.font='bold 170px Arial'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText(text, 64, 138);
+    const t = new THREE.CanvasTexture(cv);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(9,18), new THREE.MeshBasicMaterial({ map:t, transparent:true }));
+    p.rotation.x = -Math.PI/2; p.rotation.z = rotY;
+    p.position.set(x, 0.17, 0);
+    g.add(p);
+  }
+  numberPlane('09', RWY_X1+55, -Math.PI/2);
+  numberPlane('27', RWY_X2-55, Math.PI/2);
+  scene.add(g);
+
+  // Randbefeuerung (weiß) als InstancedMesh
+  const n = Math.floor(RWY_LEN/50)+1;
+  const lights = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4,6,5),
+    new THREE.MeshBasicMaterial({ color:0xfff6cc }), n*2);
+  const m4 = new THREE.Matrix4(); let li=0;
+  for(let x=RWY_X1; x<=RWY_X2; x+=50){
+    m4.setPosition(x, 0.5, -RWY_W/2-1.5); lights.setMatrixAt(li++, m4);
+    m4.setPosition(x, 0.5,  RWY_W/2+1.5); lights.setMatrixAt(li++, m4);
+  }
+  lights.count = li;
+  scene.add(lights);
+  // Schwellenlichter: grün (Anflugseite) / rot (Endseite)
+  const gMat = new THREE.MeshBasicMaterial({ color:0x22ff55 });
+  const rMat = new THREE.MeshBasicMaterial({ color:0xff3333 });
+  for(let i=0;i<9;i++){
+    const z = -RWY_W/2 + i*RWY_W/8;
+    scene.add(box(0.7,0.7,0.7, gMat, RWY_X1-4, 0.4, z));
+    scene.add(box(0.7,0.7,0.7, rMat, RWY_X1-6.5, 0.4, z));
+    scene.add(box(0.7,0.7,0.7, gMat, RWY_X2+4, 0.4, z));
+    scene.add(box(0.7,0.7,0.7, rMat, RWY_X2+6.5, 0.4, z));
+  }
+})();
+
+/* PAPI — 4 Lampen pro Anflugrichtung */
+const papis = [];
+function buildPapi(x, z, apprSign){
+  const lamps = [];
+  for(let i=0;i<4;i++){
+    const base = box(0.8,1.1,0.8, mat(0x333333), x, 0.55, z + i*3*Math.sign(z));
+    scene.add(base);
+    const lamp = box(0.7,0.5,0.25, new THREE.MeshBasicMaterial({ color:0xffffff }), 0, 0.35, apprSign*0.45);
+    base.add(lamp);
+    lamps.push(lamp);
+  }
+  papis.push({ x, z, apprSign, lamps }); // apprSign: -1 = Anflug von Westen (RWY09), +1 = von Osten (RWY27)
+}
+buildPapi(RWY_X1+300, -RWY_W/2-8, -1);  // für Anflug 09
+buildPapi(RWY_X2-300,  RWY_W/2+8,  1);  // für Anflug 27
+function updatePapis(px, py, pz){
+  for(const p of papis){
+    const dist = (p.x - px) * -p.apprSign; // >0 wenn Flieger auf Anflugseite
+    for(let i=0;i<4;i++){
+      let col = 0x666666;
+      if(dist > 60 && py > 2){
+        const ang = Math.atan2(py, dist)/DEG;
+        const th = [3.5, 3.2, 2.8, 2.5][i];
+        col = ang > th ? 0xffffff : 0xff2222;
+      }
+      p.lamps[i].material.color.setHex(col);
+    }
+  }
+}
+
+/* Taxiway + Verbinder */
+(function buildTaxiway(){
+  const grey = mat(0x484b52), yellow = mat(0xd8b62a);
+  const tw = box(RWY_LEN+40, 0.18, 16, grey, 0, 0, 80); tw.receiveShadow=true; scene.add(tw);
+  for(let x=-760;x<760;x+=30) scene.add(box(15,0.06,0.5, yellow, x+7, 0.24, 80));
+  for(const cx of [-700, 0, 700]){
+    const c = box(16, 0.18, 66, grey, cx, 0, 40); c.receiveShadow=true; scene.add(c);
+    for(let z=18;z<75;z+=15) scene.add(box(0.5,0.06,8, yellow, cx, 0.24, z));
+  }
+  // Verbinder Taxiway -> Apron
+  const c2 = box(20, 0.18, 55, grey, 60, 0, 115); c2.receiveShadow=true; scene.add(c2);
+  for(let z=90;z<140;z+=15) scene.add(box(0.5,0.06,8, yellow, 60, 0.24, z));
+})();
+
+/* Apron / Vorfeld */
+(function buildApron(){
+  const ap = box(320, 0.18, 95, mat(0x54575e), 45, 0, 182);
+  ap.receiveShadow = true; scene.add(ap);
+  // Parkpositions-Markierungen
+  for(const px of [-40, 40, 130]){
+    scene.add(box(0.6,0.06,22, mat(0xd8b62a), px, 0.24, 176));
+    scene.add(box(14,0.06,0.6, mat(0xd8b62a), px, 0.24, 165));
+  }
+})();
+
+/* Jet-Bauer (Deko-Airliner, low-poly) */
+function makeJet(color){
+  const g = new THREE.Group();
+  const fus = cyl(1.9, 1.9, 26, 10, mat(0xf2f2f2), 0, 3.2, 0);
+  fus.rotation.x = Math.PI/2; fus.castShadow = true; g.add(fus);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 8), mat(0xf2f2f2));
+  nose.position.set(0, 3.2, -13); g.add(nose);
+  const tailc = cyl(0.5, 1.9, 6, 8, mat(0xf2f2f2), 0, 3.6, 15.5);
+  tailc.rotation.x = Math.PI/2 + 0.12; g.add(tailc);
+  const wing = box(24, 0.35, 4.5, mat(color), 0, 2.9, 0.5);
+  wing.castShadow = true; g.add(wing);
+  const hstab = box(9, 0.25, 2.6, mat(color), 0, 4.4, 17);
+  g.add(hstab);
+  const vstab = box(0.3, 5.5, 3.4, mat(color), 0, 6.5, 17.5);
+  vstab.castShadow = true; g.add(vstab);
+  for(const sx of [-1,1]){
+    const eng = cyl(1.05, 1.05, 3.2, 8, mat(0x9aa0a8), sx*6.5, 1.9, -1.5);
+    eng.rotation.x = Math.PI/2; g.add(eng);
+  }
+  for(const [gx,gz] of [[0,-10],[-2.5,1],[2.5,1]]){
+    g.add(cyl(0.18,0.18,1.6,6, mat(0x333333), gx, 0.8, gz));
+    const wh = cyl(0.55,0.55,0.5,8, mat(0x1a1a1a), gx, 0.55, gz);
+    wh.rotation.z = Math.PI/2; g.add(wh);
+  }
+  return g;
+}
+const JET_INFO = [
+  { name:'LH 452 · MÜNCHEN', color:0x2255cc, colName:'BLAU',   x:-40, z:165, hex:'#3a6fe8' },
+  { name:'EW 771 · WIEN',    color:0xe07820, colName:'ORANGE', x: 40, z:165, hex:'#e07820' },
+];
+const jets = [];
+for(const ji of JET_INFO){
+  const j = makeJet(ji.color);
+  j.position.set(ji.x, 0, ji.z);
+  scene.add(j);
+  jets.push(Object.assign({ obj:j }, ji));
+  addCollider(ji.x-13, ji.z-15, ji.x+13, ji.z+18);
+}
+
+/* Terminal */
+const TERM = { x1:-70, x2:75, z1:232, z2:302, h:11 };
+(function buildTerminal(){
+  const wallM = mat(0xcfd6de), glassM = new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.34 });
+  const T = TERM;
+  // Boden + Dach
+  const floor = box(T.x2-T.x1, 0.25, T.z2-T.z1, mat(0xb9bec7), (T.x1+T.x2)/2, 0.1, (T.z1+T.z2)/2);
+  floor.receiveShadow = true; scene.add(floor);
+  const roof = box(T.x2-T.x1+4, 0.7, T.z2-T.z1+4, mat(0x8a929e), (T.x1+T.x2)/2, T.h, (T.z1+T.z2)/2);
+  roof.castShadow = true; scene.add(roof);
+  // Glasfront Süd (zum Vorfeld) mit Tür-Lücke bei x 28..36
+  function wallSeg(x1,x2,z,material,thick){
+    const w = box(x2-x1, T.h, thick||0.5, material, (x1+x2)/2, T.h/2, z);
+    w.castShadow = true; scene.add(w);
+    addCollider(x1, z-0.6, x2, z+0.6);
+  }
+  wallSeg(T.x1, 28, T.z1, glassM); wallSeg(36, T.x2, T.z1, glassM);
+  // Glas-Türrahmen
+  scene.add(box(8, 1.2, 0.5, mat(0x8a929e), 32, T.h-0.6, T.z1));
+  // Nordwand mit Eingang bei x -8..0
+  wallSeg(T.x1, -8, T.z2, wallM, 0.8); wallSeg(0, T.x2, T.z2, wallM, 0.8);
+  scene.add(box(8, 1.2, 0.8, mat(0x8a929e), -4, T.h-0.6, T.z2));
+  // Seitenwände
+  const wW = box(0.8, T.h, T.z2-T.z1, wallM, T.x1, T.h/2, (T.z1+T.z2)/2); wW.castShadow=true; scene.add(wW);
+  addCollider(T.x1-0.6, T.z1, T.x1+0.6, T.z2);
+  const wE = box(0.8, T.h, T.z2-T.z1, wallM, T.x2, T.h/2, (T.z1+T.z2)/2); wE.castShadow=true; scene.add(wE);
+  addCollider(T.x2-0.6, T.z1, T.x2+0.6, T.z2);
+  // Stützen
+  for(let x=T.x1+15; x<T.x2; x+=22) scene.add(cyl(0.5,0.5,T.h,8, mat(0xaab2bc), x, T.h/2, (T.z1+T.z2)/2));
+
+  // --- Check-in-Schalter (3) ---
+  for(let i=0;i<3;i++){
+    const dx = -45 + i*16;
+    const desk = box(6, 1.15, 2.2, mat(0x35506e), dx, 0.6, 258);
+    desk.castShadow = true; scene.add(desk);
+    scene.add(box(6, 0.08, 2.4, mat(0x5ec8ff), dx, 1.2, 258));
+    const back = box(6, 3.2, 0.4, mat(0x2d3d52), dx, 1.6, 262.5);
+    scene.add(back);
+    const sign = box(4.4, 1.0, 0.15, emat(i===0?0x5ec8ff:0x35506e, i===0?0.7:0.15), dx, 3.4, 262.4);
+    scene.add(sign);
+    addCollider(dx-3, 257, dx+3, 259.2);
+  }
+  // Waage neben Schalter 1
+  scene.add(box(2, 0.4, 2, mat(0x777f89), -39.5, 0.2, 255.5));
+
+  // --- Gate-Bereich mit Sitzreihen (Instancing) ---
+  const seatG = new THREE.BoxGeometry(1.6, 0.9, 1.4);
+  const seats = new THREE.InstancedMesh(seatG, mat(0x3d5a80), 40);
+  const sm = new THREE.Matrix4(); let si = 0;
+  for(let r=0;r<4;r++) for(let c=0;c<10;c++){
+    sm.setPosition(18 + c*3.2, 0.45, 244 + r*4.5);
+    seats.setMatrixAt(si++, sm);
+  }
+  scene.add(seats);
+  addCollider(16, 242, 52, 260);
+  // Gate-Schild
+  const gs = box(5, 1.4, 0.2, emat(0x2a9d5c, 0.6), 34, 4.5, 234);
+  scene.add(gs);
+})();
+
+/* Abflugtafel (fiktive Flüge) */
+const flights = [
+  { code:'LH 452', dest:'MÜNCHEN',   time:'14:20', status:'OPEN' },
+  { code:'AB 118', dest:'BERLIN',    time:'14:35', status:'BOARDING' },
+  { code:'EW 771', dest:'WIEN',      time:'14:50', status:'OPEN' },
+  { code:'FR 903', dest:'PARIS',     time:'15:05', status:'CLOSED' },
+  { code:'KL 233', dest:'AMSTERDAM', time:'15:20', status:'OPEN' },
+  { code:'SK 660', dest:'OSLO',      time:'15:40', status:'CLOSED' },
+];
+(function buildBoard(){
+  const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#0b1220'; c.fillRect(0,0,640,360);
+  c.fillStyle = '#ffd75e'; c.font = 'bold 30px monospace';
+  c.fillText('ABFLÜGE · DEPARTURES', 24, 44);
+  c.font = '22px monospace'; c.fillStyle = '#7f96ad';
+  c.fillText('FLUG    ZIEL          ZEIT   STATUS', 24, 86);
+  flights.forEach((f,i)=>{
+    const y = 124 + i*38;
+    c.fillStyle = '#e8eef7'; c.font = '22px monospace';
+    c.fillText(f.code.padEnd(8) + f.dest.padEnd(14) + f.time, 24, y);
+    c.fillStyle = f.status==='OPEN' ? '#54d06a' : f.status==='BOARDING' ? '#ffd75e' : '#ff6363';
+    c.fillText(f.status, 480, y);
+  });
+  const tex = new THREE.CanvasTexture(cv);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(16, 9), new THREE.MeshBasicMaterial({ map: tex }));
+  board.position.set(-25, 6.2, 297.4); // an der Nordwand, Blick nach Süden
+  board.rotation.y = Math.PI;
+  scene.add(board);
+  const frame = box(17, 10, 0.4, mat(0x1a2230), -25, 6.2, 298);
+  scene.add(frame);
+})();
+
+/* Tower, Hangar, Windsack */
+(function buildTower(){
+  const g = new THREE.Group();
+  const shaft = cyl(2.6, 3.4, 26, 8, mat(0xc9cfd8), 0, 13, 0); shaft.castShadow = true; g.add(shaft);
+  const cab = new THREE.Mesh(new THREE.CylinderGeometry(5, 4, 4.5, 8), new THREE.MeshLambertMaterial({ color:0x24374a }));
+  cab.position.y = 28; cab.castShadow = true; g.add(cab);
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.6, 2.4, 8),
+    new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.5 }));
+  glass.position.y = 28.4; g.add(glass);
+  g.add(cyl(0.15,0.15,4,4, mat(0x888888), 0, 32.5, 0));
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.4,6,5), new THREE.MeshBasicMaterial({ color:0xff8800 }));
+  beacon.position.y = 34.6; g.add(beacon);
+  g.position.set(-130, 0, 250);
+  scene.add(g);
+  addCollider(-134, 246, -126, 254);
+})();
+(function buildHangar(){
+  const g = new THREE.Group();
+  const backW = box(36, 12, 0.8, mat(0x8f9aa6), 0, 6, 14);
+  const sideL = box(0.8, 12, 28, mat(0x8f9aa6), -18, 6, 0);
+  const sideR = box(0.8, 12, 28, mat(0x8f9aa6), 18, 6, 0);
+  const roofH = box(38, 0.8, 30, mat(0x6e7a87), 0, 12.2, 0);
+  for(const p of [backW, sideL, sideR, roofH]){ p.castShadow = true; g.add(p); }
+  g.position.set(230, 0, 200);
+  scene.add(g);
+  addCollider(211, 185, 249, 215);
+})();
+const windsock = (function(){
+  const g = new THREE.Group();
+  g.add(cyl(0.12, 0.16, 8, 6, mat(0xdddddd), 0, 4, 0));
+  const sockG = new THREE.Group();
+  for(let i=0;i<5;i++){
+    const r1 = 0.55 - i*0.085, r2 = 0.55 - (i+1)*0.085;
+    const seg = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, 0.7, 8, 1, true),
+      new THREE.MeshLambertMaterial({ color: i%2? 0xffffff : 0xff5a1f, side: THREE.DoubleSide }));
+    seg.rotation.x = Math.PI/2;
+    seg.position.z = -(0.35 + i*0.7);
+    sockG.add(seg);
+  }
+  sockG.position.y = 7.8;
+  g.add(sockG);
+  g.position.set(-200, 0, 55);
+  scene.add(g);
+  return { group:g, sock:sockG };
+})();
+function updateWindsock(dt){
+  // Sack zeigt dorthin, wo der Wind HINweht (lokale -Z-Achse des Sacks)
+  const toDir = (wind.dir+180)*DEG;
+  const d = angNorm(-toDir - windsock.group.rotation.y);
+  windsock.group.rotation.y += d * Math.min(1, dt*2);
+  const lift = clamp(wind.speed/8, 0.06, 1);
+  const flutter = Math.sin(performance.now()*0.004)*0.06*(1.2-lift);
+  windsock.sock.rotation.x = -(1-lift)*1.25 + flutter;
+}
+
+/* Gepäckband: Terminal -> Vorfeld */
+const BELT = { x:-20, z1:256, z2:196, y:0.9 };
+(function buildBelt(){
+  const b = box(3, 0.85, BELT.z1-BELT.z2+4, mat(0x2c2f36), BELT.x, 0.45, (BELT.z1+BELT.z2)/2);
+  b.castShadow = true; scene.add(b);
+  scene.add(box(3.4, 0.1, BELT.z1-BELT.z2+4.4, mat(0x1c1e24), BELT.x, 0.92, (BELT.z1+BELT.z2)/2));
+  for(const zz of [BELT.z1+1, BELT.z2-1]){
+    scene.add(box(3.6, 1.6, 1.2, mat(0x606774), BELT.x, 0.8, zz));
+  }
+  addCollider(BELT.x-1.9, BELT.z2-2, BELT.x+1.9, 231.5); // nur der Außenteil blockiert (Innenteil im Terminal auch)
+})();
+
+/* Gepäckwagen (fahrbar) */
+const cart = (function(){
+  const g = new THREE.Group();
+  const chassis = box(2.4, 0.5, 5.2, mat(0x2a6db5), 0, 0.65, 0); chassis.castShadow = true; g.add(chassis);
+  const cab = box(2.2, 1.5, 1.6, mat(0x2a6db5), 0, 1.6, 1.6); cab.castShadow = true; g.add(cab);
+  g.add(box(2.0, 0.7, 0.1, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.5 }), 0, 2.0, 0.85));
+  const bed = box(2.3, 0.12, 3.2, mat(0x8b95a1), 0, 0.95, -1.4); g.add(bed);
+  for(const [wx,wz] of [[-1.1,-1.8],[1.1,-1.8],[-1.1,1.8],[1.1,1.8]]){
+    const w = cyl(0.4,0.4,0.35,10, mat(0x16181c), wx, 0.4, wz);
+    w.rotation.z = Math.PI/2; g.add(w);
+  }
+  const slots = [];
+  for(let i=0;i<6;i++) slots.push(new THREE.Vector3((i%2? 0.6:-0.6), 1.35, -(0.35 + Math.floor(i/2)*1.0)));
+  g.position.set(-2, 0, 186);
+  scene.add(g);
+  return { obj:g, yaw: 0.4, vel: new THREE.Vector3(), slots, load: [] };
+})();
+cart.obj.rotation.y = cart.yaw;
+
+/* ============================================================
+   SPIELZUSTAND · HUD · INPUT · CHARAKTER · KAMERA · INTERAKTION
+   ============================================================ */
+const S = {
+  credits: 0, xp: 0,
+  job: null,            // null | 'checkin' | 'ramp' | 'captain'
+  mode: 'walk',         // walk | cart | fly | ui
+  tutorialSeen: {},
+  camMode: 'chase',     // im Flug: chase | cockpit
+};
+const UNLOCK_RAMP = 500, UNLOCK_CAPTAIN = 2000;
+const level = ()=>Math.floor(S.xp/100)+1;
+
+const $ = id=>document.getElementById(id);
+function updateHUD(){
+  $('hud-credits').textContent = S.credits + ' Credits';
+  $('hud-level').textContent = 'Level ' + level() + ' · ' + S.xp + ' XP';
+  $('hud-xpfill').style.width = (S.xp % 100) + '%';
+  let prog = 'Alle Jobs freigeschaltet ✈';
+  if(S.credits < UNLOCK_RAMP) prog = 'Noch ' + (UNLOCK_RAMP-S.credits) + ' Credits bis Ramp Agent';
+  else if(S.credits < UNLOCK_CAPTAIN) prog = 'Noch ' + (UNLOCK_CAPTAIN-S.credits) + ' Credits bis Captain';
+  $('hud-progress').textContent = prog;
+}
+function setJobHUD(name, objective){
+  $('hud-jobname').textContent = name;
+  $('hud-objective').innerHTML = objective;
+}
+function setTimerHUD(sec){
+  const t = $('hud-timer');
+  if(sec === null){ t.style.display='none'; return; }
+  t.style.display = 'block';
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  t.textContent = m + ':' + String(s).padStart(2,'0');
+  t.style.color = sec < 20 ? '#ff6363' : '#ffd75e';
+}
+function addCredits(n){
+  S.credits = Math.max(0, S.credits + n);
+  updateHUD();
+}
+function addXP(n){ S.xp += n; updateHUD(); }
+function toast(msg, kind){
+  const d = document.createElement('div');
+  d.className = 'toast glass ' + (kind||'info');
+  d.textContent = msg;
+  $('toasts').appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; }, 2600);
+  setTimeout(()=>d.remove(), 3100);
+}
+
+/* Panel (modale UI) */
+let panelOpen = false;
+function showPanel(html){
+  panelOpen = true;
+  $('panel').innerHTML = html;
+  $('panel-wrap').style.display = 'flex';
+  document.exitPointerLock && document.exitPointerLock();
+}
+function hidePanel(){
+  panelOpen = false;
+  $('panel-wrap').style.display = 'none';
+}
+/* Tutorial-Overlay (einmal pro Job) */
+function showTutorial(key, title, html, cb){
+  if(S.tutorialSeen[key]){ cb && cb(); return; }
+  S.tutorialSeen[key] = true;
+  $('tut').innerHTML = '<h2>'+title+'</h2>' + html + '<br><button class="btn green" id="tut-ok">Los geht’s!</button>';
+  $('tut-wrap').style.display = 'flex';
+  document.exitPointerLock && document.exitPointerLock();
+  $('tut-ok').onclick = ()=>{ $('tut-wrap').style.display='none'; cb && cb(); };
+}
+
+/* Input */
+const keys = {};
+let keyEdge = {};
+addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  keys[e.code] = true; keyEdge[e.code] = true;
+  if(e.code === 'KeyH') $('legend').style.display = $('legend').style.display==='none'?'block':'none';
+});
+addEventListener('keyup', e=>{ keys[e.code] = false; });
+let camYaw = 0.5, camPitch = 0.32;
+let pointerLocked = false;
+renderer.domElement.addEventListener('click', ()=>{
+  if(!panelOpen && $('tut-wrap').style.display!=='flex') renderer.domElement.requestPointerLock();
+});
+document.addEventListener('pointerlockchange', ()=>{
+  pointerLocked = document.pointerLockElement === renderer.domElement;
+  $('hint-click').style.display = pointerLocked ? 'none' : 'block';
+});
+addEventListener('mousemove', e=>{
+  if(!pointerLocked) return;
+  camYaw -= e.movementX * 0.0026;
+  camPitch = clamp(camPitch + e.movementY * 0.0022, -0.15, 1.15);
+});
+
+/* ---------------- Charakter ---------------- */
+function makePerson(shirt, pants, skin){
+  const g = new THREE.Group();
+  const legL = box(0.22, 0.75, 0.24, mat(pants), -0.14, 0.38, 0);
+  const legR = legL.clone(); legR.position.x = 0.14;
+  const torso = box(0.55, 0.72, 0.32, mat(shirt), 0, 1.12, 0);
+  const armL = box(0.16, 0.62, 0.18, mat(shirt), -0.37, 1.12, 0);
+  const armR = armL.clone(); armR.position.x = 0.37;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 7), mat(skin||0xe8b88f));
+  head.position.y = 1.72;
+  torso.castShadow = true;
+  g.add(legL, legR, torso, armL, armR, head);
+  return { group:g, legL, legR, armL, armR };
+}
+const player = (function(){
+  const p = makePerson(0x2b6cb0, 0x22303f);
+  // Warnweste-Look
+  p.group.children[2].material = mat(0xe8a020);
+  scene.add(p.group);
+  return Object.assign(p, {
+    pos: new THREE.Vector3(-30, 0, 268),
+    yaw: Math.PI,
+    walkPhase: 0,
+    visible: true,
+  });
+})();
+
+function collide2D(pos, r){
+  for(const c of colliders){
+    const nx = clamp(pos.x, c.x1, c.x2), nz = clamp(pos.z, c.z1, c.z2);
+    const dx = pos.x-nx, dz = pos.z-nz;
+    const d2 = dx*dx+dz*dz;
+    if(d2 < r*r){
+      const d = Math.sqrt(d2) || 0.001;
+      pos.x = nx + dx/d*r; pos.z = nz + dz/d*r;
+    }
+  }
+}
+function updatePlayer(dt){
+  if(S.mode !== 'walk') return;
+  const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
+  const spd = sprint ? 8.5 : 4.2;
+  let mx = 0, mz = 0;
+  if(keys['KeyW']) mz -= 1;
+  if(keys['KeyS']) mz += 1;
+  if(keys['KeyA']) mx -= 1;
+  if(keys['KeyD']) mx += 1;
+  const moving = mx||mz;
+  if(moving){
+    const len = Math.hypot(mx,mz); mx/=len; mz/=len;
+    // kamerarelativ
+    const s = Math.sin(camYaw), c = Math.cos(camYaw);
+    const wx = mx*c + mz*s, wz = -mx*s + mz*c;
+    player.pos.x += wx * spd * dt;
+    player.pos.z += wz * spd * dt;
+    const targetYaw = Math.atan2(wx, wz);
+    let d = angNorm(targetYaw - player.yaw);
+    player.yaw += d * Math.min(1, dt*12);
+    player.walkPhase += dt * (sprint?13:8);
+  } else {
+    player.walkPhase = damp(player.walkPhase, Math.round(player.walkPhase/Math.PI)*Math.PI, 8, dt);
+  }
+  collide2D(player.pos, 0.45);
+  player.pos.x = clamp(player.pos.x, -3400, 3400);
+  player.pos.z = clamp(player.pos.z, -3400, 3400);
+  player.group.position.copy(player.pos);
+  player.group.rotation.y = player.yaw;
+  const sw = Math.sin(player.walkPhase)*0.55;
+  player.legL.rotation.x = sw; player.legR.rotation.x = -sw;
+  player.armL.rotation.x = -sw*0.7; player.armR.rotation.x = sw*0.7;
+}
+
+/* ---------------- Kamera ---------------- */
+const camPos = new THREE.Vector3(0, 4, 280);
+const camTarget = new THREE.Vector3();
+function updateCamera(dt){
+  let focus, dist, hgt;
+  if(S.mode === 'fly'){ updateFlightCamera(dt); return; }
+  if(S.mode === 'cart'){
+    focus = cart.obj.position.clone().add(new THREE.Vector3(0,1.6,0));
+    dist = 10; hgt = 0;
+  } else {
+    focus = player.pos.clone().add(new THREE.Vector3(0,1.7,0));
+    dist = 6; hgt = 0;
+  }
+  const off = new THREE.Vector3(
+    Math.sin(camYaw)*Math.cos(camPitch),
+    Math.sin(camPitch),
+    Math.cos(camYaw)*Math.cos(camPitch)
+  ).multiplyScalar(dist);
+  const want = focus.clone().add(off);
+  want.y = Math.max(want.y, 0.6);
+  camPos.x = damp(camPos.x, want.x, 10, dt);
+  camPos.y = damp(camPos.y, want.y, 10, dt);
+  camPos.z = damp(camPos.z, want.z, 10, dt);
+  camTarget.lerp(focus, Math.min(1, dt*14));
+  camera.position.copy(camPos);
+  camera.lookAt(camTarget);
+}
+
+/* ---------------- Interaktion + Marker ---------------- */
+const interactables = [];
+const markers = [];
+function makeMarker(x, z, color){
+  const g = new THREE.Group();
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 5, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false }));
+  beam.position.y = 2.5;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.09, 8, 24),
+    new THREE.MeshBasicMaterial({ color }));
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.25;
+  g.add(beam, ring);
+  g.position.set(x, 0, z);
+  scene.add(g);
+  markers.push(g);
+  return g;
+}
+function addInteract(o){ // {x,z,r,label(),cond(),action(),marker}
+  interactables.push(o);
+  return o;
+}
+function updateInteract(){
+  const prompt = $('prompt');
+  if(S.mode === 'ui' || panelOpen || S.mode === 'fly'){ prompt.style.display='none'; keyEdge['KeyE']=false; return; }
+  if(S.mode === 'cart') return; // Prompt übernimmt updateCart
+  const px = player.pos.x;
+  const pz = player.pos.z;
+  let best = null, bd = 1e9;
+  for(const it of interactables){
+    if(it.cond && !it.cond()) continue;
+    const d = Math.hypot(px-it.x(), pz-it.z());
+    if(d < it.r && d < bd){ bd = d; best = it; }
+  }
+  if(best){
+    $('prompt-text').textContent = best.label();
+    prompt.style.display = 'block';
+    if(keyEdge['KeyE']){ keyEdge['KeyE']=false; best.action(); }
+  } else prompt.style.display = 'none';
+}
+function updateMarkers(t){
+  for(const m of markers){
+    m.children[1].scale.setScalar(1 + Math.sin(t*3)*0.12);
+    m.children[0].material.opacity = 0.15 + (Math.sin(t*3)+1)*0.06;
+  }
+}
+
+/* ---------------- Ambiente NPCs (Instancing) ---------------- */
+const ambient = (function(){
+  const N = 14;
+  const bodyG = new THREE.BoxGeometry(0.55, 1.15, 0.32); bodyG.translate(0, 0.95, 0);
+  const headG = new THREE.SphereGeometry(0.24, 7, 6); headG.translate(0, 1.72, 0);
+  const bodies = new THREE.InstancedMesh(bodyG, new THREE.MeshLambertMaterial(), N);
+  const heads = new THREE.InstancedMesh(headG, mat(0xe0b48c), N);
+  const cols = [0xc94f4f, 0x4f7fc9, 0x58a86a, 0xc9a44f, 0x8d5fc9, 0x5fb8c9];
+  const color = new THREE.Color();
+  const list = [];
+  for(let i=0;i<N;i++){
+    bodies.setColorAt(i, color.setHex(pick(cols)));
+    list.push({
+      pos: new THREE.Vector3(rand(-55,60), 0, rand(238,296)),
+      target: new THREE.Vector3(), wait: rand(0,4), yaw: 0, bob: rand(0,6),
+    });
+    list[i].target.copy(list[i].pos);
+  }
+  if(bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  scene.add(bodies, heads);
+  return { bodies, heads, list };
+})();
+function updateAmbient(dt){
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1,1,1), e = new THREE.Euler();
+  ambient.list.forEach((n, i)=>{
+    if(n.wait > 0){
+      n.wait -= dt;
+      if(n.wait <= 0){
+        // neues Ziel in der Halle (Schalter, Gates, Tafel)
+        const spots = [[rand(-50,-15), rand(265,285)], [rand(15,55), rand(240,258)], [rand(-40,-10), rand(288,296)], [rand(-10,15), rand(240,290)]];
+        const s = pick(spots);
+        n.target.set(s[0], 0, s[1]);
+      }
+    } else {
+      const d = n.target.clone().sub(n.pos); d.y = 0;
+      const dist = d.length();
+      if(dist < 0.5){ n.wait = rand(2,9); }
+      else {
+        d.normalize();
+        n.pos.addScaledVector(d, 1.5*dt);
+        n.yaw = Math.atan2(d.x, d.z);
+        n.bob += dt*9;
+      }
+    }
+    q.setFromEuler(e.set(0, n.yaw, 0));
+    const y = Math.abs(Math.sin(n.bob))*0.05;
+    m4.compose(new THREE.Vector3(n.pos.x, y, n.pos.z), q, sc);
+    ambient.bodies.setMatrixAt(i, m4);
+    ambient.heads.setMatrixAt(i, m4);
+  });
+  ambient.bodies.instanceMatrix.needsUpdate = true;
+  ambient.heads.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------------- Deko-Flugverkehr (alle 90 s) ---------------- */
+const traffic = (function(){
+  const j = makeJet(0x999999);
+  j.visible = false;
+  scene.add(j);
+  return { obj:j, state:'idle', t:0, next: 12, takeoff: true };
+})();
+function updateTraffic(dt){
+  const tr = traffic;
+  if(tr.state === 'idle'){
+    tr.next -= dt;
+    if(tr.next <= 0){
+      tr.state = tr.takeoff ? 'to' : 'ldg';
+      tr.takeoff = !tr.takeoff;
+      tr.t = 0; tr.obj.visible = true;
+      tr.next = 90;
+    }
+    return;
+  }
+  tr.t += dt;
+  const o = tr.obj;
+  if(tr.state === 'to'){
+    // Startlauf von x=-700 nach Osten, rotieren, steigen
+    const v0 = 4, a = 3.2;
+    const x = -700 + v0*tr.t + 0.5*a*tr.t*tr.t;
+    const spd = v0 + a*tr.t;
+    o.position.x = x;
+    o.position.z = 0;
+    o.rotation.y = -Math.PI/2; // Nase nach +X
+    if(spd > 68){
+      const tc = tr.t - (68-v0)/a;
+      o.position.y = Math.min(300, 0.5*9*tc*tc*0.35 + tc*8);
+      o.rotation.z = 0.14;
+    } else { o.position.y = 0; o.rotation.z = 0; }
+    if(x > 2600){ tr.state='idle'; o.visible=false; }
+  } else {
+    // Landung aus Osten auf RWY 27
+    const x = 2400 - 70*tr.t;
+    o.position.x = x;
+    o.position.z = 0;
+    o.rotation.y = Math.PI/2; // Nase nach -X
+    if(x > 620) o.position.y = (x-620)*0.052;
+    else o.position.y = 0;
+    o.rotation.z = 0;
+    if(x < 620 && x > -600){
+      // ausrollen
+    }
+    if(x < -680){ tr.state='idle'; o.visible=false; }
+  }
+}
+
+/* ============================================================
+   JOB 1 · CHECK-IN-AGENT
+   ============================================================ */
+const NAMES = ['Anna Berger','Jonas Weber','Mia Schulz','Leon Fischer','Emma Wagner','Paul Becker','Lena Hoffmann','Finn Schäfer','Marie Koch','Luca Bauer','Sofia Richter','Noah Klein','Clara Wolf','Elias Neumann','Laura Schwarz','Tim Zimmermann','Nina Braun','Jan Krüger','Julia Hartmann','Ben Lange'];
+const checkin = {
+  active:false, index:0, correct:0, earned:0,
+  npc:null, npcState:'none', wpts:[], wp:0,
+  current:null, queue:[],
+};
+function genShiftCases(){
+  const openFlights = flights.filter(f=>f.status!=='CLOSED');
+  const closedFlights = flights.filter(f=>f.status==='CLOSED');
+  const nErr = randi(2,3);
+  const errTypes = [];
+  const pool = ['name','closed','unknown','overweight'];
+  for(let i=0;i<nErr;i++) errTypes.push(pool[randi(0,3)]);
+  const types = errTypes.concat(Array(8-nErr).fill('ok'));
+  // mischen
+  for(let i=types.length-1;i>0;i--){ const j=randi(0,i); [types[i],types[j]]=[types[j],types[i]]; }
+  const used = [];
+  return types.map(type=>{
+    let name = pick(NAMES);
+    while(used.includes(name)) name = pick(NAMES);
+    used.push(name);
+    let passName = name, fl = pick(openFlights), weight = randi(9,22);
+    if(type==='name'){
+      const other = pick(NAMES.filter(n=>n!==name));
+      passName = other;
+    } else if(type==='closed' && closedFlights.length){
+      fl = pick(closedFlights);
+    } else if(type==='unknown'){
+      fl = { code:'XQ '+randi(100,999), dest:pick(['LISSABON','MADRID','ROM','PRAG']), time:'1'+randi(4,6)+':'+pick(['10','25','40','55']), status:null };
+    } else if(type==='overweight'){
+      weight = randi(24,32);
+    }
+    return { type, name, passName, flight:fl, weight };
+  });
+}
+function startCheckin(){
+  checkin.active = true;
+  checkin.index = 0; checkin.correct = 0; checkin.earned = 0;
+  checkin.queue = genShiftCases();
+  S.job = 'checkin';
+  setJobHUD('CHECK-IN-AGENT', 'Fertige 8 Passagiere ab.<br>Prüfe Name, Flug &amp; Gepäckgewicht!');
+  spawnPassenger();
+}
+function spawnPassenger(){
+  if(checkin.index >= 8){ endCheckin(); return; }
+  checkin.current = checkin.queue[checkin.index];
+  const p = makePerson(pick([0xc94f4f,0x4f7fc9,0x58a86a,0xc9a44f,0x8d5fc9]), pick([0x333a44,0x5a4632]));
+  p.group.position.set(-4, 0, 297);
+  scene.add(p.group);
+  // Koffer in der Hand
+  const bag = box(0.55, 0.75, 0.3, mat(pick([0x7a3030,0x30507a,0x3a3a3a])), 0.5, 0.45, 0);
+  p.group.add(bag);
+  checkin.npc = p;
+  checkin.npcState = 'walkin';
+  checkin.wpts = [new THREE.Vector3(-25, 0, 288), new THREE.Vector3(-45, 0, 250), new THREE.Vector3(-45, 0, 255.2)];
+  checkin.wp = 0;
+  setJobHUD('CHECK-IN-AGENT', 'Passagier ' + (checkin.index+1) + '/8 kommt zum Schalter …');
+}
+function npcWalk(p, wpts, state, dt, speed){
+  const t = wpts[state.wp];
+  if(!t) return true;
+  const d = t.clone().sub(p.group.position); d.y = 0;
+  const dist = d.length();
+  if(dist < 0.35){ state.wp++; return state.wp >= wpts.length; }
+  d.normalize();
+  p.group.position.addScaledVector(d, (speed||1.9)*dt);
+  p.group.rotation.y = Math.atan2(d.x, d.z);
+  const sw = Math.sin(performance.now()*0.011)*0.5;
+  p.legL.rotation.x = sw; p.legR.rotation.x = -sw;
+  return false;
+}
+function updateCheckin(dt){
+  if(!checkin.active || !checkin.npc) return;
+  if(checkin.npcState === 'walkin'){
+    if(npcWalk(checkin.npc, checkin.wpts, checkin, dt)){
+      checkin.npcState = 'waiting';
+      checkin.npc.group.rotation.y = 0; // Blick zum Schalter
+      checkin.npc.legL.rotation.x = checkin.npc.legR.rotation.x = 0;
+      setJobHUD('CHECK-IN-AGENT', 'Passagier ' + (checkin.index+1) + '/8 wartet.<br>Geh hinter den Schalter und drücke <b>E</b>.');
+    }
+  } else if(checkin.npcState === 'leave'){
+    if(npcWalk(checkin.npc, checkin.wpts, checkin, dt, 2.2)){
+      scene.remove(checkin.npc.group);
+      checkin.npc = null;
+      checkin.index++;
+      setTimeout(spawnPassenger, 700);
+    }
+  }
+}
+function openCheckinPanel(){
+  const c = checkin.current;
+  const boardFlight = flights.find(f=>f.code === c.flight.code);
+  const boardLine = boardFlight
+    ? boardFlight.code+' → '+boardFlight.dest+' · '+boardFlight.time+' · <b style="color:'+(boardFlight.status==='CLOSED'?'#ff6363':'#54d06a')+'">'+boardFlight.status+'</b>'
+    : '<span style="color:#ff6363">Flug nicht auf der Tafel!</span>';
+  const wColor = c.weight > 23 ? '#ff6363' : '#8fe89f';
+  showPanel(
+    '<h2>Passagier '+(checkin.index+1)+'/8</h2>'+
+    '<div class="row">'+
+    '<div class="doc"><h3>✈ Ticket</h3><div class="big">'+c.name+'</div>Flug <b>'+c.flight.code+'</b> nach '+c.flight.dest+'<br>Abflug '+c.flight.time+'</div>'+
+    '<div class="doc"><h3>🛂 Reisepass</h3><div class="big">'+c.passName+'</div>Gültig · Foto passt</div>'+
+    '</div>'+
+    '<div class="doc"><h3>🧳 Gepäck auf der Waage</h3><div class="big" style="color:'+wColor+'">'+c.weight+' kg</div>Freigepäck: 23 kg'+(c.weight>23?' · <b style="color:#ffd75e">'+(c.weight-23)+' kg zu viel</b>':'')+'</div>'+
+    '<div class="doc"><h3>🖥 Abflugtafel sagt</h3>'+boardLine+'</div>'+
+    '<button class="btn green" id="ci-accept">Einchecken</button>'+
+    (c.weight>23 ? '<button class="btn gold" id="ci-fee">Gebühr kassieren (50 Cr) + Einchecken</button>' : '')+
+    '<button class="btn red" id="ci-reject">Abweisen</button>'
+  );
+  $('ci-accept').onclick = ()=>resolveCheckin('accept');
+  if(c.weight>23) $('ci-fee').onclick = ()=>resolveCheckin('fee');
+  $('ci-reject').onclick = ()=>resolveCheckin('reject');
+}
+function resolveCheckin(action){
+  hidePanel();
+  const c = checkin.current;
+  const boardFlight = flights.find(f=>f.code === c.flight.code);
+  const docsOk = c.passName === c.name && boardFlight && boardFlight.status !== 'CLOSED';
+  let correct, reason;
+  if(!docsOk){
+    correct = action === 'reject';
+    reason = c.passName !== c.name ? 'Name auf Pass und Ticket stimmen nicht überein!'
+      : !boardFlight ? 'Diesen Flug gibt es gar nicht!'
+      : 'Der Flug ist bereits geschlossen!';
+  } else if(c.weight > 23){
+    correct = action === 'fee';
+    reason = 'Übergepäck ('+c.weight+' kg) – Gebühr fällig.';
+  } else {
+    correct = action === 'accept';
+    reason = 'Alles in Ordnung – Passagier war gültig.';
+  }
+  if(correct){
+    let pay = 60 + (action==='fee' ? 50 : 0);
+    checkin.correct++; checkin.earned += pay;
+    addCredits(pay); addXP(12);
+    toast('✔ Richtig! +'+pay+' Credits · '+reason, 'good');
+  } else {
+    addCredits(-40);
+    toast('✘ Falsch! −40 Credits · '+reason, 'bad');
+  }
+  // NPC geht
+  const leaveTo = (docsOk && (action==='accept'||action==='fee')) ? new THREE.Vector3(34, 0, 250) : new THREE.Vector3(-4, 0, 299);
+  checkin.wpts = [new THREE.Vector3(-38, 0, 250), leaveTo];
+  checkin.wp = 0;
+  checkin.npcState = 'leave';
+}
+function endCheckin(){
+  checkin.active = false;
+  S.job = null;
+  const allOk = checkin.correct === 8;
+  if(allOk){ addCredits(100); }
+  showPanel(
+    '<h2>Schicht beendet!</h2>'+
+    '<div class="doc"><div class="big">'+checkin.correct+' / 8 korrekt abgefertigt</div>'+
+    'Verdient: <b style="color:#ffd75e">'+checkin.earned+' Credits</b>'+
+    (allOk?'<br><b style="color:#8fe89f">Perfekte Schicht! +100 Bonus</b>':'')+'</div>'+
+    '<button class="btn green" id="ci-again">Neue Schicht</button>'+
+    '<button class="btn" id="ci-close">Feierabend</button>'
+  );
+  $('ci-again').onclick = ()=>{ hidePanel(); startCheckin(); };
+  $('ci-close').onclick = ()=>{ hidePanel(); setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
+  setJobHUD('Arbeitslos', 'Schicht vorbei.');
+}
+
+/* ============================================================
+   JOB 2 · RAMP AGENT (Gepäck)
+   ============================================================ */
+const ramp = {
+  active:false, cases:[], spawned:0, delivered:0, deliveredOk:0,
+  timer:0, carrying:null, spawnT:0, collideCd:0,
+};
+function makeCase(jetIdx){
+  const info = JET_INFO[jetIdx];
+  const g = new THREE.Group();
+  const b = box(0.72, 0.52, 0.44, mat(info.color), 0, 0, 0);
+  b.castShadow = true; g.add(b);
+  g.add(box(0.3, 0.09, 0.09, mat(0x222222), 0, 0.31, 0));
+  g.position.set(BELT.x, BELT.y+0.3, BELT.z1-1);
+  scene.add(g);
+  return { obj:g, jetIdx, state:'belt', beltZ: BELT.z1-1, queueSlot:-1 };
+}
+function startRamp(){
+  ramp.active = true;
+  ramp.cases = []; ramp.spawned = 0; ramp.delivered = 0; ramp.deliveredOk = 0;
+  ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = null;
+  cart.load = [];
+  S.job = 'ramp';
+  setJobHUD('RAMP AGENT', 'Bring 8 Koffer zu den richtigen Jets!<br><span style="color:#3a6fe8">BLAU → LH 452 (links)</span> · <span style="color:#e07820">ORANGE → EW 771 (rechts)</span>');
+}
+function nearestCase(){
+  let best = null, bd = 2.4;
+  for(const c of ramp.cases){
+    if(c.state !== 'queue' && c.state !== 'ground') continue;
+    const d = Math.hypot(player.pos.x - c.obj.position.x, player.pos.z - c.obj.position.z);
+    if(d < bd){ bd = d; best = c; }
+  }
+  return best;
+}
+function updateRamp(dt){
+  if(!ramp.active) return;
+  ramp.timer -= dt;
+  setTimerHUD(Math.max(0, ramp.timer));
+  if(ramp.timer <= 0){ endRamp(); return; }
+  // Nachschub aufs Band
+  if(ramp.spawned < 8){
+    ramp.spawnT -= dt;
+    if(ramp.spawnT <= 0){
+      ramp.cases.push(makeCase(randi(0,1)));
+      ramp.spawned++;
+      ramp.spawnT = 5;
+    }
+  }
+  // Band-Bewegung + Warteschlange am Ende
+  let qCount = 0;
+  for(const c of ramp.cases){
+    if(c.state === 'belt'){
+      c.beltZ -= 2.5*dt;
+      const stopZ = BELT.z2 + 1 + qCount*1.1;
+      if(c.beltZ <= stopZ){ c.beltZ = stopZ; c.state = 'queue'; }
+      c.obj.position.z = c.beltZ;
+      qCount++;
+    } else if(c.state === 'queue') qCount++;
+  }
+  if(ramp.delivered >= 8) endRamp();
+}
+function deliverAtJet(jetIdx, items){
+  let okPay = 0, badPay = 0;
+  for(const c of items){
+    ramp.delivered++;
+    if(c.jetIdx === jetIdx){ ramp.deliveredOk++; okPay += 40; }
+    else badPay += 30;
+    scene.remove(c.obj); cart.obj.remove(c.obj); player.group.remove(c.obj);
+    const i = ramp.cases.indexOf(c); if(i>=0) ramp.cases.splice(i,1);
+  }
+  if(okPay){ addCredits(okPay); addXP(Math.floor(okPay/5)); toast('✔ Gepäck verladen: +'+okPay+' Credits', 'good'); }
+  if(badPay){ addCredits(-badPay); toast('✘ Falscher Flieger! −'+badPay+' Credits', 'bad'); }
+}
+function endRamp(){
+  if(!ramp.active) return;
+  ramp.active = false;
+  S.job = null;
+  setTimerHUD(null);
+  // übrig gebliebene Koffer entfernen
+  for(const c of ramp.cases){ scene.remove(c.obj); cart.obj.remove(c.obj); player.group.remove(c.obj); }
+  if(ramp.carrying){ player.group.remove(ramp.carrying.obj); ramp.carrying = null; }
+  cart.load = [];
+  const perfect = ramp.deliveredOk === 8;
+  const timeBonus = perfect && ramp.timer > 0 ? 80 : 0;
+  if(timeBonus) addCredits(timeBonus);
+  showPanel(
+    '<h2>Gepäck-Welle beendet</h2>'+
+    '<div class="doc"><div class="big">'+ramp.deliveredOk+' / 8 Koffer richtig verladen</div>'+
+    (timeBonus?'<b style="color:#8fe89f">Rechtzeitig &amp; fehlerfrei: +'+timeBonus+' Bonus!</b>':'')+'</div>'+
+    '<button class="btn green" id="rp-again">Nächste Welle</button>'+
+    '<button class="btn" id="rp-close">Feierabend</button>'
+  );
+  $('rp-again').onclick = ()=>{ hidePanel(); startRamp(); };
+  $('rp-close').onclick = ()=>{ hidePanel(); setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
+}
+
+/* ---------------- Gepäckwagen fahren ---------------- */
+function enterCart(){
+  S.mode = 'cart';
+  player.group.visible = false;
+}
+function exitCart(){
+  S.mode = 'walk';
+  const f = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
+  player.pos.copy(cart.obj.position).addScaledVector(new THREE.Vector3(-f.z, 0, f.x), 2.2);
+  player.pos.y = 0;
+  player.group.visible = true;
+  player.group.position.copy(player.pos);
+}
+function updateCart(dt){
+  const o = cart.obj;
+  if(S.mode === 'cart'){
+    const fwd = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
+    const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+    let acc = 0;
+    if(keys['KeyW']) acc += 7;
+    if(keys['KeyS']) acc -= 5;
+    cart.vel.addScaledVector(fwd, acc*dt);
+    let fs = cart.vel.dot(fwd), ls = cart.vel.dot(right);
+    // Lenkung (wirkt mit Geschwindigkeit)
+    let steer = 0;
+    if(keys['KeyA']) steer += 1;
+    if(keys['KeyD']) steer -= 1;
+    cart.yaw += steer * 1.7 * clamp(fs/5, -1, 1) * dt;
+    // leichtes Driften: Querreibung begrenzt
+    ls *= Math.exp(-3.2*dt);
+    fs *= Math.exp(-0.55*dt);
+    fs = clamp(fs, -5, 11);
+    const f2 = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
+    const r2 = new THREE.Vector3(f2.z, 0, -f2.x);
+    cart.vel.copy(f2).multiplyScalar(fs).addScaledVector(r2, ls);
+    const speedBefore = cart.vel.length();
+    o.position.addScaledVector(cart.vel, dt);
+    o.position.x = clamp(o.position.x, -800, 800);
+    o.position.z = clamp(o.position.z, -60, 228);
+    o.rotation.y = cart.yaw;
+    // Kollision (Jets, Gebäude) über die statischen Kollisionsboxen
+    if(ramp.collideCd > 0) ramp.collideCd -= dt;
+    const before = o.position.clone();
+    collide2D(o.position, 1.6);
+    if(before.distanceToSquared(o.position) > 0.0004){
+      const nearJet = jets.some(j=>Math.hypot(o.position.x - j.x, o.position.z - j.z) < 26);
+      if(nearJet && speedBefore > 4 && ramp.collideCd <= 0){
+        ramp.collideCd = 3;
+        addCredits(-30);
+        toast('💥 Kollision mit dem Flugzeug! −30 Credits', 'bad');
+      }
+      cart.vel.multiplyScalar(-0.25);
+    }
+    // Prompt + E-Logik im Wagen
+    let nearJet = null;
+    for(const [i,j] of jets.entries()){
+      if(Math.hypot(o.position.x - j.x, o.position.z - j.z) < 17) nearJet = i;
+    }
+    const prompt = $('prompt');
+    if(nearJet !== null && cart.load.length){
+      $('prompt-text').textContent = 'Gepäck abladen bei ' + jets[nearJet].name;
+      prompt.style.display = 'block';
+      if(keyEdge['KeyE']){ keyEdge['KeyE']=false; deliverAtJet(nearJet, cart.load.slice()); cart.load = []; }
+    } else {
+      $('prompt-text').textContent = 'Aussteigen';
+      prompt.style.display = 'block';
+      if(keyEdge['KeyE']){ keyEdge['KeyE']=false; exitCart(); }
+    }
+  } else {
+    cart.vel.multiplyScalar(Math.exp(-2*dt));
+    if(cart.vel.lengthSq() > 0.001) o.position.addScaledVector(cart.vel, dt);
+  }
+}
+
+/* ---------------- Stationen registrieren ---------------- */
+makeMarker(-45, 260.7, 0x5ec8ff);
+addInteract({
+  x:()=>-45, z:()=>260.7, r:3.4,
+  cond: ()=> S.mode==='walk' && S.job!=='ramp' && S.job!=='captain',
+  label: ()=> checkin.active
+    ? (checkin.npcState==='waiting' ? 'Passagier abfertigen' : 'Warten auf Passagier …')
+    : 'Check-in-Schicht starten',
+  action: ()=>{
+    if(checkin.active){
+      if(checkin.npcState === 'waiting') openCheckinPanel();
+      return;
+    }
+    showTutorial('checkin', 'JOB: Check-in-Agent',
+      '<p>Passagiere kommen zu deinem Schalter. Prüfe die Dokumente:</p><ul>'+
+      '<li><b>Name</b> auf Ticket und Pass muss übereinstimmen</li>'+
+      '<li>Der <b>Flug</b> muss auf der Abflugtafel stehen und offen sein (nicht CLOSED)</li>'+
+      '<li>Gepäck über <b>23 kg</b> → Übergepäck-Gebühr kassieren</li></ul>'+
+      '<p>Richtig = Credits + XP · Fehler durchgewunken = Abzug!</p>',
+      startCheckin);
+  },
+});
+makeMarker(-14, 192, 0xe0a020);
+addInteract({
+  x:()=>-14, z:()=>192, r:4,
+  cond: ()=> S.mode==='walk' && !checkin.active && S.job!=='captain',
+  label: ()=> S.credits >= UNLOCK_RAMP || ramp.active ? (ramp.active?'Welle läuft …':'Gepäck-Schicht starten (Ramp Agent)') : 'Ramp Agent – gesperrt ('+UNLOCK_RAMP+' Credits nötig)',
+  action: ()=>{
+    if(ramp.active) return;
+    if(S.credits < UNLOCK_RAMP){ toast('Du brauchst '+UNLOCK_RAMP+' Credits für diesen Job!', 'bad'); return; }
+    showTutorial('ramp', 'JOB: Ramp Agent',
+      '<p>Koffer kommen aus dem Terminal aufs Band – farbcodiert nach Ziel-Jet:</p><ul>'+
+      '<li><b style="color:#3a6fe8">BLAU</b> → LH 452 (linker Jet) · <b style="color:#e07820">ORANGE</b> → EW 771 (rechter Jet)</li>'+
+      '<li><b>E</b>: Koffer aufnehmen, am Wagen wieder <b>E</b>: aufladen (max. 6)</li>'+
+      '<li>In den Wagen einsteigen (<b>E</b>), mit <b>WASD</b> zum Jet fahren, dort abladen</li>'+
+      '<li>Vorsicht: Kollision mit einem Flugzeug kostet Credits!</li></ul>'+
+      '<p>8 Koffer in 3 Minuten – fehlerfrei &amp; rechtzeitig gibt Bonus.</p>',
+      startRamp);
+  },
+});
+// Koffer aufnehmen
+addInteract({
+  x:()=>{ const c = nearestCase(); return c ? c.obj.position.x : 99999; },
+  z:()=>{ const c = nearestCase(); return c ? c.obj.position.z : 99999; },
+  r: 2.4,
+  cond: ()=> S.mode==='walk' && ramp.active && !ramp.carrying,
+  label: ()=> 'Koffer aufnehmen',
+  action: ()=>{
+    const c = nearestCase(); if(!c) return;
+    c.state = 'carried';
+    ramp.carrying = c;
+    scene.remove(c.obj);
+    player.group.add(c.obj);
+    c.obj.position.set(0, 1.05, 0.5);
+    c.obj.rotation.set(0,0,0);
+  },
+});
+// Koffer auf Wagen laden ODER direkt am Jet abgeben
+addInteract({
+  x:()=>cart.obj.position.x, z:()=>cart.obj.position.z, r:3.6,
+  cond: ()=> S.mode==='walk' && ramp.carrying !== null,
+  label: ()=> cart.load.length < 6 ? 'Auf Wagen laden ('+cart.load.length+'/6)' : 'Wagen ist voll!',
+  action: ()=>{
+    if(cart.load.length >= 6) return;
+    const c = ramp.carrying; ramp.carrying = null;
+    c.state = 'cart';
+    player.group.remove(c.obj);
+    cart.obj.add(c.obj);
+    const slot = cart.slots[cart.load.length];
+    c.obj.position.set(slot.x, 1.15 + Math.floor(cart.load.length/2)*0.0, slot.z);
+    cart.load.push(c);
+  },
+});
+for(const [i,j] of jets.entries()){
+  addInteract({
+    x:()=>j.x, z:()=>j.z, r:14,
+    cond: ()=> S.mode==='walk' && ramp.carrying !== null,
+    label: ()=> 'Koffer abgeben bei '+j.name,
+    action: ()=>{
+      const c = ramp.carrying; ramp.carrying = null;
+      deliverAtJet(i, [c]);
+    },
+  });
+}
+// In den Wagen einsteigen
+addInteract({
+  x:()=>cart.obj.position.x, z:()=>cart.obj.position.z, r:3.2,
+  cond: ()=> S.mode==='walk' && !ramp.carrying,
+  label: ()=> 'Gepäckwagen fahren',
+  action: enterCart,
+});
+
+/* ============================================================
+   JOB 3 · CAPTAIN — Flugzeug & Flugphysik
+   Vorwärts = -Z (lokal) · Euler 'YXZ' (Yaw, Pitch, Roll)
+   ============================================================ */
+function makePlayerPlane(){
+  const g = new THREE.Group();
+  const white = mat(0xf5f0e8), red = mat(0xc23b2e), dark = mat(0x2c2f36);
+  // Rumpf
+  const fus = cyl(0.55, 0.75, 5.6, 8, white, 0, 1.35, 0.3);
+  fus.rotation.x = Math.PI/2; fus.castShadow = true; g.add(fus);
+  const cowl = cyl(0.62, 0.55, 1.1, 8, red, 0, 1.35, -2.9);
+  cowl.rotation.x = Math.PI/2; g.add(cowl);
+  const tailcone = cyl(0.18, 0.55, 2.2, 8, white, 0, 1.5, 4.0);
+  tailcone.rotation.x = Math.PI/2 + 0.1; g.add(tailcone);
+  // Kanzel
+  const canopy = box(0.9, 0.62, 1.5, new THREE.MeshLambertMaterial({ color:0x8fd0e8, transparent:true, opacity:0.55 }), 0, 2.05, -0.7);
+  g.add(canopy);
+  // Propeller
+  const prop = new THREE.Group();
+  prop.add(box(0.16, 2.3, 0.06, dark, 0, 0, 0));
+  prop.add(box(2.3, 0.16, 0.06, dark, 0, 0, 0));
+  const spinner = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 5), red);
+  prop.add(spinner);
+  prop.position.set(0, 1.35, -3.5);
+  g.add(prop);
+  // Flügel + Querruder
+  const wing = box(10.4, 0.16, 1.6, white, 0, 1.9, -0.4);
+  wing.castShadow = true; g.add(wing);
+  g.add(box(10.4, 0.05, 0.3, red, 0, 1.99, -1.1));
+  const ailL = box(1.9, 0.1, 0.5, red, -4.2, 1.9, 0.55);
+  const ailR = box(1.9, 0.1, 0.5, red, 4.2, 1.9, 0.55);
+  g.add(ailL, ailR);
+  // Höhenleitwerk + -ruder
+  const hstab = box(3.6, 0.12, 1.0, white, 0, 1.7, 4.7);
+  g.add(hstab);
+  const elev = box(3.6, 0.09, 0.5, red, 0, 1.7, 5.4);
+  g.add(elev);
+  // Seitenleitwerk + -ruder
+  const vstab = box(0.12, 1.8, 1.2, white, 0, 2.6, 4.7);
+  vstab.castShadow = true; g.add(vstab);
+  const rud = new THREE.Group();
+  const rudM = box(0.1, 1.6, 0.6, red, 0, 0, 0.3);
+  rud.add(rudM);
+  rud.position.set(0, 2.7, 5.3);
+  g.add(rud);
+  // Fahrwerk (3 Beine, einziehbar)
+  function gearLeg(x, z){
+    const leg = new THREE.Group();
+    leg.add(cyl(0.07, 0.07, 0.9, 5, dark, 0, -0.45, 0));
+    const wh = cyl(0.3, 0.3, 0.22, 8, mat(0x16181c), 0, -0.9, 0);
+    wh.rotation.z = Math.PI/2;
+    leg.add(wh);
+    leg.position.set(x, 1.15, z);
+    g.add(leg);
+    return leg;
+  }
+  const gearN = gearLeg(0, -2.4), gearL = gearLeg(-1.3, 0.3), gearR = gearLeg(1.3, 0.3);
+  return { group:g, prop, ailL, ailR, elev, rud, gears:[gearN, gearL, gearR] };
+}
+
+const plane = (function(){
+  const m = makePlayerPlane();
+  scene.add(m.group);
+  return Object.assign(m, {
+    pos: new THREE.Vector3(130, 0, 165),
+    vel: new THREE.Vector3(),
+    yaw: Math.PI, pitch: 0, roll: 0,
+    throttle: 0, gearDown: true, gearAnim: 1, brake: false,
+    onGround: true, stalled: false, propSpin: 0,
+    ctl: { pitch:0, roll:0, yaw:0 },
+    quat: new THREE.Quaternion(),
+  });
+})();
+const PLANE_STAND = { x:130, z:165, yaw: Math.PI };
+addCollider(124, 158, 136, 172);
+
+function planeVectors(){
+  const e = new THREE.Euler(plane.pitch, plane.yaw, -plane.roll, 'YXZ');
+  plane.quat.setFromEuler(e);
+  const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(plane.quat);
+  const up = new THREE.Vector3(0,1,0).applyQuaternion(plane.quat);
+  return { fwd, up };
+}
+function planeHeading(){
+  let h = -plane.yaw/DEG % 360;
+  if(h<0) h += 360;
+  return h;
+}
+function gearHeight(){ return lerp(0.62, 1.02, plane.gearAnim); }
+
+function resetPlaneToStand(){
+  plane.pos.set(PLANE_STAND.x, 0, PLANE_STAND.z);
+  plane.vel.set(0,0,0);
+  plane.yaw = PLANE_STAND.yaw; plane.pitch = 0; plane.roll = 0;
+  plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1;
+  plane.onGround = true; plane.stalled = false;
+  plane.ctl.pitch = plane.ctl.roll = plane.ctl.yaw = 0;
+  syncPlaneMesh();
+}
+function syncPlaneMesh(){
+  planeVectors();
+  plane.group.position.copy(plane.pos);
+  // Modell-Ursprung liegt am Boden unter dem Rumpf: Höhe über Grund via pos.y direkt
+  plane.group.quaternion.copy(plane.quat);
+}
+
+resetPlaneToStand(); // Flugzeug initial an seinen Stand stellen
+
+/* Flugphysik — strikt mit deltaTime */
+const PHYS = {
+  thrustAcc: 7.6,      // m/s² bei 100 % Schub
+  drag0: 0.0021,
+  liftK: 0.0098,
+  stallKt: 50,
+  rotateKt: 55,
+};
+function updateFlightPhysics(dt){
+  const p = plane;
+  // --- Eingaben weich interpolieren ---
+  const tPitch = (keys['KeyS']?1:0) - (keys['KeyW']?1:0); // S = ziehen
+  const tRoll  = (keys['KeyD']?1:0) - (keys['KeyA']?1:0);
+  const tYaw   = (keys['KeyE']?1:0) - (keys['KeyQ']?1:0);
+  p.ctl.pitch = damp(p.ctl.pitch, tPitch, 6, dt);
+  p.ctl.roll  = damp(p.ctl.roll,  tRoll,  6, dt);
+  p.ctl.yaw   = damp(p.ctl.yaw,   tYaw,   6, dt);
+  if(keys['ShiftLeft']||keys['ShiftRight']) p.throttle = clamp(p.throttle + 45*dt, 0, 100);
+  if(keys['ControlLeft']||keys['ControlRight']) p.throttle = clamp(p.throttle - 45*dt, 0, 100);
+  p.brake = !!keys['KeyB'];
+  // Fahrwerk
+  if(keyEdge['KeyG']){
+    keyEdge['KeyG'] = false;
+    if(p.onGround && p.gearDown){ toast('Fahrwerk am Boden nicht einfahrbar!', 'bad'); }
+    else p.gearDown = !p.gearDown;
+  }
+  p.gearAnim = clamp(p.gearAnim + (p.gearDown?1:-1)*dt/1.2, 0, 1);
+
+  const { fwd, up } = planeVectors();
+  const vAir = p.vel.clone().sub(wind.vec);
+  const speed = vAir.length();
+  const kt = speed*KT;
+  const eff = clamp(kt/75, 0, 1.35);        // Ruderwirkung ~ Geschwindigkeit
+
+  if(!p.onGround){
+    // --- Drehraten in der Luft (im Stall stark reduziert) ---
+    const auth = p.stalled ? 0.35 : 1;
+    p.roll += p.ctl.roll * 2.0 * eff * auth * dt;
+    p.pitch += p.ctl.pitch * 0.85 * eff * auth * dt;
+    p.yaw += -p.ctl.yaw * 0.55 * eff * dt;
+    p.roll = clamp(p.roll, -1.25, 1.25);
+    p.pitch = clamp(p.pitch, -0.7, 0.55);
+    // koordinierte Kurve: Querlage dreht das Heading
+    if(speed > 8) p.yaw -= Math.tan(clamp(p.roll,-1.2,1.2)) * 9.81 / Math.max(speed, 18) * dt;
+  } else {
+    // --- Bodensteuerung ---
+    const gs = p.vel.length();
+    const steer = -p.ctl.yaw;
+    p.yaw += steer * 1.1 * clamp(gs/4, 0, 1) * clamp(1.6 - gs/26, 0.22, 1) * dt;
+    p.roll = damp(p.roll, 0, 6, dt);
+    // Rotieren erst ab ~55 kt
+    if(kt >= PHYS.rotateKt && p.ctl.pitch > 0.15){
+      p.pitch = clamp(p.pitch + 0.55*dt, 0, 0.28);
+    } else {
+      p.pitch = damp(p.pitch, 0, 4, dt);
+    }
+  }
+
+  // --- Kräfte (massennormiert) ---
+  const acc = new THREE.Vector3();
+  acc.addScaledVector(fwd, p.throttle/100 * PHYS.thrustAcc);
+  // Anstellwinkel
+  const gamma = speed > 2 ? Math.asin(clamp(vAir.y/speed, -1, 1)) : 0;
+  let aoa = p.pitch - gamma;
+  let cl = clamp(0.35 + aoa*4.6, -0.6, 1.7);
+  // Stall
+  p.stalled = !p.onGround && kt < PHYS.stallKt && p.pos.y > 1.5;
+  if(p.stalled){
+    cl *= 0.45;
+    p.pitch -= 0.7*dt;                     // Nase sackt weg
+    p.roll += Math.sin(performance.now()*0.01)*0.25*dt; // Buffet
+  }
+  let liftAcc = clamp(cl * speed*speed * PHYS.liftK, -6, 26);
+  acc.addScaledVector(up, liftAcc);
+  // Widerstand (+ induziert)
+  if(speed > 0.5){
+    const dragK = PHYS.drag0 * (1 + 1.6*cl*cl) + (p.gearAnim*0.0006);
+    acc.addScaledVector(vAir.clone().normalize(), -dragK * speed*speed);
+  }
+  acc.y -= 9.81;
+
+  // --- Integration über Luftgeschwindigkeit (Wind schiebt real) ---
+  vAir.addScaledVector(acc, dt);
+  if(!p.onGround){
+    // Schiebewinkel dämpfen: Flugzeug folgt der Nase (Luftmasse!)
+    const hv = new THREE.Vector3(vAir.x, 0, vAir.z);
+    const fh = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
+    const rh = new THREE.Vector3(fh.z, 0, -fh.x);
+    const fs = hv.dot(fh), ss = hv.dot(rh) * Math.exp(-1.6*dt);
+    vAir.x = fh.x*fs + rh.x*ss; vAir.z = fh.z*fs + rh.z*ss;
+  }
+  p.vel.copy(vAir).add(wind.vec);
+
+  if(p.onGround){
+    // kein seitliches Rutschen, Rollreibung, Bremse
+    const fh = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
+    let fs = p.vel.dot(fh);
+    const fr = 0.35 + (p.brake ? 5.5 : 0);
+    fs = fs > 0 ? Math.max(0, fs - fr*dt) : Math.min(0, fs + fr*dt);
+    p.vel.copy(fh).multiplyScalar(fs);
+    if(liftAcc > 9.81){ p.vel.y = Math.max(0, vAir.y); } // Abheben: Auftrieb übersteigt Gewicht
+    else p.vel.y = 0;
+  }
+
+  const prevY = p.pos.y;
+  p.pos.addScaledVector(p.vel, dt);
+
+  // --- Bodenkontakt ---
+  const gh = p.gearAnim > 0.5 ? 0 : -0.55; // Bodenlinie: Räder bzw. Rumpfunterseite
+  const sink = -p.vel.y;
+  if(p.pos.y <= gh && p.vel.y <= 0){
+    if(!p.onGround){
+      handleTouchdown(sink*FPM);
+      if(!flight.active && S.mode!=='fly') return; // Crash hat alles zurückgesetzt
+    }
+    p.pos.y = gh;
+    p.onGround = true;
+    p.vel.y = 0;
+  } else if(p.pos.y > gh + 0.05){
+    p.onGround = false;
+  }
+
+  // Propeller & Ruderflächen animieren
+  p.propSpin += (2 + p.throttle*0.55) * dt * 10;
+  p.prop.rotation.z = p.propSpin;
+  p.ailL.rotation.x = -p.ctl.roll*0.55;
+  p.ailR.rotation.x =  p.ctl.roll*0.55;
+  p.elev.rotation.x = p.ctl.pitch*0.55;
+  p.rud.rotation.y = -p.ctl.yaw*0.6;
+  for(const gr of p.gears){
+    gr.rotation.x = (1-p.gearAnim) * 1.9;
+    gr.visible = p.gearAnim > 0.03;
+  }
+  syncPlaneMesh();
+  updatePapis(p.pos.x, p.pos.y, p.pos.z);
+}
+
+/* ============================================================
+   MISSIONEN · LANDUNGSBEWERTUNG · FLUG-HUD · KAMERA · LOOP
+   ============================================================ */
+const MISSIONS = [
+  { name:'RUNDFLUG', base:200, wind:[240,4],
+    desc:'Fliege durch 5 Checkpoint-Ringe rund um den Flughafen und lande wieder auf der Runway. Wenig Wind – perfekt zum Eingewöhnen.',
+    rings:[[500,-450,140],[-150,-750,190],[-850,-450,220],[-900,250,180],[-100,450,130]],
+    tdzRequired:false, airStart:false },
+  { name:'PLATZRUNDE', base:300, wind:[150,8],
+    desc:'Saubere Traffic-Pattern auf ~800 ft: Querabflug → Gegenanflug → Queranflug → Endanflug, dann landen. Mittlerer Wind.',
+    rings:[[450,-350,240],[-250,-650,240],[-1000,-500,220],[-1350,0,100]],
+    tdzRequired:false, airStart:false },
+  { name:'PRÄZISIONSLANDUNG', base:500, wind:[180,16],
+    desc:'Kurzer Endanflug bei starkem Seitenwind (16 kt quer!). Setze exakt in der markierten Aufsetzzone auf – Vorhaltewinkel nötig. Beste Bezahlung.',
+    rings:[], tdzRequired:true, airStart:true },
+];
+const flight = {
+  active:false, mIdx:0, phase:'fly', wpIdx:0,
+  ringMeshes:[], landed:false, landStats:null,
+};
+const TDZ = { x1: RWY_X1+60, x2: RWY_X1+400 };
+
+function clearRings(){
+  for(const r of flight.ringMeshes) scene.remove(r);
+  flight.ringMeshes = [];
+}
+function buildRings(m){
+  clearRings();
+  for(const [x,z,y] of m.rings){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(30, 2.2, 8, 26),
+      new THREE.MeshBasicMaterial({ color:0x30d5ff, transparent:true, opacity:0.85 }));
+    ring.position.set(x, y, z);
+    scene.add(ring);
+    flight.ringMeshes.push(ring);
+  }
+}
+function currentTarget(){
+  const m = MISSIONS[flight.mIdx];
+  if(flight.phase === 'fly' && flight.wpIdx < m.rings.length){
+    const r = m.rings[flight.wpIdx];
+    return new THREE.Vector3(r[0], r[2], r[1]);
+  }
+  return new THREE.Vector3(TDZ.x1+80, 0, 0); // Aufsetzzone RWY 09
+}
+function startMission(i){
+  hidePanel();
+  const m = MISSIONS[i];
+  flight.active = true; flight.mIdx = i; flight.wpIdx = 0;
+  flight.phase = m.rings.length ? 'fly' : 'land';
+  flight.landed = false; flight.landStats = null;
+  setWind(m.wind[0], m.wind[1]);
+  buildRings(m);
+  S.job = 'captain'; S.mode = 'fly';
+  player.group.visible = false;
+  if(m.airStart){
+    plane.pos.set(RWY_X1-1500, 115, 25);
+    plane.yaw = -Math.PI/2; plane.pitch = 0; plane.roll = 0;
+    plane.throttle = 40; plane.gearDown = false; plane.gearAnim = 0;
+    plane.onGround = false;
+    const { fwd } = planeVectors();
+    plane.vel.copy(fwd).multiplyScalar(34).add(wind.vec);
+  } else {
+    plane.pos.set(RWY_X1+25, 0, 0);
+    plane.yaw = -Math.PI/2; plane.pitch = 0; plane.roll = 0;
+    plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1;
+    plane.onGround = true;
+    plane.vel.set(0,0,0);
+  }
+  syncPlaneMesh();
+  camPos.copy(plane.pos).add(new THREE.Vector3(0, 6, 20));
+  $('flighthud').style.display = 'block';
+  $('f-wind').textContent = String(Math.round(m.wind[0])).padStart(3,'0') + '° / ' + m.wind[1] + ' kt';
+  setJobHUD('CAPTAIN · ' + m.name, missionObjective());
+  toast('Mission gestartet: ' + m.name, 'info');
+}
+function missionObjective(){
+  const m = MISSIONS[flight.mIdx];
+  if(flight.phase === 'fly'){
+    const names = m.name==='PLATZRUNDE' ? ['Querabflug','Gegenanflug','Queranflug','Endanflug'] : null;
+    const lbl = names ? names[flight.wpIdx] : 'Ring '+(flight.wpIdx+1)+'/'+m.rings.length;
+    return 'Nächster Wegpunkt: <b>'+lbl+'</b>' + (plane.onGround ? '<br>Erst starten: Vollgas (Shift), bei 55 kt ziehen (S), Fahrwerk einfahren (G)!' : '');
+  }
+  return 'Lande auf <b>Runway 09</b>' + (m.tdzRequired ? ' – <b>in der Aufsetzzone!</b>' : '') + '<br>PAPI: 2× rot / 2× weiß = perfekter Gleitpfad. Fahrwerk (G) nicht vergessen!';
+}
+function endFlightToApron(msg){
+  flight.active = false;
+  clearRings();
+  setWind(210, 4);
+  resetPlaneToStand();
+  S.job = null; S.mode = 'walk';
+  player.pos.set(122, 0, 174); player.group.position.copy(player.pos);
+  player.group.visible = true;
+  $('flighthud').style.display = 'none';
+  $('f-warn').innerHTML = ''; $('f-msg').textContent = '';
+  setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.');
+  if(msg) toast(msg, 'info');
+}
+function crash(reason){
+  toast('💥 CRASH! ' + reason, 'bad');
+  flight.active = false;
+  showPanel(
+    '<h2 style="color:#ff6363">CRASH!</h2>'+
+    '<div class="doc">'+reason+'<br>Mission fehlgeschlagen – keine Bezahlung.</div>'+
+    '<button class="btn" id="cr-ok">Zurück zum Vorfeld</button>'
+  );
+  $('cr-ok').onclick = ()=>{ hidePanel(); endFlightToApron(); };
+}
+function handleTouchdown(vsFpm){
+  const p = plane;
+  const onRwy = Math.abs(p.pos.z) <= RWY_W/2 + 2 && p.pos.x >= RWY_X1-15 && p.pos.x <= RWY_X2+15;
+  const gearOk = p.gearAnim > 0.92;
+  if(!gearOk){ crash('Landung ohne Fahrwerk!'); return; }
+  if(!onRwy){ crash('Neben der Runway aufgesetzt!'); return; }
+  if(vsFpm > 1000){ crash('Aufschlag mit '+Math.round(vsFpm)+' ft/min!'); return; }
+  const centerDev = Math.abs(p.pos.z);
+  const inTDZ = p.pos.x >= TDZ.x1 && p.pos.x <= TDZ.x2;
+  if(flight.active && flight.phase === 'land'){
+    flight.landed = true;
+    flight.landStats = { vsFpm, centerDev, inTDZ };
+  } else if(flight.active){
+    toast('Aufgesetzt – aber erst alle Wegpunkte abfliegen! Wieder starten.', 'bad');
+  }
+}
+function rateLanding(st){
+  const m = MISSIONS[flight.mIdx];
+  let stars = 5;
+  let notes = [];
+  if(st.vsFpm < 200){ notes.push('🧈 Butterweich ('+Math.round(st.vsFpm)+' ft/min)'); }
+  else if(st.vsFpm <= 600){ stars -= 1; notes.push('Okay ('+Math.round(st.vsFpm)+' ft/min)'); }
+  else { stars -= 2; notes.push('Hart! ('+Math.round(st.vsFpm)+' ft/min)'); }
+  if(st.centerDev <= 3) notes.push('Perfekt auf der Centerline ('+st.centerDev.toFixed(1)+' m)');
+  else if(st.centerDev <= 7){ stars -= 1; notes.push('Leicht neben der Centerline ('+st.centerDev.toFixed(1)+' m)'); }
+  else { stars -= 2; notes.push('Weit neben der Centerline ('+st.centerDev.toFixed(1)+' m)'); }
+  if(st.inTDZ) notes.push('Aufsetzzone getroffen ✔');
+  else { stars -= m.tdzRequired ? 2 : 1; notes.push('Aufsetzzone verfehlt ✘'); }
+  return { stars: clamp(stars, 1, 5), notes };
+}
+function completeMission(){
+  const m = MISSIONS[flight.mIdx];
+  const { stars, notes } = rateLanding(flight.landStats);
+  const pay = m.base * stars;
+  addCredits(pay); addXP(30*stars);
+  showPanel(
+    '<h2>Mission geschafft: '+m.name+'</h2>'+
+    '<div id="stars">'+'★'.repeat(stars)+'<span style="opacity:.25">'+'★'.repeat(5-stars)+'</span></div>'+
+    '<div class="doc">'+notes.join('<br>')+'</div>'+
+    '<div class="doc"><div class="big" style="color:#ffd75e">+'+pay+' Credits</div>'+m.base+' Basis × '+stars+' Sterne</div>'+
+    '<button class="btn green" id="ms-ok">Zurück zum Vorfeld</button>'
+  );
+  $('ms-ok').onclick = ()=>{ hidePanel(); endFlightToApron(); };
+  flight.active = false;
+}
+
+/* Missionswahl an der Flugzeug-Station */
+makeMarker(124, 172, 0x8fe89f);
+addInteract({
+  x:()=>124, z:()=>172, r:5,
+  cond: ()=> S.mode==='walk' && !checkin.active && !ramp.active,
+  label: ()=> S.credits >= UNLOCK_CAPTAIN ? 'Ins Flugzeug steigen (Captain)' : 'Captain – gesperrt ('+UNLOCK_CAPTAIN+' Credits nötig)',
+  action: ()=>{
+    if(S.credits < UNLOCK_CAPTAIN){ toast('Du brauchst '+UNLOCK_CAPTAIN+' Credits für die Captain-Lizenz!', 'bad'); return; }
+    showTutorial('captain', 'JOB: Captain',
+      '<p>Dein eigenes Propellerflugzeug! Grundlagen:</p><ul>'+
+      '<li><b>Shift/Strg</b> Schub · <b>W/S</b> Pitch (S = ziehen) · <b>A/D</b> Roll · <b>Q/E</b> Seitenruder/Bugrad</li>'+
+      '<li>Abheben erst ab <b>~55 kt</b>: ziehen, dann Fahrwerk <b>G</b> einfahren</li>'+
+      '<li>Unter <b>50 kt</b> droht der Stall – Nase runter, Schub rein!</li>'+
+      '<li>Der <b>Wind</b> versetzt dich seitlich – Vorhaltewinkel fliegen (Windsack &amp; HUD)</li>'+
+      '<li>Landung: PAPI 2× rot / 2× weiß, sanft &lt;200 ft/min = Butter 🧈</li>'+
+      '<li><b>C</b> Kamera · <b>B</b> Bremse · <b>R</b> Abbruch/Reset ans Vorfeld</li></ul>',
+      openMissionSelect);
+  },
+});
+function openMissionSelect(){
+  let html = '<h2>Missionsauswahl · Captain</h2>';
+  MISSIONS.forEach((m,i)=>{
+    html += '<div class="mission" id="mi-'+i+'"><h3>'+(i+1)+'. '+m.name+' <span class="pay">bis '+(m.base*5)+' Cr</span></h3>'+
+      '<p>'+m.desc+'</p><p>Wind: '+String(m.wind[0]).padStart(3,'0')+'° / '+m.wind[1]+' kt · Basis '+m.base+' Cr × Sterne</p></div>';
+  });
+  html += '<button class="btn" id="mi-cancel">Abbrechen</button>';
+  showPanel(html);
+  MISSIONS.forEach((m,i)=>{ $('mi-'+i).onclick = ()=>startMission(i); });
+  $('mi-cancel').onclick = hidePanel;
+}
+
+/* Missions-Fortschritt im Flug */
+function updateMission(dt){
+  if(!flight.active) return;
+  const m = MISSIONS[flight.mIdx];
+  if(flight.phase === 'fly'){
+    const t = currentTarget();
+    if(plane.pos.distanceTo(t) < 45){
+      const ring = flight.ringMeshes[flight.wpIdx];
+      if(ring){ ring.material.color.setHex(0x54d06a); ring.material.opacity = 0.25; }
+      flight.wpIdx++;
+      if(flight.wpIdx >= m.rings.length){
+        flight.phase = 'land';
+        toast('Alle Wegpunkte! Jetzt landen – Runway 09.', 'good');
+      } else toast('Wegpunkt '+flight.wpIdx+'/'+m.rings.length+' ✔', 'good');
+      setJobHUD('CAPTAIN · '+m.name, missionObjective());
+    }
+    // aktueller Ring pulsiert
+    const ring = flight.ringMeshes[flight.wpIdx];
+    if(ring) ring.scale.setScalar(1 + Math.sin(performance.now()*0.004)*0.06);
+  } else if(flight.landed){
+    if(plane.onGround && plane.vel.length() < 2.5){
+      flight.landed = false;
+      completeMission();
+    } else if(!plane.onGround && plane.pos.y > 8){
+      flight.landed = false; // durchgestartet
+    }
+  }
+  if(keyEdge['KeyR']){
+    keyEdge['KeyR'] = false;
+    endFlightToApron('Mission abgebrochen – zurück am Vorfeld.');
+  }
+}
+
+/* ---------------- Flug-HUD ---------------- */
+const hdgCtx = $('headingCanvas').getContext('2d');
+function drawHeadingBand(hdg){
+  const c = hdgCtx, W = 360, H = 34;
+  c.clearRect(0,0,W,H);
+  c.font = '12px monospace'; c.textAlign = 'center';
+  const pxDeg = 3;
+  for(let d = -62; d <= 62; d++){
+    let deg = Math.round(hdg) + d;
+    const x = W/2 + (deg - hdg)*pxDeg;
+    deg = ((deg % 360) + 360) % 360;
+    if(deg % 10 !== 0) continue;
+    c.strokeStyle = 'rgba(255,255,255,0.5)';
+    c.beginPath(); c.moveTo(x, 22); c.lineTo(x, 30); c.stroke();
+    if(deg % 30 === 0){
+      const lbl = { 0:'N', 90:'O', 180:'S', 270:'W' }[deg] || String(deg/10).padStart(2,'0');
+      c.fillStyle = '#e8eef7';
+      c.fillText(lbl, x, 16);
+    }
+  }
+  c.fillStyle = '#ffd75e';
+  c.beginPath(); c.moveTo(W/2, 32); c.lineTo(W/2-5, 24); c.lineTo(W/2+5, 24); c.fill();
+}
+function updateFlightHUD(){
+  const p = plane;
+  const vAir = p.vel.clone().sub(wind.vec);
+  const kt = Math.round(vAir.length()*KT);
+  $('f-spd-v').textContent = kt;
+  $('f-alt-v').textContent = Math.max(0, Math.round(p.pos.y*FT));
+  const vs = Math.round(p.vel.y*FPM/10)*10;
+  $('f-vs-v').textContent = (vs>0?'+':'')+vs+' ft/min';
+  $('f-thr-v').textContent = Math.round(p.throttle)+'%';
+  $('f-thr-fill').style.width = p.throttle+'%';
+  const g = $('f-gear');
+  if(p.gearAnim > 0.95){ g.textContent='AUSGEFAHREN'; g.className='val down'; }
+  else if(p.gearAnim < 0.05){ g.textContent='EINGEFAHREN'; g.className='val up'; }
+  else { g.textContent='… FÄHRT'; g.className='val transit'; }
+  drawHeadingBand(planeHeading());
+  // Warnungen
+  let warn = '';
+  if(p.stalled) warn += '<div class="warnbox">STALL</div>';
+  const nearApproach = flight.active && flight.phase==='land' && p.pos.y < 150 && p.vel.y < 0 && !p.onGround;
+  if(nearApproach && p.gearAnim < 0.95) warn += '<div class="warnbox">GEAR!</div>';
+  $('f-warn').innerHTML = warn;
+  // Wegpunkt-Pfeil
+  if(flight.active){
+    const t = currentTarget();
+    const dx = t.x - p.pos.x, dz = t.z - p.pos.z;
+    const brg = headingOf(dx, dz);
+    let rel = brg - planeHeading();
+    rel = ((rel % 360) + 540) % 360 - 180;
+    $('f-wpt-arrow').style.transform = 'rotate('+rel.toFixed(0)+'deg)';
+    const dist = Math.hypot(dx, dz);
+    const what = flight.phase==='fly' ? 'Wegpunkt' : 'Runway 09';
+    $('f-wpt-dist').textContent = what + ' · ' + (dist>1000 ? (dist/1000).toFixed(1)+' km' : Math.round(dist)+' m');
+    $('f-msg').textContent = flight.phase==='land' && MISSIONS[flight.mIdx].tdzRequired ? 'Ziel: markierte Aufsetzzone hinter der Schwelle' : '';
+  }
+}
+
+/* Flug-Kamera (C = Verfolger/Cockpit, federnd gedämpft) */
+function updateFlightCamera(dt){
+  if(keyEdge['KeyC']){ keyEdge['KeyC']=false; S.camMode = S.camMode==='chase' ? 'cockpit' : 'chase'; }
+  const { fwd, up } = planeVectors();
+  if(S.camMode === 'cockpit'){
+    const cp = plane.pos.clone()
+      .addScaledVector(up, 1.95)
+      .addScaledVector(fwd, -0.55);
+    camera.position.copy(cp);
+    camera.quaternion.copy(plane.quat);
+    return;
+  }
+  const fh = new THREE.Vector3(fwd.x, 0, fwd.z).normalize();
+  const want = plane.pos.clone().addScaledVector(fh, -16).add(new THREE.Vector3(0, 5.5, 0));
+  want.y = Math.max(want.y, 1.2);
+  const k = 4.2; // Federung
+  camPos.x = damp(camPos.x, want.x, k, dt);
+  camPos.y = damp(camPos.y, want.y, k, dt);
+  camPos.z = damp(camPos.z, want.z, k, dt);
+  camera.position.copy(camPos);
+  const look = plane.pos.clone().addScaledVector(fwd, 12).addScaledVector(up, 1.5);
+  camTarget.lerp(look, Math.min(1, dt*8));
+  camera.lookAt(camTarget);
+}
+
+/* ---------------- Hauptschleife ---------------- */
+updateHUD();
+setJobHUD('Arbeitslos', 'Geh zum leuchtenden <b>Check-in-Schalter</b> im Terminal und drücke E.');
+showTutorial('welcome', 'Willkommen am Flughafen!',
+  '<p>Du fängst ganz unten an: am <b>Check-in-Schalter</b>. Verdiene Credits, schalte den <b>Ramp-Agent</b>-Job frei (500 Cr) und arbeite dich zum <b>Captain</b> hoch (2000 Cr)!</p>'+
+  '<ul><li><b>WASD</b> laufen · <b>Shift</b> sprinten · <b>Maus</b> Kamera (ins Bild klicken)</li>'+
+  '<li><b>E</b> an leuchtenden Stationen interagieren · <b>H</b> Steuerungslegende</li></ul>');
+
+let lastT = performance.now();
+function tick(){
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastT)/1000);
+  lastT = now;
+  const uiOpen = panelOpen || $('tut-wrap').style.display === 'flex';
+  if(!uiOpen){
+    if(S.mode === 'fly'){
+      updateFlightPhysics(dt);
+      updateMission(dt);
+    } else {
+      updatePlayer(dt);
+      updateCart(dt);
+      updateCheckin(dt);
+      updateRamp(dt);
+    }
+    updateInteract();
+  }
+  if(S.mode === 'fly') updateFlightHUD();
+  updateAmbient(dt);
+  updateTraffic(dt);
+  updateWindsock(dt);
+  updateMarkers(now/1000);
+  updateCamera(dt);
+  // Schatten-Kamera folgt grob dem Spieler
+  const fx = S.mode==='fly' ? plane.pos : player.pos;
+  sun.target.position.set(fx.x, 0, fx.z);
+  sun.position.set(fx.x - 320, 420, fx.z - 180);
+  renderer.render(scene, camera);
+  keyEdge = {};
+}
+tick();
+</script>
+</body>
+</html>
