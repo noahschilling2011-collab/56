@@ -186,8 +186,8 @@ for _, cx in ipairs({ -700, 0, 700 }) do
 	end
 end
 mpart(airport, "Conn2", 20, 0.35, 55, 60, -0.02, 115, COL.taxi)
-mpart(airport, "Apron", 320, 0.35, 95, 45, 0.02, 182, COL.apron, { Material = Enum.Material.Concrete })
-for _, px in ipairs({ -40, 40, 130 }) do
+mpart(airport, "Apron", 510, 0.35, 95, 45, 0.02, 182, COL.apron, { Material = Enum.Material.Concrete })
+for _, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	mpart(airport, "Stand", 0.6, 0.1, 22, px, 0.3, 176, COL.yellow, { CanCollide = false })
 	mpart(airport, "Stand", 14, 0.1, 0.6, px, 0.3, 165, COL.yellow, { CanCollide = false })
 end
@@ -260,9 +260,95 @@ local function makeJet(name, color, x, z, yawDeg)
 	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
 	return m
 end
-makeJet("JetA", COL.blue, -40, 165, 0)   -- LH 452 · BLAU
-makeJet("JetB", COL.orange, 40, 165, 0)  -- EW 771 · ORANGE
+-- Weitere Typen: A320 / B747 / ATR-Turboprop / Businessjet
+local function makeNarrowbody(name, color, x, z, yawDeg)
+	local m = Instance.new("Model"); m.Name = name
+	local root = mpart(m, "Root", 1, 1, 1, 0, 0, 0, color, { Transparency = 1, CanCollide = false })
+	m.PrimaryPart = root
+	local tube = mpart(m, "Tube", 24, 3.3, 3.3, 0, 2.6, 0, COL.cream, { CanCollide = false })
+	tube.Shape = Enum.PartType.Cylinder
+	tube.CFrame = CFrame.new(0, 2.6 * M, 0) * CFrame.Angles(0, math.rad(90), 0)
+	mpart(m, "Belly", 3.1, 1.4, 23, 0, 0.9, 0, COL.cream, { Transparency = 1 })
+	local nose = mpart(m, "Nose", 3.3, 3.3, 3.3, 0, 2.6, -12.2, COL.cream, { CanCollide = false }); nose.Shape = Enum.PartType.Ball
+	mpart(m, "CWin", 1.9, 0.45, 0.5, 0, 3.4, -13.0, Color3.fromRGB(16, 21, 28), { CanCollide = false })
+	mpart(m, "Tailc", 1.2, 1.9, 7, 0, 3.1, 14.5, COL.cream, { CanCollide = false })
+	for _, sx in ipairs({ -1, 1 }) do
+		mpart(m, "Win", 0.06, 0.3, 21, sx * 1.63, 3.1, 0, Color3.fromRGB(42, 54, 68), { CanCollide = false })
+		mpart(m, "Belt", 0.05, 0.4, 24, sx * 1.66, 2.2, 0, color, { CanCollide = false })
+		local wing = mpart(m, "Wing", 15, 0.32, 4.4, 0, 0, 0, COL.cream, { CanCollide = false })
+		wing.CFrame = CFrame.new(sx * 1.4 * M, 1.9 * M, 0.6 * M)
+			* CFrame.Angles(0, sx > 0 and -0.45 or (math.pi + 0.45), sx * 0.06)
+			* CFrame.new(7.5 * M, 0, 1.1 * M)
+		mpart(m, "Winglet", 0.15, 1.6, 1.2, sx * 14.4, 3.0, 6.8, color, { CanCollide = false })
+		local eng = mpart(m, "Eng", 2.8, 1.9, 1.9, sx * 4.6, 1.35, 2.2, Color3.fromRGB(170, 176, 184))
+		eng.Shape = Enum.PartType.Cylinder
+		eng.CFrame = CFrame.new(sx * 4.6 * M, 1.35 * M, 2.2 * M) * CFrame.Angles(0, math.rad(90), 0)
+		local hs = mpart(m, "HStab", 6, 0.25, 2.6, 0, 0, 0, COL.cream, { CanCollide = false })
+		hs.CFrame = CFrame.new(sx * 0.3 * M, 3.3 * M, 14.6 * M)
+			* CFrame.Angles(0, sx > 0 and -0.5 or (math.pi + 0.5), 0)
+			* CFrame.new(3 * M, 0, 0.8 * M)
+	end
+	local fin = mpart(m, "Fin", 0.35, 6, 3.6, 0, 6.2, 14.6, color, { CanCollide = false })
+	fin.CFrame = CFrame.new(0, 6.2 * M, 14.6 * M) * CFrame.Angles(-0.3, 0, 0)
+	for _, g in ipairs({ { 0, -9.5 }, { -1.9, 1.4 }, { 1.9, 1.4 } }) do
+		mpart(m, "Whl", 0.7, 0.84, 0.84, g[1], 0.42, g[2], Color3.fromRGB(20, 22, 26))
+	end
+	m.Parent = airport
+	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
+	return m
+end
+local function makeSmallPlane(name, kind, color, x, z, yawDeg)
+	-- kind = "atr" (Hochdecker-Turboprop) oder "biz" (Businessjet)
+	local m = Instance.new("Model"); m.Name = name
+	local root = mpart(m, "Root", 1, 1, 1, 0, 0, 0, color, { Transparency = 1, CanCollide = false })
+	m.PrimaryPart = root
+	local r = kind == "atr" and 1.25 or 0.85
+	local len = kind == "atr" and 17 or 11
+	local cy = kind == "atr" and 2.2 or 1.7
+	local tube = mpart(m, "Tube", len, r * 2, r * 2, 0, cy, 0, COL.cream)
+	tube.Shape = Enum.PartType.Cylinder
+	tube.CFrame = CFrame.new(0, cy * M, 0) * CFrame.Angles(0, math.rad(90), 0)
+	local nose = mpart(m, "Nose", r * 2, r * 2, r * 2, 0, cy, -len / 2, COL.cream, { CanCollide = false }); nose.Shape = Enum.PartType.Ball
+	if kind == "atr" then
+		mpart(m, "Wing", 19, 0.3, 2.6, 0, 3.5, -0.5, COL.cream)
+		for _, sx in ipairs({ -1, 1 }) do
+			mpart(m, "Eng", 1.1, 1.2, 3.2, sx * 3.6, 3.1, -1.2, Color3.fromRGB(170, 176, 184))
+			local disc = mpart(m, "Prop", 0.15, 3.4, 3.4, sx * 3.6, 3.1, -2.9, Color3.fromRGB(48, 52, 58), { Transparency = 0.6, CanCollide = false })
+			disc.Shape = Enum.PartType.Cylinder
+			disc.CFrame = CFrame.new(sx * 3.6 * M, 3.1 * M, -2.9 * M) * CFrame.Angles(0, math.rad(90), 0)
+		end
+		local fin = mpart(m, "Fin", 0.3, 4.2, 2.6, 0, 5.2, 9.6, color, { CanCollide = false })
+		fin.CFrame = CFrame.new(0, 5.2 * M, 9.6 * M) * CFrame.Angles(-0.25, 0, 0)
+		mpart(m, "TTail", 7, 0.22, 2.0, 0, 7.15, 10.4, COL.cream, { CanCollide = false })
+	else
+		for _, sx in ipairs({ -1, 1 }) do
+			local wing = mpart(m, "Wing", 7.5, 0.2, 2.2, 0, 0, 0, COL.cream, { CanCollide = false })
+			wing.CFrame = CFrame.new(sx * 0.7 * M, 1.2 * M, 0.6 * M)
+				* CFrame.Angles(0, sx > 0 and -0.45 or (math.pi + 0.45), sx * 0.09)
+				* CFrame.new(3.75 * M, 0, 0.7 * M)
+			local eng = mpart(m, "Eng", 1.9, 1.0, 1.0, sx * 1.35, 2.3, 4.9, Color3.fromRGB(154, 160, 168))
+			eng.Shape = Enum.PartType.Cylinder
+			eng.CFrame = CFrame.new(sx * 1.35 * M, 2.3 * M, 4.9 * M) * CFrame.Angles(0, math.rad(90), 0)
+		end
+		local fin = mpart(m, "Fin", 0.22, 2.8, 2.0, 0, 3.6, 5.9, color, { CanCollide = false })
+		fin.CFrame = CFrame.new(0, 3.6 * M, 5.9 * M) * CFrame.Angles(-0.3, 0, 0)
+		mpart(m, "TTail", 4.6, 0.16, 1.5, 0, 5.05, 6.5, COL.cream, { CanCollide = false })
+	end
+	for _, g in ipairs({ { 0, -len / 2 + 2 }, { -1.0, 0.8 }, { 1.0, 0.8 } }) do
+		mpart(m, "Whl", 0.5, 0.7, 0.7, g[1], 0.35, g[2], Color3.fromRGB(20, 22, 26))
+	end
+	m.Parent = airport
+	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
+	return m
+end
+
+makeJet("JetA", COL.blue, -40, 165, 0)             -- LH 452 · A380 · BLAU (begehbar)
+makeNarrowbody("JetB", COL.orange, 40, 165, 0)     -- EW 771 · A320 · ORANGE
+makeJet("Jumbo747", Color3.fromRGB(42, 122, 74), 200, 168, 0) -- B747-Ersatz (A380-Bauform, gruen)
+makeSmallPlane("ATR", "atr", Color3.fromRGB(176, 48, 48), -185, 172, 0)
+makeSmallPlane("Bizjet", "biz", Color3.fromRGB(74, 90, 143), 268, 182, 30)
 local trafficJet = makeJet("TrafficJet", Color3.fromRGB(153, 153, 153), 0, -4000, 0) -- Deko-Verkehr (Client animiert)
+local marshalJet = makeNarrowbody("MarshalJet", Color3.fromRGB(138, 143, 153), 0, -4200, 0) -- Marshaller-Jet (Client animiert)
 
 ---------------------------------------------------------------- Terminal (x -70..75, z 232..302)
 local T = { x1 = -70, x2 = 75, z1 = 232, z2 = 302, h = 11 }
@@ -457,6 +543,118 @@ end
 marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
 marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
 marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+marker("MarkerFuel", -152, 215, Color3.fromRGB(217, 165, 32))
+marker("MarkerMarshal", -130, 148, Color3.fromRGB(255, 136, 68))
+
+---------------------------------------------------------------- Landschaft (Fluss, See, Stadt, Berge, Autobahn, Windraeder)
+local land = Instance.new("Folder"); land.Name = "Landscape"; land.Parent = airport
+math.randomseed(31)
+-- Maeandernder Fluss noerdlich der Bahn
+for x = -3400, 3200, 250 do
+	local z1 = -1250 + math.sin(x * 0.0012) * 320
+	local z2 = -1250 + math.sin((x + 250) * 0.0012) * 320
+	local seg = mpart(land, "River", 280, 0.3, 130, x + 125, -0.2, (z1 + z2) / 2, Color3.fromRGB(58, 122, 191), { CanCollide = false })
+	seg.CFrame = seg.CFrame * CFrame.Angles(0, -math.atan2(z2 - z1, 250), 0)
+end
+-- See
+local lake = mpart(land, "Lake", 760, 0.3, 760, -1700, -0.2, -900, Color3.fromRGB(58, 122, 191), { CanCollide = false })
+lake.Shape = Enum.PartType.Cylinder
+lake.CFrame = CFrame.new(-1700 * M, -0.2 * M, -900 * M) * CFrame.Angles(0, 0, math.rad(90))
+lake.Size = Vector3.new(0.3 * M, 760 * M, 760 * M)
+-- Stadt-Skyline + Fernsehturm
+for i = 1, 55 do
+	local a, rr = math.random() * 6.28, math.sqrt(math.random()) * 440
+	local bx, bz = 1800 + math.cos(a) * rr, 1500 + math.sin(a) * rr
+	local h = rr < 200 and (35 + math.random(60)) or (12 + math.random(28))
+	local cols = { Color3.fromRGB(154, 164, 176), Color3.fromRGB(127, 140, 154), Color3.fromRGB(184, 194, 204), Color3.fromRGB(111, 143, 168) }
+	mpart(land, "Tower", 14 + math.random(16), h, 14 + math.random(16), bx, h / 2, bz, cols[math.random(#cols)])
+end
+mpart(land, "TVTurm", 6, 130, 6, 1800, 65, 1500, Color3.fromRGB(197, 204, 212))
+local kugel = mpart(land, "TVKugel", 18, 18, 18, 1800, 105, 1500, Color3.fromRGB(143, 168, 191)); kugel.Shape = Enum.PartType.Ball
+-- Berge mit Schneekappen am Horizont
+for i = 1, 14 do
+	local a = math.random() * 6.28
+	local rr = 3000 + math.random(800)
+	local mx, mz = math.cos(a) * rr, math.sin(a) * rr
+	local h = 260 + math.random(280)
+	local berg = mpart(land, "Berg", h * 3, h, h * 3, mx, h / 2 - 40, mz, Color3.fromRGB(93, 114, 99))
+	berg.Shape = Enum.PartType.Ball
+	local schnee = mpart(land, "Schnee", h * 0.9, h * 0.5, h * 0.9, mx, h - 40, mz, Color3.fromRGB(238, 242, 245), { CanCollide = false })
+	schnee.Shape = Enum.PartType.Ball
+end
+-- Autobahn Terminal -> Stadt (2 Segmente, gekachelt)
+local roadPts = { { 0, 352 }, { 0, 1000 }, { 1640, 1380 } }
+for i = 1, #roadPts - 1 do
+	local a, b = roadPts[i], roadPts[i + 1]
+	local len = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
+	local seg = mpart(land, "Road", 14, 0.4, len + 8, (a[1] + b[1]) / 2, 0.05, (a[2] + b[2]) / 2, Color3.fromRGB(68, 71, 78))
+	seg.CFrame = seg.CFrame * CFrame.Angles(0, -math.atan2(b[1] - a[1], b[2] - a[2]), 0)
+	-- statische Autos auf der Strecke
+	for k = 1, math.floor(len / 160) do
+		local t = k / math.floor(len / 160 + 1)
+		local cx2, cz2 = a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t
+		mpart(land, "RoadCar", 2, 1.2, 4.2, cx2 + (k % 2 == 0 and 3 or -3), 0.85, cz2,
+			({ Color3.fromRGB(184, 184, 184), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176) })[1 + k % 3], { CanCollide = false })
+	end
+end
+-- Windraeder (Client dreht die Rotoren)
+for i, p in ipairs({ { -1750, 350 }, { -1950, 620 }, { -2150, 200 }, { -1600, 800 } }) do
+	local wt = Instance.new("Model"); wt.Name = "WindTurbine" .. i; wt.Parent = land
+	mpart(wt, "Mast", 1.8, 46, 1.8, p[1], 23, p[2], Color3.fromRGB(232, 236, 239))
+	mpart(wt, "Gondel", 3.2, 2.2, 2.2, p[1], 46.5, p[2], Color3.fromRGB(221, 226, 230))
+	local hub = mpart(wt, "Hub", 1, 1, 1, p[1], 46.5, p[2] - 1.6, Color3.fromRGB(221, 226, 230), { CanCollide = false })
+	wt.PrimaryPart = hub
+	for b = 0, 2 do
+		local blade = mpart(wt, "Blade" .. b, 1.4, 19, 0.35, p[1], 46.5 + 9.5, p[2] - 1.6, Color3.fromRGB(242, 245, 247), { CanCollide = false })
+		blade.CFrame = CFrame.new(p[1] * M, 46.5 * M, (p[2] - 1.6) * M) * CFrame.Angles(0, 0, b * math.pi * 2 / 3) * CFrame.new(0, 9.5 * M, 0)
+	end
+end
+
+---------------------------------------------------------------- Parkdeck (3 Ebenen, echt begehbar ueber Rampen)
+local pd = Instance.new("Model"); pd.Name = "Parkdeck"; pd.Parent = airport
+do
+	local X1, X2, Z1, Z2 = -166, -84, 308, 352
+	local cx, cz, w, d = (X1 + X2) / 2, (Z1 + Z2) / 2, X2 - X1, Z2 - Z1
+	mpart(pd, "PD0", w, 0.3, d, cx, 0.05, cz, Color3.fromRGB(88, 91, 98), { Material = Enum.Material.Concrete })
+	for _, y in ipairs({ 3.3, 6.7 }) do
+		mpart(pd, "PDSlab", w, 0.3, d, cx, y, cz, Color3.fromRGB(96, 100, 106), { Material = Enum.Material.Concrete })
+	end
+	for _, y in ipairs({ 4.15, 7.55 }) do
+		mpart(pd, "PDRail", w, 1.0, 0.3, cx, y, Z1, Color3.fromRGB(170, 178, 186))
+		mpart(pd, "PDRail", w, 1.0, 0.3, cx, y, Z2, Color3.fromRGB(170, 178, 186))
+		mpart(pd, "PDRail", 0.3, 1.0, d, X1, y, cz, Color3.fromRGB(170, 178, 186))
+		mpart(pd, "PDRail", 0.3, 1.0, d, X2, y, cz, Color3.fromRGB(170, 178, 186))
+	end
+	for x = X1 + 6, X2 - 4, 16 do
+		for _, z in ipairs({ Z1 + 8, Z2 - 8 }) do
+			mpart(pd, "PDPillar", 0.7, 6.7, 0.7, x, 3.35, z, Color3.fromRGB(154, 162, 170))
+		end
+	end
+	-- begehbare Rampen: EG -> E2 -> E3 (Wedges, Anstieg entlang +Z)
+	for i, y in ipairs({ 0, 3.45 }) do
+		local ramp = mpart(pd, "PDRamp" .. i, 6, 3.3, 26, X2 - 5, y + 1.65, cz, Color3.fromRGB(96, 100, 106))
+		ramp.Shape = Enum.PartType.Wedge
+		if i == 2 then
+			ramp.CFrame = ramp.CFrame * CFrame.Angles(0, math.pi, 0) -- zweite Rampe andersherum
+		end
+	end
+	-- Autos auf allen Ebenen
+	math.randomseed(17)
+	for _, y in ipairs({ 0.75, 4.05, 7.45 }) do
+		for x = X1 + 10, X2 - 10, 8 do
+			if math.random() > 0.4 then
+				local zz = cz + (math.random() < 0.5 and -12 or 12)
+				mpart(pd, "PDCar", 2.2, 0.9, 4.4, x, y, zz,
+					({ Color3.fromRGB(184, 184, 184), Color3.fromRGB(47, 58, 74), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176) })[math.random(4)])
+				mpart(pd, "PDCarCab", 1.9, 0.7, 2.2, x, y + 0.75, zz + 0.4, Color3.fromRGB(34, 40, 49), { CanCollide = false })
+			end
+		end
+	end
+	local ps = mpart(pd, "PSign", 3, 3, 0.3, -161, 9.5, 311, Color3.fromRGB(26, 58, 122), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(120, 120); sg.Parent = ps
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBlack; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "P"; tl.Parent = sg
+end
 
 ---------------------------------------------------------------- Realismus-Ausstattung
 local deco2 = Instance.new("Folder"); deco2.Name = "Dressing"; deco2.Parent = airport
@@ -501,8 +699,8 @@ for _, t in ipairs({ { -750, -1 }, { 750, 1 } }) do
 	end
 end
 -- Vorfeld: rote Sicherheitslinie, Gate-Schilder, Pylonen
-mpart(deco2, "RedLine", 300, 0.1, 0.35, 45, 0.3, 141, Color3.fromRGB(176, 48, 48), { CanCollide = false })
-for i, px in ipairs({ -40, 40, 130 }) do
+mpart(deco2, "RedLine", 490, 0.1, 0.35, 45, 0.3, 141, Color3.fromRGB(176, 48, 48), { CanCollide = false })
+for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	local gs = mpart(deco2, "GateSign", 4.2, 1.4, 0.15, px, 5.2, 138, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 140); sg.Parent = gs
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
@@ -521,11 +719,25 @@ local function gse(name, x, z, yaw, build)
 	build(m)
 	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, yaw, 0))
 end
-gse("FuelTruck", -72, 190, 0.5, function(m)
-	mpart(m, "Body", 2.4, 1.1, 6.4, 0, 1.0, 0, Color3.fromRGB(217, 210, 196))
-	mpart(m, "Tank", 2.0, 2.0, 4.6, 0, 1.9, 0.6, Color3.fromRGB(202, 194, 178))
-	mpart(m, "Cab", 2.2, 1.3, 1.6, 0, 1.1, -3.1, Color3.fromRGB(143, 47, 36))
-end)
+-- Fahrbarer Tankwagen (parkt am Fuel Depot; Client steuert kinematisch)
+local ftm = Instance.new("Model"); ftm.Name = "FuelTruck"; ftm.Parent = airport
+local ftroot = mpart(ftm, "Root", 1, 1, 1, 0, 0, 0, COL.dark, { Transparency = 1, CanCollide = false })
+ftm.PrimaryPart = ftroot
+mpart(ftm, "Body", 2.4, 1.1, 6.4, 0, 1.0, 0, Color3.fromRGB(217, 210, 196))
+local fttank = mpart(ftm, "Tank", 4.6, 2.0, 2.0, 0, 1.9, -0.6, Color3.fromRGB(202, 194, 178))
+fttank.Shape = Enum.PartType.Cylinder
+fttank.CFrame = CFrame.new(0, 1.9 * M, -0.6 * M) * CFrame.Angles(0, math.rad(90), 0)
+mpart(ftm, "Cab", 2.2, 1.3, 1.6, 0, 1.1, 3.1, Color3.fromRGB(143, 47, 36)) -- Kabine vorn (+Z)
+for _, w in ipairs({ { -1.05, 2.2 }, { 1.05, 2.2 }, { -1.05, -1.6 }, { 1.05, -1.6 }, { -1.05, -2.6 }, { 1.05, -2.6 } }) do
+	mpart(ftm, "Whl", 0.4, 1.0, 1.0, w[1], 0.5, w[2], Color3.fromRGB(22, 24, 28))
+end
+ftm:PivotTo(CFrame.new(-146 * M, 0, 216 * M) * CFrame.Angles(0, 2.0, 0))
+-- Tanklager
+for _, dz in ipairs({ -4, 4 }) do
+	local t = mpart(deco2, "DepotTank", 9, 4.4, 4.4, -152, 2.4, 208 + dz, Color3.fromRGB(217, 210, 196))
+	t.Shape = Enum.PartType.Cylinder
+end
+mpart(deco2, "DepotPad", 10, 0.4, 14, -152, 0.2, 208, Color3.fromRGB(86, 90, 96))
 -- Boarding-Rampe zur vorderen linken A380-Tuer (begehbar)
 gse("BoardingStairs", -44.6, 157.5, 0, function(m)
 	local ramp = mpart(m, "Ramp", 4.2, 1.55, 1.8, -0.9, 0.78, 0, Color3.fromRGB(183, 190, 200))
@@ -675,6 +887,125 @@ do
 		cp("Sidestick", 0.1, 0.35, 0.1, sx * 1.85, 2.15, -13.4, Color3.fromRGB(20, 22, 26), { CanCollide = false })
 	end
 end
+
+---------------------------------------------------------------- Mega-Airport: Piers, Terminal 2+3, Runway 2, Cargo, Feuerwache
+local mega = Instance.new("Folder"); mega.Name = "Mega"; mega.Parent = airport
+local function pier(x1, x2, letter)
+	tiled(mega, "PierApron", x2 - x1 + 60, 0.3, 100, (x1 + x2) / 2, 0.0, 178, COL.apron, { Material = Enum.Material.Concrete })
+	mpart(mega, "Pier", x2 - x1, 5.5, 16, (x1 + x2) / 2, 5.7, 196, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass })
+	mpart(mega, "PierRoof", x2 - x1 + 2, 0.6, 18, (x1 + x2) / 2, 8.6, 196, Color3.fromRGB(138, 146, 158))
+	mpart(mega, "PierFloor", x2 - x1 + 2, 0.5, 18, (x1 + x2) / 2, 3.0, 196, Color3.fromRGB(119, 128, 140))
+	local gnum = 1
+	for gx = x1 + 25, x2 - 15, 45 do
+		local br = mpart(mega, "Bridge", 3, 2.6, 22, gx, 5.0, 176, Color3.fromRGB(185, 194, 204), { CanCollide = false })
+		br.CFrame = br.CFrame * CFrame.Angles(0.09, 0, 0)
+		mpart(mega, "BridgeHead", 4, 3, 4, gx, 4.0, 165, Color3.fromRGB(168, 178, 188))
+		-- vereinfachter geparkter Jet
+		local cols = { COL.blue, COL.orange, Color3.fromRGB(42, 138, 143), Color3.fromRGB(143, 47, 36), Color3.fromRGB(42, 122, 74) }
+		local jc = cols[1 + gnum % #cols]
+		local fus = mpart(mega, "PJet", 24, 3.2, 3.2, gx, 2.6, 158, COL.cream)
+		fus.Shape = Enum.PartType.Cylinder
+		fus.CFrame = CFrame.new(gx * M, 2.6 * M, 158 * M) * CFrame.Angles(0, math.rad(90), 0)
+		mpart(mega, "PJetWing", 22, 0.3, 4.4, gx, 2.2, 159, jc, { CanCollide = false })
+		mpart(mega, "PJetFin", 0.35, 5.5, 3.4, gx, 5.4, 170.5, jc, { CanCollide = false })
+		local gs = mpart(mega, "PGate", 3.4, 1.2, 0.15, gx, 7.2, 187.8, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(280, 100); sg.Parent = gs
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = letter .. gnum; tl.Parent = sg
+		gnum = gnum + 1
+	end
+end
+pier(-580, -230, "B")
+pier(320, 670, "C")
+for _, t in ipairs({ { -640, "TERMINAL 2" }, { 730, "TERMINAL 3" } }) do
+	mpart(mega, "T2", 90, 12, 110, t[1], 6, 235, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
+	mpart(mega, "T2Roof", 94, 0.8, 114, t[1], 12.2, 235, Color3.fromRGB(138, 146, 158))
+	local gs = mpart(mega, "T2Sign", 30, 3, 0.2, t[1], 10, 179.4, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(900, 100); sg.Parent = gs
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(232, 238, 247); tl.Text = "✈ " .. t[2]; tl.Parent = sg
+end
+-- Runway 2 (07/25)
+tiled(mega, "Runway2", 1840, 0.4, 30, 0, 0.05, -520, COL.asphalt, { Material = Enum.Material.Asphalt })
+for x = -810, 810, 60 do
+	mpart(mega, "R2CL", 30, 0.1, 0.9, x, 0.3, -520, COL.white, { CanCollide = false })
+end
+for x = -900, 900, 50 do
+	for _, zz in ipairs({ -536.5, -503.5 }) do
+		mpart(mega, "R2Edge", 0.8, 0.8, 0.8, x, 0.5, zz, Color3.fromRGB(255, 246, 204), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+tiled(mega, "R2Taxi", 16, 0.35, 400, -700, 0.02, -300, COL.taxi)
+-- Cargo-Center
+tiled(mega, "CargoApron", 220, 0.3, 150, 830, 0.0, 130, COL.apron, { Material = Enum.Material.Concrete })
+mpart(mega, "CargoHall", 120, 14, 55, 840, 7, 180, Color3.fromRGB(143, 154, 166))
+math.randomseed(41)
+for i = 0, 25 do
+	mpart(mega, "LD", 1.8, 1.6, 1.5, 770 + (i % 9) * 2.4, 0.8, 135 + math.floor(i / 9) * 2.6,
+		({ Color3.fromRGB(185, 194, 204), Color3.fromRGB(143, 154, 166), Color3.fromRGB(201, 164, 79) })[1 + i % 3])
+end
+makeJet("Freighter", Color3.fromRGB(119, 127, 137), 810, 95, 0)
+-- Feuerwache + 2 Loeschfahrzeuge
+mpart(mega, "FireStation", 46, 9, 26, -300, 4.5, 120, Color3.fromRGB(176, 48, 48))
+for _, fx in ipairs({ -312, -288 }) do
+	mpart(mega, "FireTruck", 3, 2.4, 8.5, fx, 1.6, 98, Color3.fromRGB(194, 59, 46))
+	mpart(mega, "FireCab", 2.8, 1.3, 2, fx, 3.1, 100.8, Color3.fromRGB(194, 59, 46))
+	mpart(mega, "FireArm", 0.4, 0.4, 6, fx + 0.8, 3.0, 97, Color3.fromRGB(216, 216, 216), { CanCollide = false })
+	mpart(mega, "FireLight", 0.4, 0.4, 0.4, fx, 3.85, 100.8, Color3.fromRGB(34, 85, 255), { Material = Enum.Material.Neon, CanCollide = false })
+end
+-- Follow-Me, Busse, Catering
+mpart(mega, "FollowMe", 1.9, 0.85, 3.9, 90, 0.75, 200, Color3.fromRGB(242, 193, 30))
+mpart(mega, "FollowMeCab", 1.7, 0.65, 1.9, 90, 1.5, 200.2, Color3.fromRGB(26, 26, 26))
+for _, b in ipairs({ { -95, 214 }, { 70, 216 } }) do
+	mpart(mega, "Bus", 2.5, 2.7, 11, b[1], 1.7, b[2], Color3.fromRGB(232, 238, 247))
+	mpart(mega, "BusStripe", 2.55, 1.0, 11.05, b[1], 1.1, b[2], Color3.fromRGB(42, 109, 181), { CanCollide = false })
+end
+mpart(mega, "Catering", 2.5, 2.6, 4.6, 163, 2.6, 201, Color3.fromRGB(217, 210, 196))
+mpart(mega, "CateringCab", 2.4, 1.2, 3, 163, 1.0, 204.5, Color3.fromRGB(232, 238, 247))
+-- Terminal-Innen: Security, Passkontrolle, Duty-Free, Lounge, Gepaeckband, Kiosks
+for _, az in ipairs({ 246, 252 }) do
+	mpart(mega, "SecArchL", 0.35, 2.3, 0.5, 10 - 1.05, 1.15, az, Color3.fromRGB(138, 146, 158))
+	mpart(mega, "SecArchR", 0.35, 2.3, 0.5, 10 + 1.05, 1.15, az, Color3.fromRGB(138, 146, 158))
+	mpart(mega, "SecArchT", 2.45, 0.35, 0.5, 10, 2.45, az, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+end
+mpart(mega, "XrayBelt", 1.6, 1.0, 5, 13.5, 0.5, 249, COL.dark)
+mpart(mega, "XrayTunnel", 2.0, 1.6, 1.8, 13.5, 0.8, 249, Color3.fromRGB(138, 146, 158))
+for _, bx in ipairs({ 7, 12 }) do
+	mpart(mega, "PassBooth", 1.8, 2.4, 1.8, bx, 1.2, 268, Color3.fromRGB(53, 80, 110))
+end
+for i = 0, 7 do
+	mpart(mega, "DutyShelf", 0.8, 1.5, 3.4, 44 + (i % 4) * 4, 0.75, 288 + math.floor(i / 4) * 5,
+		({ Color3.fromRGB(201, 164, 79), Color3.fromRGB(141, 95, 201), Color3.fromRGB(201, 79, 79), Color3.fromRGB(79, 159, 201) })[1 + i % 4])
+end
+for _, s in ipairs({ { -64, 240 }, { -64, 244 }, { -58, 240 }, { -58, 244 } }) do
+	mpart(mega, "Sofa", 2.2, 0.55, 1.1, s[1], 0.28, s[2], Color3.fromRGB(106, 74, 90))
+end
+local carousel = mpart(mega, "Carousel", 13, 1.0, 13, -54, 0.5, 287, Color3.fromRGB(58, 63, 71))
+carousel.Shape = Enum.PartType.Cylinder
+carousel.CFrame = CFrame.new(-54 * M, 0.5 * M, 287 * M) * CFrame.Angles(0, 0, math.rad(90))
+carousel.Size = Vector3.new(1.0 * M, 13 * M, 13 * M)
+for i = 0, 3 do
+	mpart(mega, "Kiosk2", 0.7, 1.5, 0.7, -18 + i * 3, 0.75, 272, Color3.fromRGB(232, 238, 247))
+end
+local marker2 = marker("MarkerSecurity", 10, 256, Color3.fromRGB(154, 95, 208))
+-- Einkaufs-Arkade (6 Laeden mit Leucht-Schildern)
+local function shop(x, z, ry, name, col)
+	local body = mpart(mega, "Shop", 13, 3.8, 4.5, 0, 1.9, 0, Color3.fromRGB(44, 51, 60))
+	body.CFrame = CFrame.new(x * M, 1.9 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, -1.2 * M)
+	local band = mpart(mega, "ShopBand", 13, 0.9, 0.2, 0, 3.35, 0, col, { CanCollide = false, Material = Enum.Material.Neon })
+	band.CFrame = CFrame.new(x * M, 3.35 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, 1.1 * M)
+	local sign = mpart(mega, "ShopSign", 9, 1.35, 0.15, 0, 4.35, 0, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	sign.CFrame = CFrame.new(x * M, 4.35 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, 1.15 * M)
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(560, 84); sg.Parent = sign
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
+end
+shop(-62, 297.8, math.pi, "🍔 BURGER PALACE", Color3.fromRGB(194, 59, 46))
+shop(-46, 297.8, math.pi, "🍕 PIZZA MILANO", Color3.fromRGB(42, 122, 74))
+shop(14, 297.8, math.pi, "👗 MODE BOUTIQUE", Color3.fromRGB(201, 95, 160))
+shop(30, 297.8, math.pi, "📱 ELEKTRONIK", Color3.fromRGB(42, 109, 181))
+shop(72.6, 250, -math.pi / 2, "📚 BUCHLADEN", Color3.fromRGB(138, 106, 58))
+shop(72.6, 266, -math.pi / 2, "🎁 SOUVENIRS", Color3.fromRGB(201, 164, 79))
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")

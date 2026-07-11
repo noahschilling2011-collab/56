@@ -52,12 +52,13 @@ end
 ---------------------------------------------------------------- Spielzustand
 local S = {
 	credits = 0, xp = 0,
-	job = nil,          -- nil | "checkin" | "ramp" | "captain"
+	job = nil,          -- nil | "checkin" | "ramp" | "fuel" | "marshal" | "captain"
 	mode = "walk",      -- walk | cart | fly
+	vehicle = nil,      -- aktives Fahrzeug (cart | fuelTruck)
 	tutorialSeen = {},
 	camMode = "chase",  -- Flug: chase | cockpit
 }
-local UNLOCK_RAMP, UNLOCK_CAPTAIN = 500, 2000
+local UNLOCK_RAMP, UNLOCK_SEC, UNLOCK_FUEL, UNLOCK_MARSHAL, UNLOCK_CAPTAIN = 500, 750, 1000, 1500, 2000
 local RWY_X1, RWY_X2, RWY_W = -750, 750, 30
 local TDZ = { x1 = RWY_X1 + 60, x2 = RWY_X1 + 400 }
 
@@ -259,6 +260,12 @@ local function updateHUD()
 	levelL.Text = "Level " .. level() .. " · " .. S.xp .. " XP"
 	if S.credits < UNLOCK_RAMP then
 		progressL.Text = "Noch " .. (UNLOCK_RAMP - S.credits) .. " Credits bis Ramp Agent"
+	elseif S.credits < UNLOCK_SEC then
+		progressL.Text = "Noch " .. (UNLOCK_SEC - S.credits) .. " Credits bis Security"
+	elseif S.credits < UNLOCK_FUEL then
+		progressL.Text = "Noch " .. (UNLOCK_FUEL - S.credits) .. " Credits bis Tankwagen"
+	elseif S.credits < UNLOCK_MARSHAL then
+		progressL.Text = "Noch " .. (UNLOCK_MARSHAL - S.credits) .. " Credits bis Marshaller"
 	elseif S.credits < UNLOCK_CAPTAIN then
 		progressL.Text = "Noch " .. (UNLOCK_CAPTAIN - S.credits) .. " Credits bis Captain"
 	else
@@ -574,6 +581,110 @@ local function updateCheckin(dt)
 	end
 end
 
+---------------------------------------------------------------- JOB · SICHERHEITSKONTROLLE (ab 750 Cr)
+do -- eigener Scope (Top-Level-Local-Limit)
+local SEC_OK = { "Laptop", "Buch", "Kopfhörer", "Jacke", "Snacks", "Kamera", "Regenschirm", "Ladekabel", "Sonnenbrille", "Trinkflasche (leer)" }
+local SEC_BAD = { "Taschenmesser", "Wasserflasche 1 L", "Gaskartusche", "Werkzeugset", "Feuerwerk", "Pfefferspray", "Schere (12 cm)" }
+local secJob = { active = false, idx = 0, correct = 0, earned = 0, queue = {} }
+local function genSecCases()
+	local nBad = math.random(2, 3)
+	local flags = {}
+	for i = 1, 8 do flags[i] = false end
+	local placed = 0
+	while placed < nBad do
+		local i = math.random(8)
+		if not flags[i] then flags[i] = true placed = placed + 1 end
+	end
+	local cases = {}
+	for i = 1, 8 do
+		local items = {}
+		for k = 1, math.random(2, 4) do table.insert(items, SEC_OK[math.random(#SEC_OK)]) end
+		if flags[i] then items[math.random(#items)] = SEC_BAD[math.random(#SEC_BAD)] end
+		table.insert(cases, { items = items, bad = flags[i], name = NAMES[math.random(#NAMES)] })
+	end
+	return cases
+end
+function startSecJob()
+	secJob.active = true
+	secJob.idx = 0; secJob.correct = 0; secJob.earned = 0
+	secJob.queue = genSecCases()
+	S.job = "security"
+	setJobHUD("SICHERHEITSKONTROLLE", "Durchleuchte 8 Handgepäckstücke.\nDrücke E am Röntgenband für den nächsten Passagier.")
+end
+local function resolveSec(confiscated)
+	hidePanel()
+	local c = secJob.queue[secJob.idx + 1]
+	local correct = confiscated == c.bad
+	if correct then
+		secJob.correct = secJob.correct + 1
+		secJob.earned = secJob.earned + 50
+		addCredits(50); addXP(10)
+		toast(c.bad and "✔ Richtig! Verbotener Gegenstand einkassiert. +50" or "✔ Richtig! Gepäck war sauber. +50", "good")
+	else
+		addCredits(-35)
+		toast(c.bad and "✘ Verbotenen Gegenstand durchgewunken! −35" or "✘ Fehlalarm – Gepäck war sauber! −35", "bad")
+	end
+	secJob.idx = secJob.idx + 1
+	if secJob.idx >= 8 then
+		secJob.active = false
+		S.job = nil
+		local allOk = secJob.correct == 8
+		if allOk then addCredits(80) end
+		showPanel(function(p)
+			local t = label(p, "Kontroll-Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
+			t.Font = Enum.Font.GothamBold
+			label(p, secJob.correct .. " / 8 korrekt geprüft\nVerdient: " .. secJob.earned .. " Credits" ..
+				(allOk and "\nFehlerfrei! +80 Bonus" or ""), UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 80), TXT, 15)
+			button(p, "Neue Schicht", UDim2.new(0, 20, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(40, 110, 60), function()
+				hidePanel(); startSecJob()
+			end)
+			button(p, "Feierabend", UDim2.new(0, 185, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(60, 70, 85), function()
+				hidePanel(); setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+			end)
+		end)
+	end
+end
+local function openSecPanel()
+	local c = secJob.queue[secJob.idx + 1]
+	showPanel(function(p)
+		local t = label(p, "🎒 Röntgenbild " .. (secJob.idx + 1) .. "/8 · " .. c.name, UDim2.new(0, 20, 0, 12), UDim2.new(1, -40, 0, 24), CYAN, 18)
+		t.Font = Enum.Font.GothamBold
+		label(p, "INHALT DES HANDGEPÄCKS", UDim2.new(0, 20, 0, 44), UDim2.new(1, -40, 0, 16), GREY, 12)
+		label(p, "· " .. table.concat(c.items, "\n· "), UDim2.new(0, 20, 0, 64), UDim2.new(1, -40, 0, 120), TXT, 15)
+		label(p, "Verboten: Messer & Scheren, Flüssigkeiten > 100 ml, Gas, Feuerwerk, Reizstoffe.",
+			UDim2.new(0, 20, 0, 196), UDim2.new(1, -40, 0, 40), GREY, 13)
+		button(p, "Durchwinken", UDim2.new(0, 20, 1, -60), UDim2.new(0, 150, 0, 42), Color3.fromRGB(40, 110, 60), function()
+			resolveSec(false)
+		end)
+		button(p, "Konfiszieren", UDim2.new(0, 185, 1, -60), UDim2.new(0, 150, 0, 42), Color3.fromRGB(130, 50, 50), function()
+			resolveSec(true)
+		end)
+	end)
+end
+-- Station wird nach den anderen Interacts registriert (openSecPanel/startSecJob sind hier definiert)
+task.defer(function()
+	addInteract({
+		x = function() return 10 end, z = function() return 256 end, r = 3.6,
+		cond = function() return S.mode == "walk" and (S.job == nil or S.job == "security") end,
+		label = function()
+			if secJob.active then return "Nächstes Gepäck durchleuchten (" .. (secJob.idx + 1) .. "/8)" end
+			if S.credits >= UNLOCK_SEC then return "Security-Schicht starten" end
+			return "Security – gesperrt (" .. UNLOCK_SEC .. " Credits nötig)"
+		end,
+		action = function()
+			if secJob.active then openSecPanel() return end
+			if S.credits < UNLOCK_SEC then
+				toast("Du brauchst " .. UNLOCK_SEC .. " Credits für diesen Job!", "bad")
+				return
+			end
+			showTutorial("security", "JOB: Sicherheitskontrolle",
+				"Du sitzt am Röntgenband:\n· Prüfe die Gepäckinhalte auf verbotene Gegenstände\n· Verboten: Messer, Scheren, Flüssigkeiten > 100 ml, Gas, Feuerwerk, Reizstoffe\n· Sauber = durchwinken · gefährlich = konfiszieren\n· +50 richtig · −35 falsch · fehlerfrei = +80 Bonus",
+				startSecJob)
+		end,
+	})
+end)
+end -- Security-Scope
+
 ---------------------------------------------------------------- JOB 2 · RAMP AGENT
 local JETS = {
 	{ name = "LH 452 · MÜNCHEN", color = Color3.fromRGB(58, 111, 232), x = -40, z = 165 },
@@ -715,7 +826,7 @@ local CART_COLLIDERS = {
 	{ 211, 185, 249, 215 },   -- Hangar
 	{ -47, 156, -42, 159 },   -- Boarding-Treppe
 }
-for _, jx in ipairs({ -40, 40 }) do
+for _, jx in ipairs({ -40, 200 }) do -- A380 (Gate 1) + Jumbo (Gate 5)
 	table.insert(CART_COLLIDERS, { jx - 3.4, 165 - 19.5, jx + 3.4, 165 + 23 }) -- Rumpf
 	for _, sx in ipairs({ -1, 1 }) do
 		for _, e in ipairs({ { 7.2, 4.6 }, { 13.5, 8.4 } }) do
@@ -723,6 +834,12 @@ for _, jx in ipairs({ -40, 40 }) do
 		end
 	end
 end
+table.insert(CART_COLLIDERS, { 37.8, 150, 42.2, 182 })   -- A320-Rumpf (Gate 2)
+table.insert(CART_COLLIDERS, { 34.2, 166, 36.6, 169 })   -- A320-Triebwerke
+table.insert(CART_COLLIDERS, { 43.4, 166, 45.8, 169 })
+table.insert(CART_COLLIDERS, { -187.5, 162, -182.5, 185 }) -- ATR
+table.insert(CART_COLLIDERS, { 264, 174, 272, 190 })     -- Bizjet
+table.insert(CART_COLLIDERS, { -157, 203.5, -147, 212.5 }) -- Tanklager
 local function cartCollide(pos, r)
 	local hit = false
 	local x, z = pos.X, pos.Z
@@ -742,76 +859,37 @@ local function cartCollide(pos, r)
 	return Vector3.new(x, pos.Y, z), hit
 end
 
-local function enterCart()
+-- Tankwagen (zweites kinematisches Fahrzeug)
+local fuelTruck
+do
+	local ftModel = airport:WaitForChild("FuelTruck")
+	ftModel:WaitForChild("Root")
+	fuelTruck = { model = ftModel, pos = ftModel:GetPivot().Position / M, yaw = 2.0, vel = Vector3.new(), load = {} }
+end
+cart.model = cartModel
+local fuelJob = { active = false, fueled = { false, false }, fueling = nil, progress = 0, timer = 0 }
+local endFuelJob -- forward
+
+local function enterVehicle(v)
 	S.mode = "cart"
+	S.vehicle = v
 	setCharacterHidden(true)
 	camera.CameraType = Enum.CameraType.Scriptable
 end
-local function exitCart()
+local function exitVehicle()
+	local v = S.vehicle
 	S.mode = "walk"
+	S.vehicle = nil
 	setCharacterHidden(false)
 	camera.CameraType = Enum.CameraType.Custom
-	local f = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
+	local f = Vector3.new(math.sin(v.yaw), 0, math.cos(v.yaw))
 	local side = Vector3.new(-f.Z, 0, f.X)
-	local out = (cart.pos + side * 2.4) * M
+	local out = (v.pos + side * 2.6) * M
 	local r = hrp()
 	if r then r.CFrame = CFrame.new(out.X, 3.2, out.Z) end
 end
 
-local function updateCart(dt)
-	if S.mode ~= "cart" then
-		cart.vel = cart.vel * math.exp(-2 * dt)
-		return
-	end
-	local fwd = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
-	local right = Vector3.new(fwd.Z, 0, -fwd.X)
-	local acc = 0
-	if keys[Enum.KeyCode.W] then acc = acc + 7 end
-	if keys[Enum.KeyCode.S] then acc = acc - 5 end
-	cart.vel = cart.vel + fwd * acc * dt
-	local fs = cart.vel:Dot(fwd)
-	local ls = cart.vel:Dot(right)
-	local steer = 0
-	if keys[Enum.KeyCode.A] then steer = steer + 1 end
-	if keys[Enum.KeyCode.D] then steer = steer - 1 end
-	cart.yaw = cart.yaw + steer * 1.7 * clamp(fs / 5, -1, 1) * dt
-	ls = ls * math.exp(-3.2 * dt)           -- leichtes Driften
-	fs = clamp(fs * math.exp(-0.55 * dt), -5, 11)
-	local f2 = Vector3.new(math.sin(cart.yaw), 0, math.cos(cart.yaw))
-	local r2 = Vector3.new(f2.Z, 0, -f2.X)
-	local speedBefore = cart.vel.Magnitude
-	cart.vel = f2 * fs + r2 * ls
-	cart.pos = cart.pos + cart.vel * dt
-	cart.pos = Vector3.new(clamp(cart.pos.X, -800, 800), 0, clamp(cart.pos.Z, -60, 228))
-	if ramp.collideCd > 0 then ramp.collideCd = ramp.collideCd - dt end
-	local newPos, hit = cartCollide(cart.pos, 1.6)
-	if hit then
-		cart.pos = newPos
-		local nearJet = false
-		for _, j in ipairs(JETS) do
-			if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 32 then nearJet = true end
-		end
-		if nearJet and speedBefore > 4 and ramp.collideCd <= 0 then
-			ramp.collideCd = 3
-			addCredits(-30)
-			toast("💥 Kollision mit dem Flugzeug! −30 Credits", "bad")
-		end
-		cart.vel = cart.vel * -0.25
-	end
-	cartModel:PivotTo(CFrame.new(cart.pos * M) * CFrame.Angles(0, cart.yaw, 0))
-	-- Koffer auf der Ladeflaeche mitbewegen
-	local pivot = cartModel:GetPivot()
-	for i, c in ipairs(cart.load) do
-		local s = CART_SLOTS[i]
-		c.obj.CFrame = pivot * CFrame.new(s.X * M, s.Y * M, s.Z * M)
-	end
-	-- Charakter unsichtbar am Wagen halten
-	local r = hrp()
-	if r then r.CFrame = pivot * CFrame.new(0, 2 * M, 1.6 * M) end
-	-- Kamera-Verfolger (hinter dem Wagen: Fahrtrichtung ist lokal +Z)
-	local camPos = pivot * CFrame.new(0, 4.5 * M, -11 * M)
-	camera.CFrame = CFrame.lookAt(camPos.Position, pivot.Position + Vector3.new(0, 1.5 * M, 0))
-	-- E-Logik im Wagen: abladen oder aussteigen
+local function cartPrompts()
 	local nearJetIdx = nil
 	for i, j in ipairs(JETS) do
 		if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 24 then nearJetIdx = i end
@@ -828,8 +906,139 @@ local function updateCart(dt)
 	else
 		promptL.Text = "[E]  Aussteigen"
 		promptF.Visible = true
-		if edge(Enum.KeyCode.E) then exitCart() end
+		if edge(Enum.KeyCode.E) then exitVehicle() end
 	end
+end
+local function fuelPrompts(dt)
+	local speed = fuelTruck.vel.Magnitude
+	if fuelJob.active and fuelJob.fueling then
+		local j = JETS[fuelJob.fueling]
+		if speed > 0.8 then
+			fuelJob.fueling = nil
+			toast("Betankung abgebrochen – Wagen bewegt!", "bad")
+		else
+			fuelJob.progress = fuelJob.progress + dt
+			promptL.Text = "⛽ Betanke " .. j.name .. " … " .. math.min(100, math.floor(fuelJob.progress / 8 * 100)) .. "%"
+			promptF.Visible = true
+			if fuelJob.progress >= 8 then
+				fuelJob.fueled[fuelJob.fueling] = true
+				fuelJob.fueling = nil
+				addCredits(120); addXP(20)
+				toast("✔ " .. j.name .. " vollgetankt: +120 Credits", "good")
+				if fuelJob.fueled[1] and fuelJob.fueled[2] then endFuelJob(true) end
+			end
+			return
+		end
+	end
+	local nearIdx = nil
+	if fuelJob.active then
+		for i, j in ipairs(JETS) do
+			if not fuelJob.fueled[i] and math.sqrt((fuelTruck.pos.X - j.x) ^ 2 + (fuelTruck.pos.Z - j.z) ^ 2) < 26 then nearIdx = i end
+		end
+	end
+	if nearIdx then
+		promptL.Text = "[E]  Betanken starten: " .. JETS[nearIdx].name
+		promptF.Visible = true
+		if edge(Enum.KeyCode.E) then fuelJob.fueling = nearIdx; fuelJob.progress = 0 end
+	else
+		promptL.Text = "[E]  Aussteigen"
+		promptF.Visible = true
+		if edge(Enum.KeyCode.E) then exitVehicle() end
+	end
+end
+
+local function updateVehicle(v, dt)
+	if not (S.mode == "cart" and S.vehicle == v) then
+		v.vel = v.vel * math.exp(-2 * dt)
+		return
+	end
+	local fwd = Vector3.new(math.sin(v.yaw), 0, math.cos(v.yaw))
+	local right = Vector3.new(fwd.Z, 0, -fwd.X)
+	local acc = 0
+	if keys[Enum.KeyCode.W] then acc = acc + 7 end
+	if keys[Enum.KeyCode.S] then acc = acc - 5 end
+	v.vel = v.vel + fwd * acc * dt
+	local fs = v.vel:Dot(fwd)
+	local ls = v.vel:Dot(right)
+	local steer = 0
+	if keys[Enum.KeyCode.A] then steer = steer + 1 end
+	if keys[Enum.KeyCode.D] then steer = steer - 1 end
+	v.yaw = v.yaw + steer * 1.7 * clamp(fs / 5, -1, 1) * dt
+	ls = ls * math.exp(-3.2 * dt)           -- leichtes Driften
+	fs = clamp(fs * math.exp(-0.55 * dt), -5, 11)
+	local f2 = Vector3.new(math.sin(v.yaw), 0, math.cos(v.yaw))
+	local r2 = Vector3.new(f2.Z, 0, -f2.X)
+	local speedBefore = v.vel.Magnitude
+	v.vel = f2 * fs + r2 * ls
+	v.pos = v.pos + v.vel * dt
+	v.pos = Vector3.new(clamp(v.pos.X, -800, 800), 0, clamp(v.pos.Z, -60, 228))
+	if ramp.collideCd > 0 then ramp.collideCd = ramp.collideCd - dt end
+	local newPos, hit = cartCollide(v.pos, 1.6)
+	if hit then
+		v.pos = newPos
+		local nearJet = false
+		for _, j in ipairs(JETS) do
+			if math.sqrt((v.pos.X - j.x) ^ 2 + (v.pos.Z - j.z) ^ 2) < 32 then nearJet = true end
+		end
+		if nearJet and speedBefore > 4 and ramp.collideCd <= 0 then
+			ramp.collideCd = 3
+			addCredits(-30)
+			toast("💥 Kollision mit dem Flugzeug! −30 Credits", "bad")
+		end
+		v.vel = v.vel * -0.25
+	end
+	v.model:PivotTo(CFrame.new(v.pos * M) * CFrame.Angles(0, v.yaw, 0))
+	local pivot = v.model:GetPivot()
+	if v == cart then
+		for i, c in ipairs(cart.load) do
+			local s = CART_SLOTS[i]
+			c.obj.CFrame = pivot * CFrame.new(s.X * M, s.Y * M, s.Z * M)
+		end
+	end
+	-- Charakter unsichtbar am Fahrzeug halten
+	local r = hrp()
+	if r then r.CFrame = pivot * CFrame.new(0, 2 * M, 1.6 * M) end
+	-- Kamera-Verfolger (hinter dem Fahrzeug: Fahrtrichtung ist lokal +Z)
+	local camPos = pivot * CFrame.new(0, 4.5 * M, -11 * M)
+	camera.CFrame = CFrame.lookAt(camPos.Position, pivot.Position + Vector3.new(0, 1.5 * M, 0))
+	if v == cart then cartPrompts() else fuelPrompts(dt) end
+end
+
+endFuelJob = function(success)
+	if not fuelJob.active then return end
+	fuelJob.active = false
+	S.job = nil
+	setTimerHUD(nil)
+	local n = (fuelJob.fueled[1] and 1 or 0) + (fuelJob.fueled[2] and 1 or 0)
+	local bonus = (success and fuelJob.timer > 0) and 60 or 0
+	if bonus > 0 then addCredits(bonus) end
+	if S.mode == "cart" and S.vehicle == fuelTruck then exitVehicle() end
+	showPanel(function(p)
+		local t = label(p, success and "Beide Jets betankt!" or "Zeit abgelaufen", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
+		t.Font = Enum.Font.GothamBold
+		label(p, n .. " / 2 Flugzeuge betankt" .. (bonus > 0 and ("\nRechtzeitig fertig: +" .. bonus .. " Bonus!") or ""),
+			UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 70), TXT, 15)
+		button(p, "Neue Schicht", UDim2.new(0, 20, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel(); startFuelJob()
+		end)
+		button(p, "Feierabend", UDim2.new(0, 185, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(60, 70, 85), function()
+			hidePanel(); setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+		end)
+	end)
+end
+function startFuelJob()
+	fuelJob.active = true
+	fuelJob.fueled = { false, false }
+	fuelJob.fueling = nil
+	fuelJob.timer = 150
+	S.job = "fuel"
+	setJobHUD("TANKWAGEN", "Betanke beide Jets!\nSteig in den Tankwagen am Fuel Depot (E).")
+end
+local function updateFuelJob(dt)
+	if not fuelJob.active then return end
+	fuelJob.timer = fuelJob.timer - dt
+	setTimerHUD(math.max(0, fuelJob.timer))
+	if fuelJob.timer <= 0 then endFuelJob(false) end
 end
 
 ---------------------------------------------------------------- JOB 3 · CAPTAIN — Flugphysik
@@ -1507,7 +1716,7 @@ end
 
 -- Ambient-NPCs in der Halle
 local ambient = {}
-for i = 1, 6 do
+for i = 1, 12 do
 	local npc = makeNPC()
 	local st = { npc = npc, wpts = { Vector3.new(math.random(-50, 55), 0, math.random(240, 294)) }, wp = 1, wait = math.random(0, 4) }
 	npc:PivotTo(CFrame.new(math.random(-50, 55) * M, 0, math.random(240, 294) * M))
@@ -1529,10 +1738,155 @@ local function updateAmbient(dt)
 	end
 end
 
+---------------------------------------------------------------- JOB · MARSHALLER (Einweiser, ab 1500 Cr)
+local marshalJet = airport:WaitForChild("MarshalJet")
+local marshal = {
+	active = false, s = 0, correct = 0, mistakes = 0, waiting = nil, sigIdx = 1, timer = 0,
+	pts = { { -700, 80 }, { -130, 80 }, { -130, 158 } },
+	signals = {
+		{ s = 180, key = Enum.KeyCode.W, sym = "W", what = "Weiter geradeaus rollen" },
+		{ s = 400, key = Enum.KeyCode.S, sym = "S", what = "Langsamer!" },
+		{ s = 565, key = Enum.KeyCode.A, sym = "A", what = "Nach links einlenken" },
+		{ s = 610, key = Enum.KeyCode.W, sym = "W", what = "Weiter vorziehen" },
+		{ s = 645, key = Enum.KeyCode.X, sym = "X", what = "STOP – Parkposition erreicht" },
+	},
+}
+marshal.len = 648
+-- grosse Zeichen-Anzeige (im marshal-Table, spart Top-Level-Locals)
+do
+	local f = frame(gui, UDim2.new(0.5, -160, 0.26, 0), UDim2.new(0, 320, 0, 96))
+	marshal.gui = f
+	marshal.keyL = label(f, "W", UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 50), GOLD, 44, Enum.TextXAlignment.Center)
+	marshal.keyL.Font = Enum.Font.GothamBlack
+	marshal.whatL = label(f, "", UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 30), TXT, 15, Enum.TextXAlignment.Center)
+	f.Visible = false
+end
+
+local function marshalPathPos(s)
+	local pts = marshal.pts
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		local l = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
+		if s <= l then
+			local t = s / l
+			return a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, (b[1] - a[1]) / l, (b[2] - a[2]) / l
+		end
+		s = s - l
+	end
+	local a, b = pts[#pts - 1], pts[#pts]
+	local l = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
+	return b[1], b[2], (b[1] - a[1]) / l, (b[2] - a[2]) / l
+end
+local function endMarshal()
+	marshal.active = false
+	S.job = nil
+	setTimerHUD(nil)
+	marshal.gui.Visible = false
+	local pay = marshal.correct * 40
+	local perfect = marshal.mistakes == 0 and marshal.correct == #marshal.signals
+	local bonus = perfect and 60 or 0
+	addCredits(pay + bonus); addXP(15 * marshal.correct)
+	showPanel(function(p)
+		local t = label(p, "Flugzeug eingewiesen!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
+		t.Font = Enum.Font.GothamBold
+		label(p, marshal.correct .. " / " .. #marshal.signals .. " Zeichen richtig" ..
+			(marshal.mistakes > 0 and ("\n" .. marshal.mistakes .. " Fehlzeichen") or "") ..
+			(perfect and "\nPerfekt eingewiesen! +60 Bonus" or "") ..
+			"\n\n+" .. (pay + bonus) .. " Credits",
+			UDim2.new(0, 20, 0, 52), UDim2.new(1, -40, 0, 110), TXT, 15)
+		button(p, "Nächster Flieger", UDim2.new(0, 20, 1, -56), UDim2.new(0, 160, 0, 40), Color3.fromRGB(40, 110, 60), function()
+			hidePanel(); startMarshal()
+		end)
+		button(p, "Feierabend", UDim2.new(0, 195, 1, -56), UDim2.new(0, 150, 0, 40), Color3.fromRGB(60, 70, 85), function()
+			hidePanel()
+			marshalJet:PivotTo(CFrame.new(0, 0, -4200 * M))
+			setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
+		end)
+	end)
+end
+function startMarshal()
+	marshal.active = true
+	marshal.s = 0; marshal.correct = 0; marshal.mistakes = 0
+	marshal.waiting = nil; marshal.sigIdx = 1; marshal.timer = 150
+	S.job = "marshal"
+	setJobHUD("MARSHALLER", "Ein A320 rollt zu Gate 4.\nBleib an der Einweiser-Position und gib die Zeichen!")
+end
+local function updateMarshal(dt)
+	if not marshal.active then return end
+	marshal.timer = marshal.timer - dt
+	setTimerHUD(math.max(0, marshal.timer))
+	local pp = playerPosM()
+	local atStation = math.sqrt((pp.X + 130) ^ 2 + (pp.Z - 148) ^ 2) < 22 and S.mode == "walk"
+	if marshal.waiting then
+		if not atStation then
+			marshal.gui.Visible = false
+			setJobHUD("MARSHALLER", "⚠ Geh zur Einweiser-Position an Gate 4 – der Pilot sieht dich nicht!")
+		else
+			marshal.gui.Visible = true
+			marshal.keyL.Text = marshal.waiting.sym
+			marshal.whatL.Text = marshal.waiting.what
+			for _, kc in ipairs({ Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D, Enum.KeyCode.X }) do
+				if edge(kc) then
+					if kc == marshal.waiting.key then
+						marshal.correct = marshal.correct + 1
+						toast("✔ Richtiges Zeichen!", "good")
+						marshal.waiting = nil
+						marshal.gui.Visible = false
+					else
+						marshal.mistakes = marshal.mistakes + 1
+						addCredits(-20)
+						toast("✘ Falsches Zeichen! −20 Credits", "bad")
+					end
+				end
+			end
+		end
+	else
+		local spd = marshal.s < 570 and 9 or 3.5
+		marshal.s = marshal.s + spd * dt
+		local sig = marshal.signals[marshal.sigIdx]
+		if sig and marshal.s >= sig.s then
+			marshal.waiting = sig
+			marshal.sigIdx = marshal.sigIdx + 1
+		end
+		if marshal.s >= marshal.len then endMarshal() return end
+	end
+	local x, z, dx, dz = marshalPathPos(math.min(marshal.s, marshal.len))
+	marshalJet:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.atan2(-dx, -dz), 0))
+end
+
+---------------------------------------------------------------- Windräder drehen
+local turbines = {}
+do
+	local landF = airport:FindFirstChild("Landscape")
+	if landF then
+		for _, m in ipairs(landF:GetChildren()) do
+			if m:IsA("Model") and m.Name:sub(1, 11) == "WindTurbine" then
+				local hub = m.PrimaryPart
+				local blades = {}
+				for _, b in ipairs(m:GetChildren()) do
+					if b.Name:sub(1, 5) == "Blade" then
+						table.insert(blades, { p = b, off = hub.CFrame:ToObjectSpace(b.CFrame) })
+					end
+				end
+				table.insert(turbines, { hub = hub, blades = blades, ang = math.random() * 6 })
+			end
+		end
+	end
+end
+local function updateTurbines(dt)
+	for _, t in ipairs(turbines) do
+		t.ang = t.ang + dt * 1.1
+		local rot = t.hub.CFrame * CFrame.Angles(0, 0, t.ang)
+		for _, b in ipairs(t.blades) do
+			b.p.CFrame = rot * b.off
+		end
+	end
+end
+
 ---------------------------------------------------------------- Stationen (E-Interaktionen)
 addInteract({
 	x = function() return -45 end, z = function() return 260.7 end, r = 3.6,
-	cond = function() return S.mode == "walk" and S.job ~= "ramp" and S.job ~= "captain" end,
+	cond = function() return S.mode == "walk" and (S.job == nil or S.job == "checkin") end,
 	label = function()
 		if checkin.active then
 			return checkin.npcState == "waiting" and "Passagier abfertigen" or "Warten auf Passagier …"
@@ -1551,7 +1905,7 @@ addInteract({
 })
 addInteract({
 	x = function() return -14 end, z = function() return 192 end, r = 4,
-	cond = function() return S.mode == "walk" and not checkin.active and S.job ~= "captain" end,
+	cond = function() return S.mode == "walk" and (S.job == nil or S.job == "ramp") end,
 	label = function()
 		if ramp.active then return "Welle läuft …" end
 		if S.credits >= UNLOCK_RAMP then return "Gepäck-Schicht starten (Ramp Agent)" end
@@ -1619,11 +1973,57 @@ addInteract({
 	x = function() return cart.pos.X end, z = function() return cart.pos.Z end, r = 3.2,
 	cond = function() return S.mode == "walk" and not ramp.carrying end,
 	label = function() return "Gepäckwagen fahren" end,
-	action = enterCart,
+	action = function() enterVehicle(cart) end,
+})
+addInteract({
+	x = function() return fuelTruck.pos.X end, z = function() return fuelTruck.pos.Z end, r = 3.4,
+	cond = function() return S.mode == "walk" and not ramp.carrying end,
+	label = function() return "Tankwagen fahren" end,
+	action = function() enterVehicle(fuelTruck) end,
+})
+-- Station: Tankwagen-Job
+addInteract({
+	x = function() return -152 end, z = function() return 215 end, r = 4,
+	cond = function() return S.mode == "walk" and (S.job == nil or S.job == "fuel") end,
+	label = function()
+		if fuelJob.active then return "Schicht läuft – ab in den Tankwagen!" end
+		if S.credits >= UNLOCK_FUEL then return "Tank-Schicht starten (Tankwagen)" end
+		return "Tankwagen – gesperrt (" .. UNLOCK_FUEL .. " Credits nötig)"
+	end,
+	action = function()
+		if fuelJob.active then return end
+		if S.credits < UNLOCK_FUEL then
+			toast("Du brauchst " .. UNLOCK_FUEL .. " Credits für diesen Job!", "bad")
+			return
+		end
+		showTutorial("fuel", "JOB: Tankwagen-Fahrer",
+			"Beide Jets brauchen Kerosin:\n· Steig in den Tankwagen am Fuel Depot (E)\n· Fahr dicht an LH 452 bzw. EW 771 heran und drücke E\n· Beim Betanken stillstehen – wegfahren bricht ab!\n· 120 Credits pro Jet · beide in 2:30 = Bonus",
+			startFuelJob)
+	end,
+})
+-- Station: Marshaller
+addInteract({
+	x = function() return -130 end, z = function() return 148 end, r = 4.5,
+	cond = function() return S.mode == "walk" and (S.job == nil or S.job == "marshal") end,
+	label = function()
+		if marshal.active then return "Einweisung läuft – bleib hier stehen!" end
+		if S.credits >= UNLOCK_MARSHAL then return "Marshaller-Einsatz starten" end
+		return "Marshaller – gesperrt (" .. UNLOCK_MARSHAL .. " Credits nötig)"
+	end,
+	action = function()
+		if marshal.active then return end
+		if S.credits < UNLOCK_MARSHAL then
+			toast("Du brauchst " .. UNLOCK_MARSHAL .. " Credits für diesen Job!", "bad")
+			return
+		end
+		showTutorial("marshal", "JOB: Marshaller (Einweiser)",
+			"Ein A320 rollt vom Taxiway zu Gate 4 – du weist ihn ein:\n· Bleib an der leuchtenden Einweiser-Position stehen\n· Wenn der Jet stoppt, zeigt das HUD das Zeichen: W weiter · S langsamer · A links · X STOP\n· Richtiges Zeichen = +40 Cr · falsches = −20 Cr · fehlerfrei = +60 Bonus",
+			startMarshal)
+	end,
 })
 addInteract({
 	x = function() return 124 end, z = function() return 172 end, r = 5,
-	cond = function() return S.mode == "walk" and not checkin.active and not ramp.active end,
+	cond = function() return S.mode == "walk" and S.job == nil end,
 	label = function()
 		if S.credits >= UNLOCK_CAPTAIN then return "Ins Flugzeug steigen (Captain)" end
 		return "Captain – gesperrt (" .. UNLOCK_CAPTAIN .. " Credits nötig)"
@@ -1645,7 +2045,7 @@ setJobHUD("Arbeitslos", "Geh zum leuchtenden Check-in-Schalter im Terminal und d
 resetPlaneToStand()
 task.defer(function()
 	showTutorial("welcome", "Willkommen am Flughafen!",
-		"Du fängst ganz unten an: am Check-in-Schalter. Verdiene Credits, schalte den Ramp-Agent-Job frei (500 Cr) und arbeite dich zum Captain hoch (2000 Cr)!\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen\n· H blendet die Steuerungslegende ein/aus")
+		"Karriereleiter: 500 Ramp · 750 Security · 1000 Tankwagen · 1500 Marshaller · 2000 Captain.\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen · H Legende\n· Schau dir den begehbaren A380 an Gate 1 und das Parkdeck an!")
 end)
 
 RunService.RenderStepped:Connect(function(dt)
@@ -1660,7 +2060,10 @@ RunService.RenderStepped:Connect(function(dt)
 		else
 			updateCheckin(dt)
 			updateRamp(dt)
-			updateCart(dt)
+			updateVehicle(cart, dt)
+			updateVehicle(fuelTruck, dt)
+			updateFuelJob(dt)
+			updateMarshal(dt)
 			updateInteract()
 			-- getragener Koffer folgt dem Charakter
 			if ramp.carrying then
@@ -1674,6 +2077,7 @@ RunService.RenderStepped:Connect(function(dt)
 	updateAmbient(dt)
 	updateTraffic(dt)
 	updateWindsock()
+	updateTurbines(dt)
 	keyEdge = {}
 end)
 

@@ -1475,6 +1475,323 @@ const CABIN = {
   }
 })();
 
+/* ============================================================
+   MEGA-AIRPORT: Piers B/C, Terminal 2+3, Runway 2, Cargo,
+   Feuerwache, Bodenfahrzeuge, Terminal-Einrichtungen
+   ============================================================ */
+(function buildMegaAirport(){
+  const glassM = new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.4 });
+  const wallM = mat(0xcfd6de);
+  const conc = new THREE.MeshLambertMaterial({ color:0xffffff, map:concreteTex });
+
+  /* --- Piers B (West) & C (Ost) mit Gates und Fluggastbrücken --- */
+  const pierPlanes = { fus:[], wing:[], fin:[] };
+  function buildPier(x1, x2, letter, signColor){
+    // Vorfeld-Erweiterung unter dem Pier
+    const ap = box(x2-x1+60, 0.16, 100, conc, (x1+x2)/2, -0.01, 178);
+    ap.receiveShadow = true; scene.add(ap);
+    // Pier-Gebäude (verglaster Riegel auf Stützen)
+    const b = box(x2-x1, 5.5, 16, glassM, (x1+x2)/2, 5.7, 196);
+    scene.add(b);
+    scene.add(box(x2-x1+2, 0.6, 18, mat(0x8a929e), (x1+x2)/2, 8.6, 196));
+    scene.add(box(x2-x1+2, 0.5, 18, mat(0x77808c), (x1+x2)/2, 3.0, 196));
+    for(let x=x1+6; x<x2; x+=12) scene.add(cyl(0.5, 0.6, 3, 8, mat(0x9aa2aa), x, 1.5, 196));
+    addCollider(x1, 189, x2, 203);
+    // Gates alle 45 m: Brücke + geparkter Jet + Schild
+    let gnum = 1;
+    for(let gx=x1+25; gx<x2-15; gx+=45){
+      // Fluggastbrücke (leicht abfallend zum Flugzeug)
+      const bridge = box(3, 2.6, 22, mat(0xb9c2cc), gx, 5.0, 176);
+      bridge.rotation.x = 0.09; scene.add(bridge);
+      const bhead = box(4, 3, 4, mat(0xa8b2bc), gx, 4.0, 165); scene.add(bhead);
+      // Gate-Schild am Pier
+      const sg = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.2),
+        new THREE.MeshBasicMaterial({ map: textSignTex(letter + gnum, '#15202f', signColor, 256, 96, 60) }));
+      sg.position.set(gx, 7.2, 187.8); sg.rotation.y = Math.PI;
+      scene.add(sg);
+      // geparkter Jet (vereinfachtes Instancing über 3 Mesh-Familien)
+      pierPlanes.fus.push([gx, 158]);
+      gnum++;
+    }
+  }
+  buildPier(-580, -230, 'B', '#ffd75e');
+  buildPier(320, 670, 'C', '#8fe89f');
+  // Instanzierte Pier-Jets (Rumpf, Flügel, Leitwerk)
+  (function(){
+    const n = pierPlanes.fus.length;
+    const cols = [0x3a6fe8, 0xe07820, 0x2a8a8f, 0x8f2f24, 0x777f89, 0x2a7a4a];
+    const fusG = new THREE.CylinderGeometry(1.6, 1.6, 24, 10); fusG.rotateX(Math.PI/2);
+    const fusIM = new THREE.InstancedMesh(fusG, mat(0xf4f4f6), n);
+    const wingIM = new THREE.InstancedMesh(new THREE.BoxGeometry(22, 0.3, 4.4), new THREE.MeshLambertMaterial(), n);
+    const finIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 5.5, 3.4), new THREE.MeshLambertMaterial(), n);
+    const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const one = new THREE.Vector3(1,1,1);
+    const col = new THREE.Color();
+    q.setFromEuler(new THREE.Euler(0, Math.PI, 0)); // Nase zum Pier (Süden)
+    pierPlanes.fus.forEach(([px, pz], i)=>{
+      m4.compose(new THREE.Vector3(px, 2.6, pz), q, one); fusIM.setMatrixAt(i, m4);
+      m4.compose(new THREE.Vector3(px, 2.2, pz+1), q, one); wingIM.setMatrixAt(i, m4);
+      m4.compose(new THREE.Vector3(px, 5.4, pz+12.5), q, one); finIM.setMatrixAt(i, m4);
+      const c = col.setHex(pick(cols));
+      wingIM.setColorAt(i, c); finIM.setColorAt(i, c);
+      addCollider(px-2.2, pz-14, px+2.2, pz+15);
+    });
+    if(wingIM.instanceColor) wingIM.instanceColor.needsUpdate = true;
+    if(finIM.instanceColor) finIM.instanceColor.needsUpdate = true;
+    scene.add(fusIM, wingIM, finIM);
+  })();
+  // Terminal-2/-3-Blöcke an den Pier-Enden
+  for(const [tx, name] of [[-640, 'TERMINAL 2'],[730, 'TERMINAL 3']]){
+    const t = box(90, 12, 110, glassM, tx, 6, 235); scene.add(t);
+    scene.add(box(94, 0.8, 114, mat(0x8a929e), tx, 12.2, 235));
+    addCollider(tx-45, 180, tx+45, 290);
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(30, 3),
+      new THREE.MeshBasicMaterial({ map: textSignTex('✈ ' + name, '#15202f', '#e8eef7', 1024, 110, 68) }));
+    sg.position.set(tx, 10, 179.4); sg.rotation.y = Math.PI;
+    scene.add(sg);
+  }
+
+  /* --- Runway 2 (07/25) nördlich, 1800 m --- */
+  (function(){
+    const R2Z = -520, R2X1 = -900, R2X2 = 900;
+    const asp = box(1840, 0.2, 30, new THREE.MeshLambertMaterial({ color:0xffffff, map:asphaltTex }), 0, 0, R2Z);
+    asp.receiveShadow = true; scene.add(asp);
+    for(let x=R2X1+90; x<R2X2-80; x+=60) scene.add(box(30, 0.05, 0.9, mat(0xe8e8e8), x+15, 0.16, R2Z));
+    for(const [tx,dir,num] of [[R2X1, 1, '07'],[R2X2, -1, '25']]){
+      for(let i=0;i<6;i++){
+        const z = R2Z - 15 + 3.2 + i*(30-6.4)/5;
+        scene.add(box(18, 0.05, 1.7, mat(0xe8e8e8), tx+dir*14, 0.16, z));
+      }
+      const cv = document.createElement('canvas'); cv.width=128; cv.height=256;
+      const c = cv.getContext('2d'); c.fillStyle='#fff'; c.font='bold 150px Arial'; c.textAlign='center'; c.fillText(num, 64, 150);
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(9, 18), new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(cv), transparent:true }));
+      p.rotation.x = -Math.PI/2; p.rotation.z = dir===1 ? -Math.PI/2 : Math.PI/2;
+      p.position.set(tx+dir*55, 0.17, R2Z);
+      scene.add(p);
+    }
+    const lights = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4,6,5), new THREE.MeshBasicMaterial({ color:0xfff6cc }), 76);
+    const m4 = new THREE.Matrix4(); let li=0;
+    for(let x=R2X1; x<=R2X2 && li<75; x+=50){
+      m4.setPosition(x, 0.5, R2Z-16.5); lights.setMatrixAt(li++, m4);
+      m4.setPosition(x, 0.5, R2Z+16.5); lights.setMatrixAt(li++, m4);
+    }
+    lights.count = li; scene.add(lights);
+    // Verbindungs-Taxiway zur Runway 2
+    const tw = box(16, 0.18, 400, mat(0x484b52), -700, -0.02, -300); tw.receiveShadow = true; scene.add(tw);
+  })();
+
+  /* --- Cargo-Center Ost mit Frachter und Containern --- */
+  (function(){
+    const ap = box(220, 0.16, 150, conc, 830, -0.01, 130); ap.receiveShadow = true; scene.add(ap);
+    const wh = box(120, 14, 55, mat(0x8f9aa6), 840, 7, 180); wh.castShadow = true; scene.add(wh);
+    addCollider(780, 152, 900, 208);
+    for(let i=0;i<4;i++) scene.add(box(14, 9, 0.5, mat(0x5a636e), 795+i*28, 4.5, 152));
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(36, 3.4),
+      new THREE.MeshBasicMaterial({ map: textSignTex('📦 CARGO CENTER', '#2a2f36', '#ffd75e', 1024, 110, 62) }));
+    sg.position.set(840, 12, 151.6); sg.rotation.y = Math.PI; scene.add(sg);
+    const freighter = makeJumbo(0x777f89);
+    freighter.position.set(810, 0, 95); scene.add(freighter);
+    addCollider(806, 74, 814, 118);
+    // LD-Container (instanziert)
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1.8, 1.6, 1.5), new THREE.MeshLambertMaterial(), 26);
+    const m4 = new THREE.Matrix4(); const col = new THREE.Color();
+    for(let i=0;i<26;i++){
+      im.setColorAt(i, col.setHex(pick([0xb9c2cc, 0x8f9aa6, 0xc9a44f, 0x7f8c9a])));
+      m4.setPosition(770 + (i%9)*2.4, 0.8, 135 + Math.floor(i/9)*2.6);
+      im.setMatrixAt(i, m4);
+    }
+    if(im.instanceColor) im.instanceColor.needsUpdate = true;
+    scene.add(im);
+  })();
+
+  /* --- Feuerwache mit 2 Löschfahrzeugen --- */
+  (function(){
+    const fs = box(46, 9, 26, mat(0xb03030), -300, 4.5, 120);
+    fs.castShadow = true; scene.add(fs);
+    addCollider(-323, 107, -277, 133);
+    for(let i=0;i<2;i++) scene.add(box(12, 6.5, 0.5, mat(0x7a1f1f), -312+i*24, 3.2, 107));
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(30, 2.4),
+      new THREE.MeshBasicMaterial({ map: textSignTex('🚒 FLUGHAFENFEUERWEHR', '#7a1f1f', '#ffffff', 1024, 90, 52) }));
+    sg.position.set(-300, 10.4, 106.6); sg.rotation.y = Math.PI; scene.add(sg);
+    for(const fx of [-312, -288]){
+      const t = new THREE.Group();
+      t.add(box(3, 2.4, 8.5, mat(0xc23b2e), 0, 1.6, 0));
+      t.add(box(2.8, 1.3, 2, mat(0xc23b2e), 0, 3.1, 2.8));
+      t.add(box(0.4, 0.4, 6, mat(0xd8d8d8), 0.8, 3.0, -1));      // Löscharm
+      t.add(box(3.1, 0.25, 8.6, mat(0xffffff), 0, 2.2, 0));      // weißer Streifen
+      const bl = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 5), new THREE.MeshBasicMaterial({ color:0x2255ff }));
+      bl.position.set(0, 3.85, 2.8); t.add(bl);
+      for(const [wx,wz] of [[-1.4,-2.6],[1.4,-2.6],[-1.4,2.6],[1.4,2.6]]){
+        const w = cyl(0.55,0.55,0.5,8, mat(0x14161a), wx, 0.55, wz); w.rotation.z = Math.PI/2; t.add(w);
+      }
+      t.position.set(fx, 0, 98);
+      scene.add(t);
+      addCollider(fx-2, 93.5, fx+2, 102.5);
+      envAnims.push((tm)=>{ bl.visible = (tm % 0.8) < 0.4; }); // Blaulicht
+    }
+  })();
+
+  /* --- Follow-Me-Car, Busse, Catering-LKW, Enteiser --- */
+  (function(){
+    const fm = new THREE.Group();
+    fm.add(box(1.9, 0.85, 3.9, mat(0xf2c11e), 0, 0.75, 0));
+    fm.add(box(1.7, 0.65, 1.9, mat(0x1a1a1a), 0, 1.5, 0.2));
+    const fmSign = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.5),
+      new THREE.MeshBasicMaterial({ map: textSignTex('FOLLOW ME', '#111111', '#ffd75e', 256, 64, 40) }));
+    fmSign.position.set(0, 2.1, 0); fm.add(fmSign);
+    for(const [wx,wz] of [[-0.85,-1.2],[0.85,-1.2],[-0.85,1.2],[0.85,1.2]]){
+      const w = cyl(0.35,0.35,0.3,8, mat(0x14161a), wx, 0.35, wz); w.rotation.z = Math.PI/2; fm.add(w);
+    }
+    fm.position.set(90, 0, 200); fm.rotation.y = -0.6; scene.add(fm);
+    addCollider(88, 198, 92, 202);
+    for(const [bx, bz, ry] of [[-95, 214, 0.2],[70, 216, -0.15]]){
+      const bus = new THREE.Group();
+      bus.add(box(2.5, 2.7, 11, mat(0xe8eef7), 0, 1.7, 0));
+      bus.add(box(2.55, 1.0, 11.05, mat(0x2a6db5), 0, 1.1, 0));
+      bus.add(box(2.56, 0.8, 9, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.6 }), 0, 2.4, 0));
+      for(const wz of [-3.6, 3.6]) for(const wx of [-1.2, 1.2]){
+        const w = cyl(0.5,0.5,0.4,8, mat(0x14161a), wx, 0.5, wz); w.rotation.z = Math.PI/2; bus.add(w);
+      }
+      bus.position.set(bx, 0, bz); bus.rotation.y = ry; scene.add(bus);
+      addCollider(bx-2, bz-5.8, bx+2, bz+5.8);
+    }
+    const cat = new THREE.Group(); // Catering-LKW mit Hubkoffer
+    cat.add(box(2.4, 1.2, 3, mat(0xe8eef7), 0, 1.0, 2.5));
+    cat.add(box(2.5, 2.6, 4.6, mat(0xd9d2c4), 0, 2.6, -1.2));
+    cat.add(box(0.3, 1.4, 0.3, mat(0x8a929e), -1.0, 0.9, 0.6));
+    for(const [wx,wz] of [[-1.1,2.4],[1.1,2.4],[-1.1,-2.2],[1.1,-2.2]]){
+      const w = cyl(0.5,0.5,0.4,8, mat(0x14161a), wx, 0.5, wz); w.rotation.z = Math.PI/2; cat.add(w);
+    }
+    cat.position.set(163, 0, 202); cat.rotation.y = 2.6; scene.add(cat);
+    addCollider(160, 199, 166, 205);
+    const de = new THREE.Group(); // Enteisungsfahrzeug mit Korb
+    de.add(box(2.4, 1.4, 6, mat(0xff8c1a), 0, 1.1, 0));
+    de.add(cyl(0.16, 0.16, 5, 6, mat(0x8a929e), 0.5, 3.6, -1));
+    de.get = de.children[1]; de.children[1].rotation.z = 0.5;
+    de.add(box(1.4, 1.1, 1.4, mat(0xff8c1a), 1.7, 5.4, -1));
+    de.position.set(246, 0, 152); de.rotation.y = -1.2; scene.add(de);
+    addCollider(243, 149, 249, 155);
+  })();
+
+  /* --- Terminal-Einrichtungen: Security, Pass, Duty-Free, Lounge, Gepäckausgabe, Kiosks --- */
+  (function(){
+    function sign(txt, x, y, z, w, bg, fg, ry){
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.16),
+        new THREE.MeshBasicMaterial({ map: textSignTex(txt, bg||'#15202f', fg||'#e8eef7', 512, 82, 46) }));
+      s.position.set(x, y, z); if(ry) s.rotation.y = ry;
+      scene.add(s);
+    }
+    // Sicherheitskontrolle (zwischen Halle und Gates)
+    for(const az of [246, 252]){
+      const arch = new THREE.Group();
+      arch.add(box(0.35, 2.3, 0.5, mat(0x8a929e), -1.05, 1.15, 0));
+      arch.add(box(0.35, 2.3, 0.5, mat(0x8a929e), 1.05, 1.15, 0));
+      arch.add(box(2.45, 0.35, 0.5, mat(0x8a929e), 0, 2.45, 0));
+      arch.position.set(10, 0, az);
+      scene.add(arch);
+    }
+    scene.add(box(1.6, 1.0, 5, mat(0x2c2f36), 13.5, 0.5, 249));   // Röntgenband
+    scene.add(box(2.0, 1.6, 1.8, mat(0x8a929e), 13.5, 0.8, 249)); // Röntgentunnel
+    sign('SICHERHEITSKONTROLLE', 10.5, 3.6, 244, 9);
+    addCollider(12.6, 246.5, 14.4, 251.5);
+    // Passkontrolle
+    for(const bx of [7, 12]) scene.add(box(1.8, 2.4, 1.8, mat(0x35506e), bx, 1.2, 268));
+    sign('PASSKONTROLLE', 9.5, 3.6, 266, 8);
+    // Duty-Free-Shop
+    (function(){
+      const shelves = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 1.5, 3.4), new THREE.MeshLambertMaterial(), 8);
+      const m4 = new THREE.Matrix4(); const col = new THREE.Color();
+      for(let i=0;i<8;i++){
+        shelves.setColorAt(i, col.setHex(pick([0xc9a44f, 0x8d5fc9, 0xc94f4f, 0x4f9fc9])));
+        m4.setPosition(44 + (i%4)*4, 0.75, 288 + Math.floor(i/4)*5);
+        shelves.setMatrixAt(i, m4);
+      }
+      if(shelves.instanceColor) shelves.instanceColor.needsUpdate = true;
+      scene.add(shelves);
+      addCollider(42, 286, 58, 295);
+      sign('✨ DUTY FREE ✨', 50, 4.4, 284, 10, '#2a1f38', '#ffd75e');
+    })();
+    // Lounge
+    for(const [sx, sz] of [[-64, 240],[-64, 244],[-58, 240],[-58, 244]]){
+      scene.add(box(2.2, 0.55, 1.1, mat(0x6a4a5a), sx, 0.28, sz));
+      scene.add(box(2.2, 0.8, 0.3, mat(0x6a4a5a), sx, 0.75, sz+0.55));
+    }
+    sign('★ BUSINESS LOUNGE', -60, 3.6, 237, 9, '#1f1a2e', '#c9a44f');
+    // Gepäckausgabe-Karussell
+    const car = new THREE.Mesh(new THREE.TorusGeometry(5.5, 1.1, 8, 24), mat(0x3a3f47));
+    car.rotation.x = Math.PI/2; car.position.set(-54, 0.5, 287);
+    scene.add(car);
+    addCollider(-61, 280, -47, 294);
+    const bagIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.75, 0.5, 0.45), new THREE.MeshLambertMaterial(), 6);
+    const bm4 = new THREE.Matrix4(); const bcol = new THREE.Color();
+    const bags = [];
+    for(let i=0;i<6;i++){
+      bagIM.setColorAt(i, bcol.setHex(pick([0x7a3030, 0x30507a, 0x3a3a3a, 0xc9a44f])));
+      bags.push(i * Math.PI/3);
+    }
+    if(bagIM.instanceColor) bagIM.instanceColor.needsUpdate = true;
+    scene.add(bagIM);
+    envAnims.push((t)=>{ // Koffer fahren im Kreis
+      bags.forEach((a0, i)=>{
+        const a = a0 + t*0.25;
+        bm4.setPosition(-54 + Math.cos(a)*5.5, 1.15, 287 + Math.sin(a)*5.5);
+        bagIM.setMatrixAt(i, bm4);
+      });
+      bagIM.instanceMatrix.needsUpdate = true;
+    });
+    sign('GEPÄCKAUSGABE 1', -54, 3.8, 279, 9);
+    // Self-Check-in-Automaten + Infoschalter + Kinderecke
+    for(let i=0;i<4;i++){
+      scene.add(box(0.7, 1.5, 0.7, mat(0xe8eef7), -18+i*3, 0.75, 272));
+      scene.add(box(0.62, 0.5, 0.08, emat(0x5ec8ff, 0.7), -18+i*3, 1.35, 271.6));
+    }
+    sign('SELF CHECK-IN', -13.5, 3.2, 270, 7);
+    scene.add(cyl(2.2, 2.2, 1.1, 12, mat(0x35506e), 4, 0.55, 282));
+    sign('ℹ INFORMATION', 4, 3.4, 279, 7, '#15202f', '#5ec8ff');
+    for(const [kx, kz, kc] of [[62, 262, 0xc94f4f],[64, 264, 0x4f9fc9],[61, 265, 0xc9a44f]]){
+      scene.add(box(1, 1, 1, mat(kc), kx, 0.5, kz));
+    }
+    sign('🧸 KIDS', 62.5, 3.0, 260, 4.5, '#1f3822', '#8fe89f');
+    // --- Einkaufs-Arkade: 6 Läden mit Schaufenstern ---
+    function shopFront(x, z, ry, name, colHex, bg){
+      const g = new THREE.Group();
+      g.add(box(13, 3.8, 4.5, mat(0x2c333c), 0, 1.9, -1.2));                 // Ladenkörper
+      g.add(box(13, 0.9, 0.2, mat(colHex), 0, 3.35, 1.1));                   // Farbband
+      g.add(box(5, 2.6, 0.15, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.45 }), -3.4, 1.3, 1.15)); // Schaufenster
+      g.add(box(5, 2.6, 0.15, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.45 }), 3.4, 1.3, 1.15));
+      g.add(box(2.2, 1.0, 3.4, mat(0x4a3a2e), 0, 0.5, -0.6));                // Theke
+      for(const sx of [-4.2, 4.2]) g.add(box(3.4, 1.4, 0.7, mat(colHex), sx, 0.7, -0.4)); // Auslagen
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.35),
+        new THREE.MeshBasicMaterial({ map: textSignTex(name, bg || '#15202f', '#ffffff', 512, 78, 44) }));
+      s.position.set(0, 4.35, 1.15);
+      g.add(s);
+      g.position.set(x, 0, z);
+      g.rotation.y = ry;
+      scene.add(g);
+      // Collider (achsenparallel; Läden stehen nur in 0°/180°/±90°)
+      if(Math.abs(Math.sin(ry)) < 0.1) addCollider(x-6.5, z-3.5, x+6.5, z+3.5);
+      else addCollider(x-3.5, z-6.5, x+3.5, z+6.5);
+    }
+    // Nordwand (Front zeigt nach Süden in die Halle)
+    shopFront(-62, 297.8, Math.PI, '🍔 BURGER PALACE', 0xc23b2e, '#5a1f16');
+    shopFront(-46, 297.8, Math.PI, '🍕 PIZZA MILANO', 0x2a7a4a, '#163a22');
+    shopFront(14, 297.8, Math.PI, '👗 MODE BOUTIQUE', 0xc95fa0, '#3a1630');
+    shopFront(30, 297.8, Math.PI, '📱 ELEKTRONIK', 0x2a6db5, '#122a44');
+    // Ostwand im Gate-Bereich (Front zeigt nach Westen)
+    shopFront(72.6, 250, -Math.PI/2, '📚 BUCHLADEN', 0x8a6a3a, '#2e2416');
+    shopFront(72.6, 266, -Math.PI/2, '🎁 SOUVENIRS', 0xc9a44f, '#3a2f14');
+
+    // zusätzliche Sitzreihen West
+    const seats2 = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6, 0.9, 1.4), mat(0x3d5a80), 24);
+    const sm = new THREE.Matrix4(); let si = 0;
+    for(let r=0;r<3;r++) for(let c=0;c<8;c++){
+      sm.setPosition(-66 + c*3.2, 0.45, 268 + r*4.5);
+      seats2.setMatrixAt(si++, sm);
+    }
+    scene.add(seats2);
+    addCollider(-68, 266, -40, 279);
+  })();
+})();
+
 /* ---------------- Motorsound (WebAudio, startet mit erster Nutzer-Geste) ---------------- */
 const engineSound = (function(){
   let ctx = null, osc1, osc2, gain;
@@ -1490,7 +1807,20 @@ const engineSound = (function(){
   }
   addEventListener('pointerdown', ensure);
   addEventListener('keydown', ensure);
-  function update(){
+  let nextChime = 25;
+  function chime(){
+    if(!ctx) return;
+    // Flughafen-Gong (Ding-Dong) vor der "Durchsage"
+    for(const [f, t0] of [[830, 0],[622, 0.45]]){
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.value = 0;
+      o.connect(g); g.connect(ctx.destination); o.start();
+      g.gain.setTargetAtTime(0.05, ctx.currentTime + t0, 0.02);
+      g.gain.setTargetAtTime(0, ctx.currentTime + t0 + 0.35, 0.25);
+      o.stop(ctx.currentTime + t0 + 2);
+    }
+  }
+  function update(dt){
     if(!ctx) return;
     const flying = S.mode === 'fly';
     const rpm = flying ? 0.22 + plane.throttle/100*0.78 : 0;
@@ -1498,6 +1828,12 @@ const engineSound = (function(){
     osc1.frequency.setTargetAtTime(f, ctx.currentTime, 0.12);
     osc2.frequency.setTargetAtTime(f*2.03, ctx.currentTime, 0.12);
     gain.gain.setTargetAtTime(flying ? 0.045 + rpm*0.075 : 0, ctx.currentTime, 0.18);
+    // Terminal-Durchsagen-Gong (nur zu Fuß im Gebäude in der Nähe)
+    nextChime -= dt || 0.016;
+    if(nextChime <= 0){
+      nextChime = rand(40, 75);
+      if(S.mode === 'walk' && player.pos.z > 225) chime();
+    }
   }
   return { update };
 })();
@@ -1513,7 +1849,7 @@ const S = {
   tutorialSeen: {},
   camMode: 'chase',     // im Flug: chase | cockpit
 };
-const UNLOCK_RAMP = 500, UNLOCK_FUEL = 1000, UNLOCK_MARSHAL = 1500, UNLOCK_CAPTAIN = 2000;
+const UNLOCK_RAMP = 500, UNLOCK_SEC = 750, UNLOCK_FUEL = 1000, UNLOCK_MARSHAL = 1500, UNLOCK_CAPTAIN = 2000;
 const level = ()=>Math.floor(S.xp/100)+1;
 
 const $ = id=>document.getElementById(id);
@@ -1523,6 +1859,7 @@ function updateHUD(){
   $('hud-xpfill').style.width = (S.xp % 100) + '%';
   let prog = 'Alle Jobs freigeschaltet ✈';
   if(S.credits < UNLOCK_RAMP) prog = 'Noch ' + (UNLOCK_RAMP-S.credits) + ' Credits bis Ramp Agent';
+  else if(S.credits < UNLOCK_SEC) prog = 'Noch ' + (UNLOCK_SEC-S.credits) + ' Credits bis Security';
   else if(S.credits < UNLOCK_FUEL) prog = 'Noch ' + (UNLOCK_FUEL-S.credits) + ' Credits bis Tankwagen';
   else if(S.credits < UNLOCK_MARSHAL) prog = 'Noch ' + (UNLOCK_MARSHAL-S.credits) + ' Credits bis Marshaller';
   else if(S.credits < UNLOCK_CAPTAIN) prog = 'Noch ' + (UNLOCK_CAPTAIN-S.credits) + ' Credits bis Captain';
@@ -1762,7 +2099,7 @@ function updateMarkers(t){
 
 /* ---------------- Ambiente NPCs (Instancing) ---------------- */
 const ambient = (function(){
-  const N = 14;
+  const N = 44; // belebtes Terminal (instanziert = billig)
   const bodyG = new THREE.BoxGeometry(0.55, 1.15, 0.32); bodyG.translate(0, 0.95, 0);
   const headG = new THREE.SphereGeometry(0.24, 7, 6); headG.translate(0, 1.72, 0);
   const bodies = new THREE.InstancedMesh(bodyG, new THREE.MeshLambertMaterial(), N);
@@ -1788,8 +2125,13 @@ function updateAmbient(dt){
     if(n.wait > 0){
       n.wait -= dt;
       if(n.wait <= 0){
-        // neues Ziel in der Halle (Schalter, Gates, Tafel)
-        const spots = [[rand(-50,-15), rand(265,285)], [rand(15,55), rand(240,258)], [rand(-40,-10), rand(288,296)], [rand(-10,15), rand(240,290)]];
+        // neues Ziel: Schalter, Gates, Tafel, Duty-Free, Lounge, Security, Kiosks
+        const spots = [
+          [rand(-50,-15), rand(265,285)], [rand(15,55), rand(240,258)],
+          [rand(-40,-10), rand(288,296)], [rand(-10,15), rand(240,290)],
+          [rand(42,58), rand(285,296)],   [rand(-66,-52), rand(238,250)],
+          [rand(4,14), rand(255,265)],    [rand(-20,-6), rand(268,276)],
+        ];
         const s = pick(spots);
         n.target.set(s[0], 0, s[1]);
       }
@@ -1815,17 +2157,18 @@ function updateAmbient(dt){
 }
 
 /* ---------------- Deko-Flugverkehr (alle 90 s, wechselnde Typen) ---------------- */
-const traffic = (function(){
+function makeTrafficSlot(z0, firstDelay){
   const variants = [makeJet(0x999999), makeNarrowbody(0x2a8a8f), makeJumbo(0x8f6a2a)];
   for(const v of variants){
     v.visible = false;
     v.rotation.order = 'YXZ'; // Pitch nach dem Yaw anwenden (Steigflug)
     scene.add(v);
   }
-  return { variants, obj:variants[0], state:'idle', t:0, next: 12, takeoff: true };
-})();
-function updateTraffic(dt){
-  const tr = traffic;
+  return { variants, obj:variants[0], state:'idle', t:0, next: firstDelay, takeoff: true, z0 };
+}
+const traffic = makeTrafficSlot(0, 12);
+const traffic2 = makeTrafficSlot(-520, 55); // Runway 07/25
+function updateTraffic(tr, dt){
   if(tr.state === 'idle'){
     tr.next -= dt;
     if(tr.next <= 0){
@@ -1846,7 +2189,7 @@ function updateTraffic(dt){
     const x = -700 + v0*tr.t + 0.5*a*tr.t*tr.t;
     const spd = v0 + a*tr.t;
     o.position.x = x;
-    o.position.z = 0;
+    o.position.z = tr.z0;
     o.rotation.y = -Math.PI/2; // Nase nach +X
     if(spd > 68){
       const tc = tr.t - (68-v0)/a;
@@ -1858,7 +2201,7 @@ function updateTraffic(dt){
     // Landung aus Osten auf RWY 27
     const x = 2400 - 70*tr.t;
     o.position.x = x;
-    o.position.z = 0;
+    o.position.z = tr.z0;
     o.rotation.y = Math.PI/2; // Nase nach -X
     if(x > 620) o.position.y = (x-620)*0.052;
     else o.position.y = 0;
@@ -2255,6 +2598,77 @@ function fuelPrompts(o, dt){
 }
 
 /* ============================================================
+   JOB · SICHERHEITSKONTROLLE (ab 750 Credits)
+   Handgepäck durchleuchten: durchwinken oder konfiszieren
+   ============================================================ */
+const SEC_OK = ['Laptop','Buch','Kopfhörer','Jacke','Snacks','Kamera','Regenschirm','Ladekabel','Sonnenbrille','Trinkflasche (leer)'];
+const SEC_BAD = ['Taschenmesser','Wasserflasche 1 L','Gaskartusche','Werkzeugset','Feuerwerk','Pfefferspray','Schere (12 cm)'];
+const secJob = { active:false, idx:0, correct:0, earned:0, queue:[] };
+function genSecCases(){
+  const nBad = randi(2,3);
+  const flags = Array(8).fill(false);
+  while(flags.filter(Boolean).length < nBad) flags[randi(0,7)] = true;
+  return flags.map(bad=>{
+    const items = [];
+    const n = randi(2,4);
+    for(let i=0;i<n;i++) items.push(pick(SEC_OK));
+    if(bad) items[randi(0, items.length-1)] = pick(SEC_BAD);
+    return { items, bad, name: pick(NAMES) };
+  });
+}
+function startSecJob(){
+  secJob.active = true;
+  secJob.idx = 0; secJob.correct = 0; secJob.earned = 0;
+  secJob.queue = genSecCases();
+  S.job = 'security';
+  setJobHUD('SICHERHEITSKONTROLLE', 'Durchleuchte 8 Handgepäckstücke.<br>Drücke <b>E</b> am Röntgenband für den nächsten Passagier.');
+}
+function openSecPanel(){
+  const c = secJob.queue[secJob.idx];
+  const list = c.items.map(it=>'<li>' + it + '</li>').join('');
+  showPanel(
+    '<h2>🎒 Röntgenbild ' + (secJob.idx+1) + '/8 · ' + c.name + '</h2>'+
+    '<div class="doc"><h3>INHALT DES HANDGEPÄCKS</h3><ul style="margin:6px 0 4px 20px;line-height:1.7">' + list + '</ul></div>'+
+    '<div class="doc" style="color:#9fb4cc;font-size:13px">Verboten sind u. a.: Messer &amp; Scheren, Flüssigkeiten über 100 ml, Gas, Feuerwerk, Reizstoffe.</div>'+
+    '<button class="btn green" id="sc-ok">Durchwinken</button>'+
+    '<button class="btn red" id="sc-conf">Gegenstand konfiszieren</button>'
+  );
+  $('sc-ok').onclick = ()=>resolveSec(false);
+  $('sc-conf').onclick = ()=>resolveSec(true);
+}
+function resolveSec(confiscated){
+  hidePanel();
+  const c = secJob.queue[secJob.idx];
+  const correct = confiscated === c.bad;
+  if(correct){
+    secJob.correct++; secJob.earned += 50;
+    addCredits(50); addXP(10);
+    toast(c.bad ? '✔ Richtig! Verbotener Gegenstand einkassiert. +50' : '✔ Richtig! Gepäck war sauber. +50', 'good');
+  } else {
+    addCredits(-35);
+    toast(c.bad ? '✘ Du hast "' + c.items.find(i=>SEC_BAD.includes(i)) + '" durchgewunken! −35' : '✘ Fehlalarm – das Gepäck war sauber! −35', 'bad');
+  }
+  secJob.idx++;
+  if(secJob.idx >= 8){
+    secJob.active = false;
+    S.job = null;
+    const allOk = secJob.correct === 8;
+    if(allOk) addCredits(80);
+    showPanel(
+      '<h2>Kontroll-Schicht beendet!</h2>'+
+      '<div class="doc"><div class="big">' + secJob.correct + ' / 8 korrekt geprüft</div>'+
+      'Verdient: <b style="color:#ffd75e">' + secJob.earned + ' Credits</b>'+
+      (allOk ? '<br><b style="color:#8fe89f">Fehlerfrei! +80 Bonus</b>' : '') + '</div>'+
+      '<button class="btn green" id="sc-again">Neue Schicht</button>'+
+      '<button class="btn" id="sc-close">Feierabend</button>'
+    );
+    $('sc-again').onclick = ()=>{ hidePanel(); startSecJob(); };
+    $('sc-close').onclick = ()=>{ hidePanel(); setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
+    setJobHUD('Arbeitslos', 'Schicht vorbei.');
+  }
+}
+
+/* ============================================================
    JOB 3 · TANKWAGEN-FAHRER (ab 1000 Credits)
    ============================================================ */
 const fuelJob = { active:false, fueled:[false,false], fueling:null, progress:0, timer:0 };
@@ -2504,6 +2918,28 @@ addInteract({
   cond: ()=> S.mode==='walk' && !ramp.carrying && !player.deck,
   label: ()=> 'Tankwagen fahren',
   action: ()=>enterVehicle(fuelTruck),
+});
+
+/* ---------------- Station: Sicherheitskontrolle ---------------- */
+makeMarker(10, 256, 0x9a5fd0);
+addInteract({
+  x:()=>10, z:()=>256, r:3.6,
+  cond: ()=> S.mode==='walk' && (S.job===null || S.job==='security'),
+  label: ()=>{
+    if(secJob.active) return 'Nächstes Gepäck durchleuchten (' + (secJob.idx+1) + '/8)';
+    return S.credits >= UNLOCK_SEC ? 'Security-Schicht starten' : 'Security – gesperrt ('+UNLOCK_SEC+' Credits nötig)';
+  },
+  action: ()=>{
+    if(secJob.active){ openSecPanel(); return; }
+    if(S.credits < UNLOCK_SEC){ toast('Du brauchst '+UNLOCK_SEC+' Credits für diesen Job!', 'bad'); return; }
+    showTutorial('security', 'JOB: Sicherheitskontrolle',
+      '<p>Du sitzt am Röntgenband:</p><ul>'+
+      '<li>Prüfe die <b>Gepäckinhalte</b> auf verbotene Gegenstände</li>'+
+      '<li>Verboten: Messer, Scheren, Flüssigkeiten &gt; 100 ml, Gas, Feuerwerk, Reizstoffe</li>'+
+      '<li>Sauberes Gepäck <b>durchwinken</b>, gefährliches <b>konfiszieren</b></li>'+
+      '<li>+50 pro richtiger Entscheidung · Fehler = −35 · fehlerfrei = +80 Bonus</li></ul>',
+      startSecJob);
+  },
 });
 
 /* ---------------- Station: Tankwagen-Job (Fuel Depot) ---------------- */
@@ -3239,8 +3675,8 @@ updateHUD();
 setJobHUD('Arbeitslos', 'Geh zum leuchtenden <b>Check-in-Schalter</b> im Terminal und drücke E.');
 showTutorial('welcome', 'Willkommen am Flughafen!',
   '<p>Du fängst ganz unten an: am <b>Check-in-Schalter</b>. Karriereleiter:</p>'+
-  '<ul><li><b>500 Cr</b> → Ramp Agent (Gepäck) · <b>1000 Cr</b> → Tankwagen</li>'+
-  '<li><b>1500 Cr</b> → Marshaller (Einweiser) · <b>2000 Cr</b> → Captain</li></ul>'+
+  '<ul><li><b>500</b> Ramp Agent · <b>750</b> Security · <b>1000</b> Tankwagen</li>'+
+  '<li><b>1500</b> Marshaller · <b>2000</b> Captain</li></ul>'+
   '<p><b>WASD</b> laufen · <b>Shift</b> sprinten · <b>Maus</b> Kamera (ins Bild klicken) · <b>E</b> an leuchtenden Stationen · <b>H</b> Legende. Schau dir auch den begehbaren A380 an Gate 1 und das Parkdeck an!</p>');
 
 let lastT = performance.now();
@@ -3267,12 +3703,13 @@ function tick(){
   }
   if(S.mode === 'fly') updateFlightHUD();
   updateAmbient(dt);
-  updateTraffic(dt);
+  updateTraffic(traffic, dt);
+  updateTraffic(traffic2, dt);
   updateWindsock(dt);
   updateMarkers(now/1000);
   for(const f of envAnims) f(now/1000, dt);
   for(const f of landAnims) f(now/1000, dt);
-  engineSound.update();
+  engineSound.update(dt);
   updateCamera(dt);
   // Schatten-Kamera folgt grob dem Spieler
   const fx = S.mode==='fly' ? plane.pos : player.pos;

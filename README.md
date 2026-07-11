@@ -15,12 +15,30 @@ Fortschritt lebt **nur im Speicher** — kein localStorage, kein DataStore.
 
 ---
 
+## Der Mega-Airport
+
+Drei verbundene Terminals: das begehbare **Terminal 1** (Check-in-Halle, Sicherheits-
+kontrolle, Passkontrolle, Duty-Free, Einkaufs-Arkade mit Mode/Elektronik/Buchladen/
+Souvenirs, Burger- und Pizza-Restaurant, Café, Business-Lounge, Gepäckausgabe-
+Karussell, Self-Check-in-Automaten, Infoschalter, Kinderecke) plus **Terminal 2 und 3**
+mit langen Gate-Piers (B1–B7, C1–C7) samt Fluggastbrücken und geparkten Jets.
+**Zwei Runways** (09/27 und 07/25) mit eigenem Deko-Verkehr, Cargo-Center mit
+Frachter und LD-Containern, Flughafenfeuerwehr mit Löschfahrzeugen (Blaulicht!),
+Follow-Me-Car, Vorfeldbusse, Catering-LKW, Enteisungsfahrzeug, Tanklager,
+**Parkdeck mit 3 begehbaren Ebenen** — und außenrum eine echte Landschaft:
+Fluss, See, Stadt-Skyline mit Fernsehturm, Berge, Autobahn mit fahrenden Autos
+und drehende Windräder. Dazu Durchsagen-Gong im Terminal.
+
 ## Spielablauf
 
 1. **JOB 1 · Check-in-Agent** (Start) — leuchtend blauer Marker hinter Schalter 1.
    8 Passagiere pro Schicht: Name auf Ticket ↔ Pass vergleichen, Flug gegen die
    Abflugtafel prüfen (CLOSED = abweisen!), Gepäck über 23 kg → Gebühr kassieren.
    2–3 Fälle pro Schicht haben Fehler. Richtig = +60 Cr & XP, durchgewunkener Fehler = −40 Cr.
+1b. **Sicherheitskontrolle** (ab 750 Credits) — lila Marker am Röntgenband: Handgepäck
+   durchleuchten, verbotene Gegenstände konfiszieren.
+1c. **Tankwagen-Fahrer** (ab 1000 Credits) — Fuel Depot: beide Jets gegen die Uhr betanken.
+1d. **Marshaller** (ab 1500 Credits) — Gate 4: den anrollenden A320 mit Handzeichen einweisen.
 2. **JOB 2 · Ramp Agent** (ab 500 Credits) — oranger Marker am Gepäckband.
    Farbcodierte Koffer (blau → LH 452, orange → EW 771) vom Band aufnehmen (E),
    auf den Gepäckwagen laden (max. 6), Wagen fahren (leichter Drift!) und am
