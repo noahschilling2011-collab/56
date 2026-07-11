@@ -192,26 +192,70 @@ for _, px in ipairs({ -40, 40, 130 }) do
 	mpart(airport, "Stand", 14, 0.1, 0.6, px, 0.3, 165, COL.yellow, { CanCollide = false })
 end
 
----------------------------------------------------------------- Deko-Jets
+---------------------------------------------------------------- Deko-Jets: Airbus A380 (Doppeldecker, 4 Triebwerke)
+local ENGINE_POS = { { 7.2, 4.6 }, { 13.5, 8.4 } } -- {|x|, z} unter dem gepfeilten Fluegel
 local function makeJet(name, color, x, z, yawDeg)
 	local m = Instance.new("Model"); m.Name = name
 	local root = mpart(m, "Root", 1, 1, 1, 0, 0, 0, color, { Transparency = 1, CanCollide = false })
 	m.PrimaryPart = root
-	-- Zylinderachse liegt in Roblox auf X -> Laenge in X, dann um 90 Grad drehen
-	local fus = mpart(m, "Fus", 26, 3.8, 3.8, 0, 3.2, 0, COL.cream)
-	fus.Shape = Enum.PartType.Cylinder
-	fus.CFrame = CFrame.new(0, 3.2 * M, 0) * CFrame.Angles(0, math.rad(90), 0)
-	local nose = mpart(m, "Nose", 3.8, 3.8, 3.8, 0, 3.2, -13, COL.cream); nose.Shape = Enum.PartType.Ball
-	mpart(m, "Tailc", 1.6, 1.6, 5, 0, 3.9, 15.5, COL.cream)
-	mpart(m, "Wing", 24, 0.35, 4.5, 0, 2.9, 0.5, color)
-	mpart(m, "HStab", 9, 0.25, 2.6, 0, 4.4, 17, color)
-	mpart(m, "VStab", 0.3, 5.5, 3.4, 0, 6.5, 17.5, color)
+	-- Doppeldecker-Rumpf (Zylinderachse X -> um 90 Grad drehen)
+	-- Rumpf ohne Kollision (sonst waere die Kabine unzugaenglich); unsichtbarer Blocker unten
+	local tube = mpart(m, "Tube", 34, 4.6, 4.6, 0, 3.0, 0, COL.cream, { CanCollide = false })
+	tube.Shape = Enum.PartType.Cylinder
+	tube.CFrame = CFrame.new(0, 3.0 * M, 0) * CFrame.Angles(0, math.rad(90), 0)
+	mpart(m, "BellyBlock", 4.4, 1.55, 33, 0, 0.8, 0, COL.cream, { Transparency = 1 })
+	local hump = mpart(m, "Hump", 30, 3.5, 3.5, 0, 5.85, -0.5, COL.cream, { CanCollide = false })
+	hump.Shape = Enum.PartType.Cylinder
+	hump.CFrame = CFrame.new(0, 5.85 * M, -0.5 * M) * CFrame.Angles(0, math.rad(90), 0)
+	-- A380-Nase
+	local nose = mpart(m, "Nose", 4.6, 4.6, 4.6, 0, 3.0, -17, COL.cream, { CanCollide = false }); nose.Shape = Enum.PartType.Ball
+	local noseUp = mpart(m, "NoseUp", 3.5, 3.5, 3.5, 0, 5.6, -15.4, COL.cream, { CanCollide = false }); noseUp.Shape = Enum.PartType.Ball
+	mpart(m, "CockpitWin", 2.6, 0.55, 0.6, 0, 4.35, -17.6, Color3.fromRGB(16, 21, 28), { CanCollide = false })
+	-- Heckkonus
+	mpart(m, "Tailc", 1.8, 2.6, 8, 0, 3.6, 20.5, COL.cream, { CanCollide = false })
+	mpart(m, "TailcUp", 1.2, 1.8, 7, 0, 5.9, 18.2, COL.cream, { CanCollide = false })
+	-- Fensterbaender + Guertelstreifen
 	for _, sx in ipairs({ -1, 1 }) do
-		local e = mpart(m, "Eng", 2.1, 2.1, 3.2, sx * 6.5, 1.9, -1.5, Color3.fromRGB(154, 160, 168))
+		mpart(m, "WinMain", 0.08, 0.35, 30, sx * 2.28, 3.7, 0, Color3.fromRGB(42, 54, 68), { CanCollide = false })
+		mpart(m, "WinUp", 0.08, 0.35, 26, sx * 1.72, 6.2, -1, Color3.fromRGB(42, 54, 68), { CanCollide = false })
+		mpart(m, "Belt", 0.06, 0.5, 33, sx * 2.31, 4.45, 0, color, { CanCollide = false })
+		for _, dz in ipairs({ -13.5, -7.5, 0, 8, 14.5 }) do
+			mpart(m, "Door", 0.08, 1.9, 1.0, sx * 2.29, 3.0, dz, Color3.fromRGB(154, 164, 176), { CanCollide = false })
+		end
 	end
-	for _, g in ipairs({ { 0, -10 }, { -2.5, 1 }, { 2.5, 1 } }) do
-		mpart(m, "Gear", 0.4, 1.6, 0.4, g[1], 0.8, g[2], Color3.fromRGB(40, 40, 40))
+	-- Gepfeilte Fluegel + 4 Triebwerke
+	for _, sx in ipairs({ -1, 1 }) do
+		local wing = mpart(m, "Wing", 25, 0.45, 7, 0, 0, 0, COL.cream, { CanCollide = false })
+		wing.CFrame = CFrame.new(sx * 1.8 * M, 2.7 * M, 0.5 * M)
+			* CFrame.Angles(0, sx > 0 and -0.5 or (math.pi + 0.5), sx * 0.055)
+			* CFrame.new(12.5 * M, 0, 1.5 * M)
+		for _, e in ipairs(ENGINE_POS) do
+			local eng = mpart(m, "Eng", 3.8, 2.3, 2.3, sx * e[1], 1.55, e[2], Color3.fromRGB(170, 176, 184))
+			eng.Shape = Enum.PartType.Cylinder
+			eng.CFrame = CFrame.new(sx * e[1] * M, 1.55 * M, e[2] * M) * CFrame.Angles(0, math.rad(90), 0)
+			mpart(m, "Fan", 0.3, 1.85, 1.85, sx * e[1], 1.55, e[2] - 1.95, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+			mpart(m, "Pylon", 0.4, 1.5, 2.6, sx * e[1], 2.8, e[2] + 1.2, COL.cream, { CanCollide = false })
+		end
 	end
+	-- Leitwerk
+	local fin = mpart(m, "Fin", 0.5, 9.5, 5.5, 0, 9.0, 19.8, color, { CanCollide = false })
+	fin.CFrame = CFrame.new(0, 9.0 * M, 19.8 * M) * CFrame.Angles(-0.32, 0, 0)
+	for _, sx in ipairs({ -1, 1 }) do
+		local hs = mpart(m, "HStab", 8.5, 0.3, 3.4, 0, 0, 0, COL.cream, { CanCollide = false })
+		hs.CFrame = CFrame.new(sx * 0.4 * M, 4.7 * M, 20 * M)
+			* CFrame.Angles(0, sx > 0 and -0.55 or (math.pi + 0.55), 0)
+			* CFrame.new(4.25 * M, 0, 1.1 * M)
+	end
+	-- Fahrwerk: Bug + 4 Hauptfahrwerks-Bogies
+	local function bogie(bx, bz, n)
+		mpart(m, "Strut", 0.44, 2.0, 0.44, bx, 1.4, bz, Color3.fromRGB(58, 61, 68))
+		for i = 0, n - 1 do
+			mpart(m, "Whl", 0.85, 1.0, 1.0, bx, 0.5, bz - (n - 1) * 0.55 + i * 1.1, Color3.fromRGB(20, 22, 26))
+		end
+	end
+	bogie(0, -13.5, 2)
+	bogie(-2.6, 1.5, 3); bogie(2.6, 1.5, 3)
+	bogie(-1.4, 3.6, 2); bogie(1.4, 3.6, 2)
 	m.Parent = airport
 	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
 	return m
@@ -459,11 +503,11 @@ end
 -- Vorfeld: rote Sicherheitslinie, Gate-Schilder, Pylonen
 mpart(deco2, "RedLine", 300, 0.1, 0.35, 45, 0.3, 141, Color3.fromRGB(176, 48, 48), { CanCollide = false })
 for i, px in ipairs({ -40, 40, 130 }) do
-	local gs = mpart(deco2, "GateSign", 4.2, 1.4, 0.15, px, 5.2, 152, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local gs = mpart(deco2, "GateSign", 4.2, 1.4, 0.15, px, 5.2, 138, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 140); sg.Parent = gs
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "GATE " .. i; tl.Parent = sg
-	mpart(deco2, "GateSignPole", 0.24, 5.2, 0.24, px, 2.6, 152.2, Color3.fromRGB(102, 110, 120))
+	mpart(deco2, "GateSignPole", 0.24, 5.2, 0.24, px, 2.6, 138.2, Color3.fromRGB(102, 110, 120))
 end
 for _, jx in ipairs({ -40, 40 }) do
 	for _, o in ipairs({ { -9, -9 }, { 9, -9 }, { -12, 4 }, { 12, 4 }, { -6, 14 }, { 6, 14 } }) do
@@ -482,11 +526,16 @@ gse("FuelTruck", -72, 190, 0.5, function(m)
 	mpart(m, "Tank", 2.0, 2.0, 4.6, 0, 1.9, 0.6, Color3.fromRGB(202, 194, 178))
 	mpart(m, "Cab", 2.2, 1.3, 1.6, 0, 1.1, -3.1, Color3.fromRGB(143, 47, 36))
 end)
-gse("Stairs", -25, 175, -0.4, function(m)
-	for i = 0, 6 do
-		mpart(m, "Step", 1.6, 0.12, 0.5, 0, 0.3 + i * 0.42, -i * 0.5, Color3.fromRGB(183, 190, 200))
+-- Boarding-Rampe zur vorderen linken A380-Tuer (begehbar)
+gse("BoardingStairs", -44.6, 157.5, 0, function(m)
+	local ramp = mpart(m, "Ramp", 4.2, 1.55, 1.8, -0.9, 0.78, 0, Color3.fromRGB(183, 190, 200))
+	ramp.Shape = Enum.PartType.Wedge
+	ramp.CFrame = CFrame.new(-0.9 * M, 0.78 * M, 0) * CFrame.Angles(0, math.rad(-90), 0)
+	ramp.Size = Vector3.new(1.8 * M, 1.55 * M, 4.2 * M) -- Wedge: steigt entlang +Z
+	mpart(m, "Platform", 1.6, 0.16, 1.9, 1.9, 1.55, 0, Color3.fromRGB(154, 162, 172))
+	for _, sz in ipairs({ -0.95, 0.95 }) do
+		mpart(m, "Rail", 4.8, 0.08, 0.08, 0, 1.75, sz, Color3.fromRGB(216, 221, 226), { CanCollide = false })
 	end
-	mpart(m, "Base", 1.7, 0.2, 3.6, 0, 0.16, -1.5, Color3.fromRGB(138, 146, 158))
 end)
 gse("Tug", 78, 195, 2.2, function(m)
 	mpart(m, "Body", 1.8, 0.8, 3.4, 0, 0.65, 0, Color3.fromRGB(154, 162, 58))
@@ -544,6 +593,86 @@ for i = 1, 10 do
 		local c = mpart(deco2, "Cloud", s * 2, s * 0.9, s * 1.4, cx + math.random(-50, 50), cy + math.random(-8, 8), cz + math.random(-25, 25),
 			Color3.fromRGB(250, 250, 252), { CanCollide = false, Transparency = 0.15 })
 		c.Shape = Enum.PartType.Ball
+	end
+end
+
+---------------------------------------------------------------- A380-Kabine (Jet A, begehbar; Welt-Koordinaten)
+local cabin = Instance.new("Model"); cabin.Name = "A380Cabin"; cabin.Parent = airport
+do
+	local JX, JZ = -40, 165
+	local wallC = Color3.fromRGB(221, 226, 232)
+	local carpet = Color3.fromRGB(58, 69, 82)
+	local seatC = Color3.fromRGB(46, 74, 122)
+	local premC = Color3.fromRGB(201, 177, 143)
+	local function cp(name, sx, sy, sz, ox, y, oz, color, props)
+		return mpart(cabin, name, sx, sy, sz, JX + ox, y, JZ + oz, color, props)
+	end
+	-- Hauptdeck: Boden 1,62 m · Decke 3,9 m (Decke ohne Kollision wegen Charakterhoehe)
+	cp("Floor", 4.75, 0.14, 29.6, 0, 1.55, 1, carpet)
+	cp("Ceil", 4.75, 0.1, 29.6, 0, 3.9, 1, wallC, { CanCollide = false, Material = Enum.Material.Neon, Transparency = 0.35 })
+	-- Seitenwaende mit Tuer-Oeffnung links bei z 157,5
+	cp("WallR", 0.14, 2.34, 29.6, 2.36, 2.79, 1, wallC)
+	cp("WallL1", 0.14, 2.34, 5.4, -2.36, 2.79, -10.1, wallC)
+	cp("WallL2", 0.14, 2.34, 21.6, -2.36, 2.79, 5.0, wallC)
+	cp("DoorTop", 0.14, 0.5, 2.2, -2.36, 3.6, -7.4, wallC, { CanCollide = false })
+	-- Fensterreihen (leuchten)
+	for _, sx in ipairs({ -1, 1 }) do
+		for zz = -10, 13, 2 do
+			cp("Win", 0.08, 0.55, 0.95, sx * 2.28, 2.8, zz, Color3.fromRGB(191, 217, 238), { Material = Enum.Material.Neon, CanCollide = false })
+		end
+	end
+	-- Bulkhead mit Cockpit-Tuer + Heckwand
+	cp("BulkL", 1.7, 2.34, 0.14, -1.5, 2.79, -12.6, wallC)
+	cp("BulkR", 1.7, 2.34, 0.14, 1.5, 2.79, -12.6, wallC)
+	cp("Aft", 4.75, 2.34, 0.14, 0, 2.79, 15.8, wallC)
+	-- Galley
+	cp("Galley1", 1.6, 1.15, 0.9, 1.4, 2.2, -10.5, Color3.fromRGB(174, 182, 191))
+	cp("Galley2", 1.6, 1.15, 0.9, 1.4, 2.2, -8.4, Color3.fromRGB(174, 182, 191))
+	-- Economy 2-3-2 (Sitze ohne Kollision, damit die Gaenge frei bleiben)
+	for _, off in ipairs({ -1.85, -1.35, -0.5, 0, 0.5, 1.35, 1.85 }) do
+		for zz = -6.2, 13, 0.92 do
+			cp("Seat", 0.48, 0.14, 0.5, off, 2.05, zz, seatC, { CanCollide = false })
+			cp("SeatB", 0.48, 0.62, 0.12, off, 2.4, zz + 0.26, seatC, { CanCollide = false })
+		end
+	end
+	-- Interne Rampe zum Oberdeck (begehbar)
+	local up = mpart(cabin, "UpRamp", 1, 1, 1, JX - 1.4, 0, JZ - 9.7, Color3.fromRGB(183, 190, 200))
+	up.Shape = Enum.PartType.Wedge
+	up.Size = Vector3.new(1.1 * M, 2.36 * M, 3.4 * M)
+	up.CFrame = CFrame.new((JX - 1.4) * M, 2.8 * M, (JZ - 9.7) * M)
+	-- Oberdeck (Boden 3,98 m)
+	cp("UpFloor", 3.3, 0.12, 16.6, 0, 3.98, -1, Color3.fromRGB(74, 64, 56))
+	cp("UpCeil", 3.3, 0.08, 16.6, 0, 6.35, -1, wallC, { CanCollide = false, Material = Enum.Material.Neon, Transparency = 0.35 })
+	cp("UpWallL", 0.12, 2.3, 16.6, -1.68, 5.2, -1, wallC)
+	cp("UpWallR", 0.12, 2.3, 16.6, 1.68, 5.2, -1, wallC)
+	cp("UpFront", 3.3, 2.3, 0.12, 0, 5.2, -9.3, wallC)
+	cp("UpAft", 3.3, 2.3, 0.12, 0, 5.2, 7.3, wallC)
+	for _, off in ipairs({ -1.15, -0.3, 0.3, 1.15 }) do
+		for zz = -6.8, 6, 1.35 do
+			cp("PSeat", 0.6, 0.16, 0.62, off, 4.5, zz, premC, { CanCollide = false })
+			cp("PSeatB", 0.6, 0.75, 0.14, off, 4.92, zz + 0.3, premC, { CanCollide = false })
+		end
+	end
+	-- Cockpit (verkleidete Kanzel mit Panel, Pedestal, Sidesticks; hinter der Nasenkugel)
+	cp("CFloor", 4.0, 0.14, 3.0, 0, 1.55, -13.8, carpet)
+	cp("CCeil", 4.0, 0.12, 3.2, 0, 3.78, -13.9, Color3.fromRGB(185, 192, 200), { CanCollide = false })
+	cp("CWallL", 0.12, 2.3, 3.2, -1.98, 2.7, -13.9, Color3.fromRGB(185, 192, 200))
+	cp("CWallR", 0.12, 2.3, 3.2, 1.98, 2.7, -13.9, Color3.fromRGB(185, 192, 200))
+	cp("CFront", 4.0, 1.15, 0.12, 0, 2.1, -15.3, Color3.fromRGB(185, 192, 200))
+	cp("CGlass", 3.4, 0.8, 0.1, 0, 3.4, -15.25, Color3.fromRGB(168, 207, 232), { Material = Enum.Material.Neon, Transparency = 0.2, CanCollide = false })
+	local panel = cp("Panel", 3.6, 1.1, 0.14, 0, 2.75, -14.8, Color3.fromRGB(26, 33, 43))
+	local psg = Instance.new("SurfaceGui"); psg.Face = Enum.NormalId.Back; psg.CanvasSize = Vector2.new(720, 220); psg.Parent = panel
+	for i = 0, 5 do
+		local d = Instance.new("Frame")
+		d.Size = UDim2.new(0, 90, 0, 88); d.Position = UDim2.new(0, 30 + i * 115, 0, 40)
+		d.BackgroundColor3 = Color3.fromRGB(10, 42, 26); d.BorderColor3 = Color3.fromRGB(84, 208, 106)
+		d.Parent = psg
+	end
+	cp("Pedestal", 0.9, 0.8, 1.4, 0, 2.0, -13.9, Color3.fromRGB(35, 40, 48))
+	for _, sx in ipairs({ -1, 1 }) do
+		cp("PilotSeat", 0.62, 0.16, 0.6, sx * 1.1, 2.05, -13.3, Color3.fromRGB(48, 54, 62), { CanCollide = false })
+		cp("PilotSeatB", 0.62, 0.7, 0.14, sx * 1.1, 2.45, -13.0, Color3.fromRGB(48, 54, 62), { CanCollide = false })
+		cp("Sidestick", 0.1, 0.35, 0.1, sx * 1.85, 2.15, -13.4, Color3.fromRGB(20, 22, 26), { CanCollide = false })
 	end
 end
 

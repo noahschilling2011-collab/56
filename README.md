@@ -44,6 +44,15 @@ Cessna-artiger Hochdecker mit Streben, Spinner, Radverkleidungen, Kennzeichen
 Positionslichtern (rot/grün), blitzendem Beacon, einziehbarem Fahrwerk und
 Motorsound (Browser-Version, Tonhöhe folgt dem Schub).
 
+### Die A380 an den Gates — begehbar!
+Die beiden Deko-Jets (und der Deko-Verkehr) sind **Airbus A380**: Doppeldecker-Rumpf,
+vier Triebwerke, gepfeilte Flügel, Fahrwerks-Bogies, Fensterbänder auf beiden Decks.
+Der A380 an **Gate 1** ist von innen begehbar: über die Gangway-Treppe (E) hinein,
+durch die Economy-Kabine (2-3-2) mit sitzenden Passagieren, vorbei an der Galley
+ins **Cockpit** (Panel mit Displays, Pedestal, Sidesticks) oder die Treppe hoch
+aufs **Oberdeck** mit Premium-Bestuhlung (1-2-1). In Roblox läuft man dank echter
+Physik einfach die Rampe hinauf; im Browser übernimmt E-Interaktion den Einstieg.
+
 ### Der Flughafen
 Anflugbefeuerung mit Lauflicht-Strobes an beiden Schwellen · blaue Taxiway-Rand-
 befeuerung · Hold-Short-Markierungen mit Runway-Schildern · Gummiabrieb in den

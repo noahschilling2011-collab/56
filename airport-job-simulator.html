@@ -456,30 +456,72 @@ function updatePapis(px, py, pz){
   }
 })();
 
-/* Jet-Bauer (Deko-Airliner, low-poly) */
+/* Jet-Bauer: Airbus A380 (Doppeldecker, 4 Triebwerke, ~60 % Maßstab) */
+const ENGINE_POS = [[7.2, 4.6],[13.5, 8.4]]; // [|x|, z] unter dem gepfeilten Flügel
 function makeJet(color){
   const g = new THREE.Group();
-  const fus = cyl(1.9, 1.9, 26, 10, mat(0xf2f2f2), 0, 3.2, 0);
-  fus.rotation.x = Math.PI/2; fus.castShadow = true; g.add(fus);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 8), mat(0xf2f2f2));
-  nose.position.set(0, 3.2, -13); g.add(nose);
-  const tailc = cyl(0.5, 1.9, 6, 8, mat(0xf2f2f2), 0, 3.6, 15.5);
-  tailc.rotation.x = Math.PI/2 + 0.12; g.add(tailc);
-  const wing = box(24, 0.35, 4.5, mat(color), 0, 2.9, 0.5);
-  wing.castShadow = true; g.add(wing);
-  const hstab = box(9, 0.25, 2.6, mat(color), 0, 4.4, 17);
-  g.add(hstab);
-  const vstab = box(0.3, 5.5, 3.4, mat(color), 0, 6.5, 17.5);
-  vstab.castShadow = true; g.add(vstab);
+  const white = mat(0xf4f4f6), dk = mat(0x2a3644);
+  // Doppeldecker-Rumpf: Haupttube + Oberdeck-Wulst
+  const tube = cyl(2.3, 2.3, 34, 14, white, 0, 3.0, 0);
+  tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
+  const hump = cyl(1.75, 1.75, 30, 12, white, 0, 5.85, -0.5);
+  hump.rotation.x = Math.PI/2; g.add(hump);
+  // Charakteristische A380-Nase (rund, Cockpit tief)
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(2.3, 12, 10), white);
+  nose.position.set(0, 3.0, -18); nose.scale.z = 1.3; nose.castShadow = true; g.add(nose);
+  const noseUp = new THREE.Mesh(new THREE.SphereGeometry(1.75, 10, 8), white);
+  noseUp.position.set(0, 5.85, -15.8); noseUp.scale.z = 1.6; g.add(noseUp);
+  g.add(box(2.6, 0.55, 0.6, mat(0x10151c), 0, 4.35, -18.3)); // Cockpitscheiben
+  // Heckkonus (beide Decks laufen zusammen)
+  const tc = cyl(0.35, 2.3, 8, 12, white, 0, 3.6, 21); tc.rotation.x = Math.PI/2 + 0.09; g.add(tc);
+  const tcUp = cyl(0.3, 1.7, 7, 10, white, 0, 6.0, 18.2); tcUp.rotation.x = Math.PI/2 + 0.18; g.add(tcUp);
+  // Fensterbänder auf beiden Decks + Türen
   for(const sx of [-1,1]){
-    const eng = cyl(1.05, 1.05, 3.2, 8, mat(0x9aa0a8), sx*6.5, 1.9, -1.5);
-    eng.rotation.x = Math.PI/2; g.add(eng);
+    g.add(box(0.06, 0.35, 30, dk, sx*2.28, 3.7, 0));
+    g.add(box(0.06, 0.35, 26, dk, sx*1.72, 6.2, -1));
+    for(const dz of [-13.5, -7.5, 0, 8, 14.5]) g.add(box(0.06, 1.9, 1.0, mat(0x9aa4b0), sx*2.29, 3.0, dz));
   }
-  for(const [gx,gz] of [[0,-10],[-2.5,1],[2.5,1]]){
-    g.add(cyl(0.18,0.18,1.6,6, mat(0x333333), gx, 0.8, gz));
-    const wh = cyl(0.55,0.55,0.5,8, mat(0x1a1a1a), gx, 0.55, gz);
-    wh.rotation.z = Math.PI/2; g.add(wh);
+  // Gürtelstreifen in Airline-Farbe
+  g.add(box(0.02, 0.5, 33, mat(color), -2.31, 4.45, 0));
+  g.add(box(0.02, 0.5, 33, mat(color), 2.31, 4.45, 0));
+  // Gepfeilte Flügel mit leichter V-Form + 4 Triebwerke
+  for(const sx of [-1,1]){
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(25, 0.45, 7), white.clone());
+    wing.geometry.translate(12.5, 0, 1.5);
+    wing.position.set(sx*1.8, 2.7, 0.5);
+    wing.rotation.y = sx>0 ? -0.5 : Math.PI + 0.5;
+    wing.rotation.z = sx*0.055;
+    wing.castShadow = true;
+    g.add(wing);
+    for(const [ex, ez] of ENGINE_POS){
+      const eng = cyl(1.15, 1.15, 3.8, 10, mat(0xaab0b8), sx*ex, 1.55, ez);
+      eng.rotation.x = Math.PI/2; eng.castShadow = true; g.add(eng);
+      const fan = cyl(0.92, 0.92, 0.18, 10, mat(0x22262c), sx*ex, 1.55, ez-1.95);
+      fan.rotation.x = Math.PI/2; g.add(fan);
+      g.add(box(0.4, 1.5, 2.6, white, sx*ex, 2.8, ez+1.2)); // Pylon
+    }
   }
+  // Leitwerk: hohe gepfeilte Flosse + Höhenleitwerk
+  const fin = box(0.5, 9.5, 5.5, mat(color), 0, 9.0, 19.8);
+  fin.rotation.x = -0.32; fin.castShadow = true; g.add(fin);
+  for(const sx of [-1,1]){
+    const hs = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.3, 3.4), white.clone());
+    hs.geometry.translate(4.25, 0, 1.1);
+    hs.position.set(sx*0.4, 4.7, 20);
+    hs.rotation.y = sx>0 ? -0.55 : Math.PI + 0.55;
+    g.add(hs);
+  }
+  // Fahrwerk: Bug + 4 Hauptfahrwerks-Bogies (20 Räder angedeutet)
+  function bogie(x, z, n){
+    g.add(cyl(0.22, 0.22, 2.0, 6, mat(0x3a3d44), x, 1.4, z));
+    for(let i=0;i<n;i++){
+      const wh = cyl(0.5, 0.5, 0.85, 8, mat(0x14161a), x, 0.5, z - (n-1)*0.55 + i*1.1);
+      wh.rotation.z = Math.PI/2; g.add(wh);
+    }
+  }
+  bogie(0, -13.5, 2);
+  bogie(-2.6, 1.5, 3); bogie(2.6, 1.5, 3);
+  bogie(-1.4, 3.6, 2); bogie(1.4, 3.6, 2);
   return g;
 }
 const JET_INFO = [
@@ -492,7 +534,11 @@ for(const ji of JET_INFO){
   j.position.set(ji.x, 0, ji.z);
   scene.add(j);
   jets.push(Object.assign({ obj:j }, ji));
-  addCollider(ji.x-13, ji.z-15, ji.x+13, ji.z+18);
+  // Rumpf + die vier Triebwerke blockieren (unter den Flügeln kann man durchfahren)
+  addCollider(ji.x-3.4, ji.z-19.5, ji.x+3.4, ji.z+23);
+  for(const sx of [-1,1]) for(const [ex,ez] of ENGINE_POS){
+    addCollider(ji.x+sx*ex-1.5, ji.z+ez-2.2, ji.x+sx*ex+1.5, ji.z+ez+2.2);
+  }
 }
 
 /* Terminal */
@@ -752,9 +798,9 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
   for(const [i, px] of [[-40, 0],[40, 1],[130, 2]].map((v,i)=>[i, v[0]])){
     const tx = textSignTex('GATE ' + (i+1), '#15202f', '#ffd75e', 384, 128, 58);
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.4), new THREE.MeshBasicMaterial({ map: tx }));
-    sg.position.set(px, 5.2, 152);
+    sg.position.set(px, 5.2, 138); // vor der Flugzeugnase
     scene.add(sg);
-    scene.add(cyl(0.12, 0.12, 5.2, 6, mat(0x666e78), px, 2.6, 152.2));
+    scene.add(cyl(0.12, 0.12, 5.2, 6, mat(0x666e78), px, 2.6, 138.2));
   }
   (function(){
     const spots = [];
@@ -778,15 +824,18 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
     scene.add(fuel);
     addCollider(-76, 186, -68, 194);
 
+    // Boarding-Treppe an der vorderen linken Tür des A380 (Gate 1)
     const stairs = new THREE.Group();
-    for(let i=0;i<7;i++) stairs.add(box(1.6, 0.12, 0.5, mat(0xb7bec8), 0, 0.3+i*0.42, -i*0.5));
-    stairs.add(box(1.7, 0.1, 3.6, mat(0x8a929e), 0, 0.16, -1.5));
-    for(const [wx,wz] of [[-0.7,-2.8],[0.7,-2.8],[-0.7,-0.3],[0.7,-0.3]]){
-      const w = cyl(0.25,0.25,0.3,8, mat(0x16181c), wx, 0.25, wz); w.rotation.z = Math.PI/2; stairs.add(w);
+    for(let i=0;i<5;i++) stairs.add(box(0.6, 0.1, 1.7, mat(0xb7bec8), -1.5+i*0.6, 0.3+i*0.33, 0));
+    stairs.add(box(1.4, 0.12, 1.9, mat(0x9aa2ac), 1.4, 1.6, 0));      // Plattform an der Tür
+    for(const sz of [-0.95, 0.95]){
+      stairs.add(box(4.6, 0.06, 0.08, mat(0xd8dde2), 0.1, 1.35, sz)); // Geländer
+      stairs.add(box(0.08, 1.3, 0.08, mat(0xd8dde2), -1.7, 0.7, sz));
+      stairs.add(box(0.08, 1.0, 0.08, mat(0xd8dde2), 2.0, 2.1, sz));
     }
-    stairs.position.set(-25, 0, 175); stairs.rotation.y = -0.4;
+    stairs.position.set(-44.6, 0, 157.5);
     scene.add(stairs);
-    addCollider(-27, 172, -23, 178);
+    addCollider(-46.5, 156.4, -42.6, 158.6);
 
     const tug = new THREE.Group();
     tug.add(box(1.8, 0.8, 3.4, mat(0x9aa23a), 0, 0.65, 0));
@@ -897,6 +946,118 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
       });
     }
   })();
+})();
+
+/* ============================================================
+   A380-KABINE (Jet A, begehbar): Hauptdeck · Oberdeck · Cockpit
+   Welt-Koordinaten; Jet A steht bei (-40, 165), Nase Richtung -Z
+   ============================================================ */
+const CABIN = {
+  main:  { x1:-42.0, x2:-38.0, z1:151.0, z2:179.4, y:1.62 },
+  upper: { x1:-41.2, x2:-38.8, z1:156.2, z2:171.8, y:4.05 },
+};
+(function buildA380Interior(){
+  const JX = -40, JZ = 165;
+  const carpet = mat(0x3a4552), wallM = mat(0xdde2e8), seatM = mat(0x2e4a7a), premM = mat(0xc9b18f);
+  // --- Hauptdeck (Boden 1,62 m · Decke 3,9 m — darüber liegt das Oberdeck) ---
+  scene.add(box(4.75, 0.14, 29.6, carpet, JX, 1.55, JZ+1));
+  scene.add(box(4.75, 0.1, 29.6, emat(0xdfe4ea, 0.6), JX, 3.9, JZ+1));
+  for(const lx of [-1.0, 1.0]) scene.add(box(0.28, 0.05, 28, emat(0xffffff, 0.85), JX+lx, 3.84, JZ+1));
+  for(const sx of [-1,1]){
+    scene.add(box(0.12, 2.34, 29.6, wallM, JX+sx*2.36, 2.79, JZ+1));
+    for(let z=JZ-10; z<=JZ+13; z+=2){ // Kabinenfenster (leuchten leicht)
+      scene.add(box(0.06, 0.55, 0.95, emat(0xbfd9ee, 0.5), JX+sx*2.28, 2.8, z));
+    }
+  }
+  // Bulkhead vorn mit Cockpit-Tür-Ausschnitt
+  scene.add(box(1.7, 2.34, 0.12, wallM, JX-1.5, 2.79, JZ-12.6));
+  scene.add(box(1.7, 2.34, 0.12, wallM, JX+1.5, 2.79, JZ-12.6));
+  scene.add(box(1.1, 0.5, 0.12, wallM, JX, 3.68, JZ-12.6));
+  // Heck-Abschluss
+  scene.add(box(4.75, 2.34, 0.12, wallM, JX, 2.79, JZ+15.8));
+  // Galley + Bordküche im Türbereich
+  scene.add(box(1.6, 1.15, 0.9, mat(0xaeb6bf), JX+1.4, 2.2, JZ-10.5));
+  scene.add(box(1.6, 1.15, 0.9, mat(0xaeb6bf), JX+1.4, 2.2, JZ-8.4));
+  scene.add(box(0.9, 0.1, 2.6, mat(0x8d959e), JX+1.4, 2.85, JZ-9.4));
+  // Economy 2-3-2, 21 Reihen
+  (function(){
+    const offs = [-1.85,-1.35, -0.5,0,0.5, 1.35,1.85];
+    const rows = [];
+    for(let z=JZ-6.2; z<=JZ+13; z+=0.92) rows.push(z);
+    const n = rows.length*offs.length;
+    const cush = new THREE.InstancedMesh(new THREE.BoxGeometry(0.48,0.14,0.5), seatM, n);
+    const back = new THREE.InstancedMesh(new THREE.BoxGeometry(0.48,0.62,0.12), seatM, n);
+    const m4 = new THREE.Matrix4(); let i=0;
+    for(const z of rows) for(const off of offs){
+      m4.setPosition(JX+off, 2.05, z); cush.setMatrixAt(i, m4);
+      m4.setPosition(JX+off, 2.4, z+0.26); back.setMatrixAt(i, m4);
+      i++;
+    }
+    scene.add(cush, back);
+  })();
+  // Interne Treppe zum Oberdeck (vorn)
+  for(let i=0;i<6;i++) scene.add(box(1.1, 0.09, 0.5, mat(0xb7bec8), JX-1.4, 1.85+i*0.4, JZ-11.6+i*0.55));
+  // --- Oberdeck (Premium 1-2-1) ---
+  scene.add(box(3.3, 0.12, 16.6, mat(0x4a4038), JX, 3.98, JZ-1));
+  scene.add(box(3.3, 0.08, 16.6, emat(0xdfe4ea, 0.6), JX, 6.35, JZ-1));
+  for(const lx of [-0.6, 0.6]) scene.add(box(0.22, 0.04, 15.5, emat(0xffffff, 0.8), JX+lx, 6.28, JZ-1));
+  for(const sx of [-1,1]){
+    scene.add(box(0.1, 2.3, 16.6, wallM, JX+sx*1.68, 5.2, JZ-1));
+    for(let z=JZ-7; z<=JZ+6; z+=2.2) scene.add(box(0.05, 0.45, 0.8, emat(0xbfd9ee, 0.5), JX+sx*1.62, 5.45, z));
+  }
+  scene.add(box(3.3, 2.3, 0.1, wallM, JX, 5.2, JZ-9.3));
+  scene.add(box(3.3, 2.3, 0.1, wallM, JX, 5.2, JZ+7.3));
+  (function(){
+    const offs = [-1.15, -0.3, 0.3, 1.15];
+    const rows = [];
+    for(let z=JZ-6.8; z<=JZ+6; z+=1.35) rows.push(z);
+    const n = rows.length*offs.length;
+    const cush = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6,0.16,0.62), premM, n);
+    const back = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6,0.75,0.14), premM, n);
+    const m4 = new THREE.Matrix4(); let i=0;
+    for(const z of rows) for(const off of offs){
+      m4.setPosition(JX+off, 4.5, z); cush.setMatrixAt(i, m4);
+      m4.setPosition(JX+off, 4.92, z+0.3); back.setMatrixAt(i, m4);
+      i++;
+    }
+    scene.add(cush, back);
+  })();
+  // --- Cockpit (vor dem Bulkhead, innen verkleidet; liegt hinter der Nasenkugel) ---
+  scene.add(box(4.0, 0.14, 3.0, carpet, JX, 1.55, JZ-13.8));
+  scene.add(box(4.0, 0.12, 3.2, mat(0xb9c0c8), JX, 3.78, JZ-13.9));            // Cockpitdecke
+  for(const sx of [-1,1]) scene.add(box(0.12, 2.3, 3.2, mat(0xb9c0c8), JX+sx*1.98, 2.7, JZ-13.9)); // Seitenverkleidung
+  scene.add(box(4.0, 1.15, 0.12, mat(0xb9c0c8), JX, 2.1, JZ-15.3));            // Front unter der Scheibe
+  const panelTex = canvasTex(512, 160, (c,w,h)=>{
+    c.fillStyle = '#1a212b'; c.fillRect(0,0,w,h);
+    for(let i=0;i<6;i++){ // PFD/ND/ECAM-Displays
+      c.fillStyle = '#0a2a1a'; c.fillRect(20+i*80, 28, 64, 62);
+      c.strokeStyle = '#54d06a'; c.strokeRect(20+i*80, 28, 64, 62);
+      c.strokeStyle = '#2a7a4a'; c.beginPath(); c.moveTo(28+i*80, 60); c.lineTo(76+i*80, 60); c.stroke();
+    }
+    for(let i=0;i<24;i++){ c.fillStyle = i%3? '#c9a44f':'#7f96ad'; c.fillRect(16+i*20, 112, 10, 8); }
+    for(let i=0;i<24;i++){ c.fillStyle = i%4? '#5ec8ff':'#c94f4f'; c.fillRect(16+i*20, 132, 10, 8); }
+  }, 1, 1);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.1), new THREE.MeshBasicMaterial({ map: panelTex }));
+  panel.position.set(JX, 2.75, JZ-14.8); panel.rotation.x = -0.22;
+  scene.add(panel);
+  scene.add(box(0.9, 0.8, 1.4, mat(0x232830), JX, 2.0, JZ-13.9)); // Mittelpedestal
+  for(const sx of [-1,1]){
+    scene.add(box(0.62,0.16,0.6, mat(0x30363e), JX+sx*1.1, 2.05, JZ-13.3)); // Pilotensitze
+    scene.add(box(0.62,0.7,0.14, mat(0x30363e), JX+sx*1.1, 2.45, JZ-13.0));
+    scene.add(cyl(0.05,0.05,0.35,6, mat(0x14161a), JX+sx*1.85, 2.15, JZ-13.4)); // Sidesticks!
+  }
+  scene.add(box(3.4, 0.8, 0.1, emat(0xa8cfe8, 0.5), JX, 3.4, JZ-15.25)); // Cockpitscheiben von innen
+  // --- Sitzende Passagiere ---
+  const seatSpots = [[-1.35, 168, 'main'],[0, 171.7, 'main'],[1.85, 175.4, 'main'],[-1.85, 163.5, 'main'],[0.3, 160.5, 'upper'],[-1.15, 162, 'upper']];
+  for(const [off, z, deck] of seatSpots){
+    const p = makePerson(pick([0xc94f4f,0x4f7fc9,0x58a86a,0xc9a44f]), pick([0x333a44,0x5a4632]));
+    const y = deck==='main' ? 1.68 : 4.12;
+    p.group.position.set(-40+off, y, z);
+    p.group.rotation.y = Math.PI; // Blickrichtung Nase
+    p.legL.rotation.x = p.legR.rotation.x = -1.35; // sitzend
+    p.group.scale.setScalar(0.92);
+    scene.add(p.group);
+  }
 })();
 
 /* ---------------- Motorsound (WebAudio, startet mit erster Nutzer-Geste) ---------------- */
@@ -1047,6 +1208,7 @@ const player = (function(){
     yaw: Math.PI,
     walkPhase: 0,
     visible: true,
+    deck: null,   // null = draußen · 'main'/'upper' = im A380
   });
 })();
 
@@ -1085,9 +1247,18 @@ function updatePlayer(dt){
   } else {
     player.walkPhase = damp(player.walkPhase, Math.round(player.walkPhase/Math.PI)*Math.PI, 8, dt);
   }
-  collide2D(player.pos, 0.45);
-  player.pos.x = clamp(player.pos.x, -3400, 3400);
-  player.pos.z = clamp(player.pos.z, -3400, 3400);
+  if(player.deck){
+    // Im A380: auf das Deck beschränken, Höhe = Kabinenboden
+    const b = CABIN[player.deck];
+    player.pos.x = clamp(player.pos.x, b.x1, b.x2);
+    player.pos.z = clamp(player.pos.z, b.z1, b.z2);
+    player.pos.y = b.y;
+  } else {
+    collide2D(player.pos, 0.45);
+    player.pos.x = clamp(player.pos.x, -3400, 3400);
+    player.pos.z = clamp(player.pos.z, -3400, 3400);
+    player.pos.y = 0;
+  }
   player.group.position.copy(player.pos);
   player.group.rotation.y = player.yaw;
   const sw = Math.sin(player.walkPhase)*0.55;
@@ -1105,8 +1276,8 @@ function updateCamera(dt){
     focus = cart.obj.position.clone().add(new THREE.Vector3(0,1.6,0));
     dist = 10; hgt = 0;
   } else {
-    focus = player.pos.clone().add(new THREE.Vector3(0,1.7,0));
-    dist = 6; hgt = 0;
+    focus = player.pos.clone().add(new THREE.Vector3(0, player.deck ? 1.35 : 1.7, 0));
+    dist = player.deck ? 2.7 : 6; hgt = 0; // in der Kabine näher ran
   }
   const off = new THREE.Vector3(
     Math.sin(camYaw)*Math.cos(camPitch),
@@ -1115,6 +1286,8 @@ function updateCamera(dt){
   ).multiplyScalar(dist);
   const want = focus.clone().add(off);
   want.y = Math.max(want.y, 0.6);
+  if(S.mode==='walk' && player.deck==='main') want.y = Math.min(want.y, 3.72);
+  if(S.mode==='walk' && player.deck==='upper') want.y = Math.min(want.y, 6.1);
   camPos.x = damp(camPos.x, want.x, 10, dt);
   camPos.y = damp(camPos.y, want.y, 10, dt);
   camPos.z = damp(camPos.z, want.z, 10, dt);
@@ -1583,7 +1756,7 @@ function updateCart(dt){
     const before = o.position.clone();
     collide2D(o.position, 1.6);
     if(before.distanceToSquared(o.position) > 0.0004){
-      const nearJet = jets.some(j=>Math.hypot(o.position.x - j.x, o.position.z - j.z) < 26);
+      const nearJet = jets.some(j=>Math.hypot(o.position.x - j.x, o.position.z - j.z) < 32);
       if(nearJet && speedBefore > 4 && ramp.collideCd <= 0){
         ramp.collideCd = 3;
         addCredits(-30);
@@ -1594,7 +1767,7 @@ function updateCart(dt){
     // Prompt + E-Logik im Wagen
     let nearJet = null;
     for(const [i,j] of jets.entries()){
-      if(Math.hypot(o.position.x - j.x, o.position.z - j.z) < 17) nearJet = i;
+      if(Math.hypot(o.position.x - j.x, o.position.z - j.z) < 24) nearJet = i;
     }
     const prompt = $('prompt');
     if(nearJet !== null && cart.load.length){
@@ -1687,7 +1860,7 @@ addInteract({
 });
 for(const [i,j] of jets.entries()){
   addInteract({
-    x:()=>j.x, z:()=>j.z, r:14,
+    x:()=>j.x, z:()=>j.z, r:20,
     cond: ()=> S.mode==='walk' && ramp.carrying !== null,
     label: ()=> 'Koffer abgeben bei '+j.name,
     action: ()=>{
@@ -1699,9 +1872,48 @@ for(const [i,j] of jets.entries()){
 // In den Wagen einsteigen
 addInteract({
   x:()=>cart.obj.position.x, z:()=>cart.obj.position.z, r:3.2,
-  cond: ()=> S.mode==='walk' && !ramp.carrying,
+  cond: ()=> S.mode==='walk' && !ramp.carrying && !player.deck,
   label: ()=> 'Gepäckwagen fahren',
   action: enterCart,
+});
+
+/* ---------------- A380 betreten / Decks wechseln ---------------- */
+addInteract({
+  x:()=>-46.2, z:()=>157.5, r:2.6,
+  cond: ()=> S.mode==='walk' && !player.deck && !ramp.carrying,
+  label: ()=> 'A380 betreten (Gate 1)',
+  action: ()=>{
+    player.deck = 'main';
+    player.pos.set(-40.8, CABIN.main.y, 157.5);
+    toast('Willkommen an Bord! Vorn geht es ins Cockpit, die Treppe führt aufs Oberdeck.', 'info');
+  },
+});
+addInteract({
+  x:()=>-41.6, z:()=>157.5, r:1.8,
+  cond: ()=> S.mode==='walk' && player.deck==='main',
+  label: ()=> 'Aussteigen',
+  action: ()=>{
+    player.deck = null;
+    player.pos.set(-46.4, 0, 157.5);
+  },
+});
+addInteract({
+  x:()=>-41.4, z:()=>154.6, r:1.8,
+  cond: ()=> S.mode==='walk' && player.deck==='main',
+  label: ()=> 'Treppe: Oberdeck',
+  action: ()=>{
+    player.deck = 'upper';
+    player.pos.set(-40, CABIN.upper.y, 158);
+  },
+});
+addInteract({
+  x:()=>-40, z:()=>157.4, r:1.6,
+  cond: ()=> S.mode==='walk' && player.deck==='upper',
+  label: ()=> 'Treppe: Hauptdeck',
+  action: ()=>{
+    player.deck = 'main';
+    player.pos.set(-41.2, CABIN.main.y, 155.5);
+  },
 });
 
 /* ============================================================

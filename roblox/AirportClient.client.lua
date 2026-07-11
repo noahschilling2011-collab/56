@@ -708,13 +708,21 @@ local function updateRamp(dt)
 end
 
 ---------------------------------------------------------------- Gepaeckwagen fahren
--- 2D-Kollisionsboxen in Metern {x1,z1,x2,z2}: Jets, Flugzeug-Stand, Tower, Hangar
+-- 2D-Kollisionsboxen in Metern {x1,z1,x2,z2}: A380-Ruempfe/-Triebwerke, Stand, Tower, Hangar
 local CART_COLLIDERS = {
-	{ -53, 150, -27, 183 }, { 27, 150, 53, 183 },   -- Jets
-	{ 124, 158, 136, 172 },                          -- Spieler-Flugzeug
-	{ -134, 246, -126, 254 },                        -- Tower
-	{ 211, 185, 249, 215 },                          -- Hangar
+	{ 124, 158, 136, 172 },   -- Spieler-Flugzeug
+	{ -134, 246, -126, 254 }, -- Tower
+	{ 211, 185, 249, 215 },   -- Hangar
+	{ -47, 156, -42, 159 },   -- Boarding-Treppe
 }
+for _, jx in ipairs({ -40, 40 }) do
+	table.insert(CART_COLLIDERS, { jx - 3.4, 165 - 19.5, jx + 3.4, 165 + 23 }) -- Rumpf
+	for _, sx in ipairs({ -1, 1 }) do
+		for _, e in ipairs({ { 7.2, 4.6 }, { 13.5, 8.4 } }) do
+			table.insert(CART_COLLIDERS, { jx + sx * e[1] - 1.5, 165 + e[2] - 2.2, jx + sx * e[1] + 1.5, 165 + e[2] + 2.2 })
+		end
+	end
+end
 local function cartCollide(pos, r)
 	local hit = false
 	local x, z = pos.X, pos.Z
@@ -781,7 +789,7 @@ local function updateCart(dt)
 		cart.pos = newPos
 		local nearJet = false
 		for _, j in ipairs(JETS) do
-			if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 26 then nearJet = true end
+			if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 32 then nearJet = true end
 		end
 		if nearJet and speedBefore > 4 and ramp.collideCd <= 0 then
 			ramp.collideCd = 3
@@ -806,7 +814,7 @@ local function updateCart(dt)
 	-- E-Logik im Wagen: abladen oder aussteigen
 	local nearJetIdx = nil
 	for i, j in ipairs(JETS) do
-		if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 17 then nearJetIdx = i end
+		if math.sqrt((cart.pos.X - j.x) ^ 2 + (cart.pos.Z - j.z) ^ 2) < 24 then nearJetIdx = i end
 	end
 	if nearJetIdx and #cart.load > 0 then
 		promptL.Text = "[E]  Gepäck abladen bei " .. JETS[nearJetIdx].name
@@ -1597,7 +1605,7 @@ addInteract({
 })
 for i, j in ipairs(JETS) do
 	addInteract({
-		x = function() return j.x end, z = function() return j.z end, r = 14,
+		x = function() return j.x end, z = function() return j.z end, r = 20,
 		cond = function() return S.mode == "walk" and ramp.carrying ~= nil end,
 		label = function() return "Koffer abgeben bei " .. j.name end,
 		action = function()
