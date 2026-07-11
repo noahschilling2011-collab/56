@@ -325,30 +325,59 @@ for _, w in ipairs({ { -1.1, -1.8 }, { 1.1, -1.8 }, { -1.1, 1.8 }, { 1.1, 1.8 } 
 end
 cart:PivotTo(CFrame.new(-2 * M, 0, 186 * M) * CFrame.Angles(0, 0.4, 0))
 
----------------------------------------------------------------- Spieler-Propellerflugzeug
+---------------------------------------------------------------- Spieler-Propellerflugzeug (Hochdecker, Cessna-artig)
 local plane = Instance.new("Model"); plane.Name = "PlayerPlane"; plane.Parent = airport
 local proot = mpart(plane, "Root", 1, 1, 1, 0, 0, 0, COL.cream, { Transparency = 1, CanCollide = false })
 plane.PrimaryPart = proot
 local function pp(name, sx, sy, sz, x, y, z, color, props)
 	return mpart(plane, name, sx, sy, sz, x, y, z, color, props)
 end
-pp("Fus", 1.3, 1.3, 5.6, 0, 1.35, 0.3, COL.cream)
-pp("Cowl", 1.2, 1.2, 1.1, 0, 1.35, -2.9, COL.red)
-pp("Tailcone", 0.7, 0.7, 2.2, 0, 1.5, 4.0, COL.cream, { CanCollide = false })
-pp("Canopy", 0.9, 0.62, 1.5, 0, 2.05, -0.7, COL.glass, { Transparency = 0.45, CanCollide = false })
-pp("Prop1", 0.16, 2.3, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
-pp("Prop2", 2.3, 0.16, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
-pp("Wing", 10.4, 0.16, 1.6, 0, 1.9, -0.4, COL.cream)
-pp("WingStripe", 10.4, 0.06, 0.3, 0, 2.0, -1.1, COL.red, { CanCollide = false })
-pp("AilL", 1.9, 0.1, 0.5, -4.2, 1.9, 0.55, COL.red, { CanCollide = false })
-pp("AilR", 1.9, 0.1, 0.5, 4.2, 1.9, 0.55, COL.red, { CanCollide = false })
-pp("HStab", 3.6, 0.12, 1.0, 0, 1.7, 4.7, COL.cream, { CanCollide = false })
-pp("Elev", 3.6, 0.09, 0.5, 0, 1.7, 5.4, COL.red, { CanCollide = false })
-pp("VStab", 0.12, 1.8, 1.2, 0, 2.6, 4.7, COL.cream, { CanCollide = false })
-pp("Rud", 0.1, 1.6, 0.6, 0, 2.7, 5.6, COL.red, { CanCollide = false })
-for _, g in ipairs({ { "GearN", 0, -2.4 }, { "GearL", -1.3, 0.3 }, { "GearR", 1.3, 0.3 } }) do
-	pp(g[1], 0.14, 0.9, 0.14, g[2], 0.7, g[3], COL.dark, { CanCollide = false })
-	pp(g[1] .. "W", 0.6, 0.22, 0.6, g[2], 0.28, g[3], Color3.fromRGB(22, 24, 28), { CanCollide = false })
+-- Rumpf: Cowling -> Kabine -> Heckkonus
+pp("Cowl", 1.1, 1.1, 1.2, 0, 1.32, -2.35, COL.cream)
+pp("CowlInlet", 1.04, 0.34, 1.2, 0, 0.86, -2.3, COL.dark, { CanCollide = false })
+pp("Nose", 1.25, 1.25, 0.9, 0, 1.35, -1.3, COL.red)
+pp("Fus", 1.15, 1.25, 2.5, 0, 1.55, 0.1, COL.cream)
+pp("GlassBand", 1.17, 0.5, 1.7, 0, 1.95, -0.15, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("Windshield", 1.1, 0.62, 0.12, 0, 1.95, -1.15, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("Dash", 1.0, 0.3, 0.35, 0, 1.68, -1.0, COL.dark, { CanCollide = false })
+pp("Tailcone", 0.55, 0.7, 3.4, 0, 1.55, 3.0, COL.cream, { CanCollide = false })
+-- Propeller + Spinner + Blur-Scheibe
+pp("Prop1", 0.14, 2.15, 0.08, 0, 1.32, -3.02, COL.dark, { CanCollide = false })
+pp("Prop2", 2.15, 0.14, 0.08, 0, 1.32, -3.02, COL.dark, { CanCollide = false })
+local spin = pp("Spinner", 0.45, 0.45, 0.5, 0, 1.32, -3.25, COL.red, { CanCollide = false })
+spin.Shape = Enum.PartType.Ball
+local disc = pp("PropDisc", 2.2, 2.2, 0.05, 0, 1.32, -3.02, Color3.fromRGB(48, 52, 58), { Transparency = 1, CanCollide = false })
+disc.Shape = Enum.PartType.Cylinder
+disc.Size = Vector3.new(0.05 * M, 2.2 * M, 2.2 * M)
+disc.CFrame = CFrame.new(0, 1.32 * M, -3.02 * M) * CFrame.Angles(0, math.rad(90), 0)
+-- Hochdecker-Fluegel mit Streben, Querrudern, Klappen
+pp("Wing", 11.0, 0.15, 1.55, 0, 2.32, -0.3, COL.cream)
+pp("WingStripe", 11.0, 0.06, 0.28, 0, 2.41, -0.95, COL.red, { CanCollide = false })
+pp("TipL", 0.55, 0.13, 1.35, -5.5, 2.32, -0.3, COL.red, { CanCollide = false })
+pp("TipR", 0.55, 0.13, 1.35, 5.5, 2.32, -0.3, COL.red, { CanCollide = false })
+for _, sx in ipairs({ -1, 1 }) do
+	local strut = pp("Strut", 0.1, 2.05, 0.1, sx * 1.5, 1.6, 0.05, COL.cream, { CanCollide = false })
+	strut.CFrame = CFrame.new(sx * 1.5 * M, 1.6 * M, 0.05 * M) * CFrame.Angles(0, 0, sx * 0.9)
+end
+pp("AilL", 1.9, 0.09, 0.48, -4.2, 2.32, 0.62, COL.red, { CanCollide = false })
+pp("AilR", 1.9, 0.09, 0.48, 4.2, 2.32, 0.62, COL.red, { CanCollide = false })
+pp("FlapL", 2.2, 0.09, 0.5, -1.6, 2.30, 0.63, COL.cream, { CanCollide = false })
+pp("FlapR", 2.2, 0.09, 0.5, 1.6, 2.30, 0.63, COL.cream, { CanCollide = false })
+pp("NavL", 0.16, 0.16, 0.16, -5.72, 2.32, -0.3, Color3.fromRGB(255, 40, 40), { Material = Enum.Material.Neon, CanCollide = false })
+pp("NavR", 0.16, 0.16, 0.16, 5.72, 2.32, -0.3, Color3.fromRGB(40, 255, 70), { Material = Enum.Material.Neon, CanCollide = false })
+-- Leitwerk
+pp("HStab", 3.7, 0.11, 1.05, 0, 1.62, 4.75, COL.cream, { CanCollide = false })
+pp("Elev", 3.7, 0.08, 0.5, 0, 1.62, 5.5, COL.red, { CanCollide = false })
+local fin = pp("VStab", 0.11, 1.9, 1.15, 0, 2.55, 4.7, COL.cream, { CanCollide = false })
+fin.CFrame = CFrame.new(0, 2.55 * M, 4.7 * M) * CFrame.Angles(-0.22, 0, 0)
+pp("FinTip", 0.13, 0.55, 1.1, 0, 3.35, 4.95, COL.red, { CanCollide = false })
+pp("Rud", 0.09, 1.7, 0.6, 0, 2.6, 5.65, COL.red, { CanCollide = false })
+pp("Beacon", 0.18, 0.18, 0.18, 0, 3.68, 4.95, Color3.fromRGB(255, 60, 0), { Material = Enum.Material.Neon, CanCollide = false })
+-- Fahrwerk mit Radverkleidungen (einziehbar)
+for _, g in ipairs({ { "GearN", 0, -2.15 }, { "GearL", -1.15, 0.45 }, { "GearR", 1.15, 0.45 } }) do
+	pp(g[1], 0.12, 0.85, 0.12, g[2], 0.74, g[3], COL.dark, { CanCollide = false })
+	pp(g[1] .. "W", 0.6, 0.28, 0.6, g[2], 0.3, g[3], Color3.fromRGB(20, 22, 25), { CanCollide = false })
+	pp(g[1] .. "P", 0.26, 0.42, 0.85, g[2], 0.36, g[3], COL.red, { CanCollide = false })
 end
 plane:PivotTo(CFrame.new(130 * M, 0, 165 * M) * CFrame.Angles(0, math.rad(180), 0))
 
@@ -384,6 +413,139 @@ end
 marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
 marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
 marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+
+---------------------------------------------------------------- Realismus-Ausstattung
+local deco2 = Instance.new("Folder"); deco2.Name = "Dressing"; deco2.Parent = airport
+-- Runway-Seitenstreifen
+mpart(deco2, "EdgeLine", RWY_L + 30, 0.1, 0.9, 0, 0.28, -RWY_W / 2 + 0.8, COL.white, { CanCollide = false })
+mpart(deco2, "EdgeLine", RWY_L + 30, 0.1, 0.9, 0, 0.28, RWY_W / 2 - 0.8, COL.white, { CanCollide = false })
+-- Gummiabrieb in den Aufsetzzonen
+math.randomseed(7)
+for _, t in ipairs({ { -750, 1 }, { 750, -1 } }) do
+	for i = 1, 14 do
+		mpart(deco2, "Rubber", 7 + math.random() * 10, 0.08, 0.35 + math.random() * 0.35,
+			t[1] + t[2] * (80 + math.random(250)), 0.29, -7.5 + math.random() * 15,
+			Color3.fromRGB(30, 32, 38), { CanCollide = false, Transparency = 0.35 })
+	end
+end
+-- Hold-Short-Linien + Runway-Schilder an den Verbindern
+for _, cx in ipairs({ -700, 0, 700 }) do
+	mpart(deco2, "HoldA", 16, 0.1, 0.4, cx, 0.3, 22, COL.yellow, { CanCollide = false })
+	mpart(deco2, "HoldB", 16, 0.1, 0.4, cx, 0.3, 23, COL.yellow, { CanCollide = false })
+	for x = -7, 7, 2.2 do
+		mpart(deco2, "HoldD", 1.1, 0.1, 0.4, cx + x, 0.3, 24.4, COL.yellow, { CanCollide = false })
+		mpart(deco2, "HoldD", 1.1, 0.1, 0.4, cx + x, 0.3, 25.5, COL.yellow, { CanCollide = false })
+	end
+	local sign = mpart(deco2, "RwySign", 2.6, 0.9, 0.15, cx - 9.5, 1.0, 24, Color3.fromRGB(160, 32, 32), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(260, 90); sg.Parent = sign
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "09-27"; tl.Parent = sg
+end
+-- Blaue Taxiway-Randbefeuerung
+for x = -750, 750, 40 do
+	for _, zz in ipairs({ 70.5, 89.5 }) do
+		mpart(deco2, "TaxiLight", 0.5, 0.5, 0.5, x, 0.4, zz, Color3.fromRGB(77, 139, 255), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+-- Anflugbefeuerung (ALS) vor beiden Schwellen
+for _, t in ipairs({ { -750, -1 }, { 750, 1 } }) do
+	for i = 1, 6 do
+		local x = t[1] + t[2] * (20 + i * 28)
+		for k = -2, 2 do
+			mpart(deco2, "ALS", 0.5, 0.5, 0.5, x, 0.6, k * 2.4, Color3.fromRGB(255, 242, 204), { Material = Enum.Material.Neon, CanCollide = false })
+		end
+	end
+end
+-- Vorfeld: rote Sicherheitslinie, Gate-Schilder, Pylonen
+mpart(deco2, "RedLine", 300, 0.1, 0.35, 45, 0.3, 141, Color3.fromRGB(176, 48, 48), { CanCollide = false })
+for i, px in ipairs({ -40, 40, 130 }) do
+	local gs = mpart(deco2, "GateSign", 4.2, 1.4, 0.15, px, 5.2, 152, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 140); sg.Parent = gs
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "GATE " .. i; tl.Parent = sg
+	mpart(deco2, "GateSignPole", 0.24, 5.2, 0.24, px, 2.6, 152.2, Color3.fromRGB(102, 110, 120))
+end
+for _, jx in ipairs({ -40, 40 }) do
+	for _, o in ipairs({ { -9, -9 }, { 9, -9 }, { -12, 4 }, { 12, 4 }, { -6, 14 }, { 6, 14 } }) do
+		local cone = mpart(deco2, "Cone", 0.45, 0.55, 0.45, jx + o[1], 0.28, 165 + o[2], Color3.fromRGB(232, 106, 16), { CanCollide = false })
+		cone.Shape = Enum.PartType.Wedge
+	end
+end
+-- Bodengeraete: Tankwagen, Treppe, Pushback-Tug
+local function gse(name, x, z, yaw, build)
+	local m = Instance.new("Model"); m.Name = name; m.Parent = deco2
+	build(m)
+	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, yaw, 0))
+end
+gse("FuelTruck", -72, 190, 0.5, function(m)
+	mpart(m, "Body", 2.4, 1.1, 6.4, 0, 1.0, 0, Color3.fromRGB(217, 210, 196))
+	mpart(m, "Tank", 2.0, 2.0, 4.6, 0, 1.9, 0.6, Color3.fromRGB(202, 194, 178))
+	mpart(m, "Cab", 2.2, 1.3, 1.6, 0, 1.1, -3.1, Color3.fromRGB(143, 47, 36))
+end)
+gse("Stairs", -25, 175, -0.4, function(m)
+	for i = 0, 6 do
+		mpart(m, "Step", 1.6, 0.12, 0.5, 0, 0.3 + i * 0.42, -i * 0.5, Color3.fromRGB(183, 190, 200))
+	end
+	mpart(m, "Base", 1.7, 0.2, 3.6, 0, 0.16, -1.5, Color3.fromRGB(138, 146, 158))
+end)
+gse("Tug", 78, 195, 2.2, function(m)
+	mpart(m, "Body", 1.8, 0.8, 3.4, 0, 0.65, 0, Color3.fromRGB(154, 162, 58))
+	mpart(m, "Cab", 1.6, 0.9, 1.2, 0, 1.4, 0.8, Color3.fromRGB(154, 162, 58))
+end)
+-- Terminal: Schriftzug, Vordach, Deckenlicht, Absperrbaender, Kiosk, Pflanzen
+local ts = mpart(deco2, "TerminalSign", 22, 2.2, 0.2, 2, 9.3, 231.4, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+local tsg = Instance.new("SurfaceGui"); tsg.Face = Enum.NormalId.Front; tsg.CanvasSize = Vector2.new(1100, 110); tsg.Parent = ts
+local tst = Instance.new("TextLabel"); tst.Size = UDim2.fromScale(1, 1); tst.BackgroundTransparency = 1
+tst.Font = Enum.Font.GothamBold; tst.TextScaled = true; tst.TextColor3 = Color3.fromRGB(232, 238, 247); tst.Text = "✈  TERMINAL 1"; tst.Parent = tsg
+mpart(deco2, "Canopy", 150, 0.4, 5, 2.5, 7.6, 229.6, Color3.fromRGB(119, 128, 140))
+mpart(deco2, "Ceiling", 143, 0.2, 68, 2.5, 10.4, 267, Color3.fromRGB(216, 221, 228), { CanCollide = false })
+for x = -60, 70, 16 do
+	mpart(deco2, "CeilLight", 1.2, 0.15, 56, x, 10.25, 267, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
+end
+for _, z in ipairs({ 250, 253 }) do
+	for x = -52, -24, 7 do
+		mpart(deco2, "QPost", 0.18, 1.05, 0.18, x, 0.52, z, Color3.fromRGB(153, 161, 171))
+	end
+	mpart(deco2, "QBand", 28, 0.1, 0.08, -38, 0.95, z, Color3.fromRGB(176, 48, 48), { CanCollide = false })
+end
+gse("Kiosk", 62, 282, 0, function(m)
+	mpart(m, "Body", 7, 2.6, 4, 0, 1.3, 0, Color3.fromRGB(106, 74, 54))
+	mpart(m, "Roof", 7.4, 0.3, 4.4, 0, 2.75, 0, Color3.fromRGB(74, 52, 38))
+	mpart(m, "Theke", 6, 1.0, 0.7, 0, 0.5, -2.0, Color3.fromRGB(138, 95, 69))
+	local ks = mpart(m, "Schild", 5, 1, 0.12, 0, 2.2, -2.06, Color3.fromRGB(58, 42, 30), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(500, 100); sg.Parent = ks
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "CAFÉ · SNACKS"; tl.Parent = sg
+end)
+for _, p in ipairs({ { -62, 240 }, { -62, 290 }, { 8, 238 }, { 70, 250 }, { 12, 296 } }) do
+	mpart(deco2, "Pot", 1.0, 0.8, 1.0, p[1], 0.4, p[2], Color3.fromRGB(119, 80, 60))
+	local bush = mpart(deco2, "Bush", 1.5, 1.5, 1.5, p[1], 1.35, p[2], Color3.fromRGB(47, 122, 58), { CanCollide = false })
+	bush.Shape = Enum.PartType.Ball
+end
+-- Parkplatz mit Autos hinter dem Terminal
+mpart(deco2, "ParkLot", 110, 0.25, 34, -8, 0, 322, Color3.fromRGB(88, 91, 98), { Material = Enum.Material.Concrete })
+for x = -58, 40, 7 do
+	mpart(deco2, "ParkLine", 0.35, 0.1, 5.5, x, 0.2, 312, COL.white, { CanCollide = false })
+end
+math.randomseed(11)
+local carCols = { Color3.fromRGB(184, 184, 184), Color3.fromRGB(47, 58, 74), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176), Color3.fromRGB(63, 63, 63) }
+for x = -54.5, 40, 7 do
+	if math.random() > 0.3 then
+		mpart(deco2, "Car", 2.2, 0.9, 4.4, x, 0.6, 309.5, carCols[math.random(#carCols)])
+		mpart(deco2, "CarCab", 1.9, 0.7, 2.2, x, 1.35, 309.9, Color3.fromRGB(34, 40, 49), { CanCollide = false })
+	end
+end
+-- Wolken
+math.randomseed(23)
+for i = 1, 10 do
+	local cx, cy, cz = math.random(-2400, 2400), math.random(380, 620), math.random(-2400, 2400)
+	for k = 1, math.random(3, 4) do
+		local s = 28 + math.random() * 26
+		local c = mpart(deco2, "Cloud", s * 2, s * 0.9, s * 1.4, cx + math.random(-50, 50), cy + math.random(-8, 8), cz + math.random(-25, 25),
+			Color3.fromRGB(250, 250, 252), { CanCollide = false, Transparency = 0.15 })
+		c.Shape = Enum.PartType.Ball
+	end
+end
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")

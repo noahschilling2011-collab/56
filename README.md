@@ -34,8 +34,23 @@ Fortschritt lebt **nur im Speicher** — kein localStorage, kein DataStore.
 ### Flugphysik (kein Arcade)
 Auftrieb ~ v² × Anstellwinkel · Stall unter ~50 kt (Nase sackt weg) · Abheben erst
 ab ~55 kt Rotationsgeschwindigkeit · geschwindigkeitsabhängige Ruderwirkung ·
-konstanter Missionswind, der spürbar seitlich versetzt (Vorhaltewinkel!) ·
-PAPI nutzbar: 2× rot / 2× weiß = perfekter Gleitpfad.
+**Klappen (F)** in 3 Stufen: mehr Auftrieb & Widerstand, niedrigere Stallspeed ·
+**Bodeneffekt** kurz über der Bahn · konstanter Missionswind, der spürbar seitlich
+versetzt (Vorhaltewinkel!) · PAPI nutzbar: 2× rot / 2× weiß = perfekter Gleitpfad.
+
+### Das Flugzeug
+Cessna-artiger Hochdecker mit Streben, Spinner, Radverkleidungen, Kennzeichen
+(D-EJSK), animierten Ruderflächen und Klappen, Propeller-Blur bei hoher Drehzahl,
+Positionslichtern (rot/grün), blitzendem Beacon, einziehbarem Fahrwerk und
+Motorsound (Browser-Version, Tonhöhe folgt dem Schub).
+
+### Der Flughafen
+Anflugbefeuerung mit Lauflicht-Strobes an beiden Schwellen · blaue Taxiway-Rand-
+befeuerung · Hold-Short-Markierungen mit Runway-Schildern · Gummiabrieb in den
+Aufsetzzonen · rote Vorfeld-Sicherheitslinie, Gate-Schilder & Pylonen · Tankwagen,
+Gangway-Treppe und Pushback-Tug · Terminal mit Schriftzug, Vordach, beleuchteter
+Decke, Absperrbändern, Café-Kiosk, Beschilderung und Pflanzen · Parkplatz mit
+Autos · prozedurale Gras-/Asphalt-/Beton-Texturen · driftende Wolken.
 
 ### Landungsbewertung
 Sinkrate (<200 ft/min = 🧈 Butter · 200–600 okay · >600 hart · >1000 Crash) +
@@ -48,8 +63,8 @@ Ohne Fahrwerk oder neben der Runway = Crash, Respawn am Vorfeld.
 |---|---|
 | **WASD** Bewegen | **W/S** Pitch (S = ziehen) · **A/D** Roll |
 | **Shift** Sprint | **Q/E** Seitenruder + Bugradlenkung |
-| **E** Interagieren | **Shift/Strg** Schub + / − |
-| **H** Steuerungslegende | **G** Fahrwerk · **B** Bremse |
+| **E** Interagieren | **Shift/Strg (o. X)** Schub + / − |
+| **H** Steuerungslegende | **G** Fahrwerk · **F** Klappen · **B** Bremse |
 | **Maus** Kamera (HTML: Klick = Pointer-Lock) | **C** Verfolger/Cockpit · **R** Reset ans Vorfeld |
 
 ## Roblox-Variante

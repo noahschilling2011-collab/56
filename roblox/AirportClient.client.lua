@@ -207,7 +207,7 @@ local legend = frame(gui, UDim2.new(0, 14, 1, -132), UDim2.new(0, 430, 0, 118))
 label(legend,
 	"<b>WASD</b> Bewegen · <b>Shift</b> Sprint · <b>E</b> Interagieren · <b>H</b> Legende\n" ..
 	"FLUG: <b>W/S</b> Pitch · <b>A/D</b> Roll · <b>Q/E</b> Ruder/Bugrad\n" ..
-	"<b>Shift/Strg(X)</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset",
+	"<b>Shift/Strg(X)</b> Schub · <b>G</b> Fahrwerk · <b>F</b> Klappen · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset",
 	UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 1, -16), GREY, 14)
 
 -- Modales Panel
@@ -826,9 +826,9 @@ end
 
 ---------------------------------------------------------------- JOB 3 · CAPTAIN — Flugphysik
 local planeModel = airport:WaitForChild("PlayerPlane")
--- Auf vollstaendige Replikation warten: Root zuerst, GearRW wird zuletzt gebaut
+-- Auf vollstaendige Replikation warten: Root zuerst, GearRP wird zuletzt gebaut
 planeModel:WaitForChild("Root")
-planeModel:WaitForChild("GearRW")
+planeModel:WaitForChild("GearRP")
 local basePivot = planeModel:GetPivot()
 local partOffsets = {}
 for _, p in ipairs(planeModel:GetChildren()) do
@@ -842,6 +842,7 @@ local plane = {
 	pos = Vector3.new(130, 0, 165), vel = Vector3.new(),
 	yaw = math.pi, pitch = 0, roll = 0,
 	throttle = 0, gearDown = true, gearAnim = 1, brake = false,
+	flaps = 0, flapAnim = 0, -- Klappen: 0°/15°/35°
 	onGround = true, stalled = false, propSpin = 0,
 	ctl = { pitch = 0, roll = 0, yaw = 0 },
 }
@@ -857,21 +858,34 @@ local function planeHeading()
 	return h
 end
 
-local GEAR_HINGES = {
-	GearN = Vector3.new(0, 1.15, -2.4), GearNW = Vector3.new(0, 1.15, -2.4),
-	GearL = Vector3.new(-1.3, 1.15, 0.3), GearLW = Vector3.new(-1.3, 1.15, 0.3),
-	GearR = Vector3.new(1.3, 1.15, 0.3), GearRW = Vector3.new(1.3, 1.15, 0.3),
-}
-local PROP_HUB = CFrame.new(0, 1.35 * M, -3.5 * M)
+local GEAR_HINGES = {}
+for _, g in ipairs({ { "GearN", 0, -2.15 }, { "GearL", -1.15, 0.45 }, { "GearR", 1.15, 0.45 } }) do
+	local h = Vector3.new(g[2], 1.16, g[3])
+	GEAR_HINGES[g[1]] = h
+	GEAR_HINGES[g[1] .. "W"] = h
+	GEAR_HINGES[g[1] .. "P"] = h
+end
+local PROP_HUB = CFrame.new(0, 1.32 * M, -3.02 * M)
 
 local function syncPlaneMesh()
 	local cf = planeCF()
 	local propRot = CFrame.Angles(0, 0, plane.propSpin)
 	local gearRot = CFrame.Angles((1 - plane.gearAnim) * 1.9, 0, 0)
+	local rpmN = plane.throttle / 100
+	local blink = (os.clock() % 1.1) < 0.09
 	for p, off in pairs(partOffsets) do
 		local n = p.Name
 		if n == "Prop1" or n == "Prop2" then
 			p.CFrame = cf * PROP_HUB * propRot * PROP_HUB:Inverse() * off
+			p.Transparency = rpmN >= 0.45 and 1 or 0 -- Prop-Blur: Blaetter ausblenden
+		elseif n == "PropDisc" then
+			p.CFrame = cf * off
+			p.Transparency = 1 - math.clamp((rpmN - 0.25) * 0.9, 0, 0.4)
+		elseif n == "Beacon" then
+			p.CFrame = cf * off
+			p.Transparency = blink and 0 or 0.85
+		elseif n == "FlapL" or n == "FlapR" then
+			p.CFrame = cf * off * CFrame.Angles(plane.flapAnim * 0.3, 0, 0)
 		elseif GEAR_HINGES[n] then
 			local h = GEAR_HINGES[n]
 			local hc = CFrame.new(h.X * M, h.Y * M, h.Z * M)
@@ -903,6 +917,7 @@ local function resetPlaneToStand()
 	plane.vel = Vector3.new()
 	plane.yaw = PLANE_STAND.yaw; plane.pitch = 0; plane.roll = 0
 	plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+	plane.flaps = 0; plane.flapAnim = 0
 	plane.onGround = true; plane.stalled = false
 	plane.ctl.pitch = 0; plane.ctl.roll = 0; plane.ctl.yaw = 0
 	syncPlaneMesh()
@@ -1020,10 +1035,11 @@ do
 	local fWpt = frame(fhud, UDim2.new(0.5, -110, 0, 58), UDim2.new(0, 220, 0, 64))
 	FH.arrow = label(fWpt, "▲", UDim2.new(0.5, -16, 0, 2), UDim2.new(0, 32, 0, 32), CYAN, 26, Enum.TextXAlignment.Center)
 	FH.wptD = label(fWpt, "", UDim2.new(0, 0, 0, 38), UDim2.new(1, 0, 0, 20), TXT, 13, Enum.TextXAlignment.Center)
-	local fBot = frame(fhud, UDim2.new(0.5, -190, 1, -66), UDim2.new(0, 380, 0, 52))
+	local fBot = frame(fhud, UDim2.new(0.5, -245, 1, -66), UDim2.new(0, 490, 0, 52))
 	FH.thrV = label(fBot, "SCHUB 0%", UDim2.new(0, 14, 0, 0), UDim2.new(0, 110, 1, 0), GREEN, 14)
 	FH.gearV = label(fBot, "FAHRWERK ✓", UDim2.new(0, 130, 0, 0), UDim2.new(0, 130, 1, 0), GREEN, 14)
-	FH.windV = label(fBot, "WIND --", UDim2.new(0, 265, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
+	FH.flapsV = label(fBot, "KLAPPEN 0°", UDim2.new(0, 265, 0, 0), UDim2.new(0, 105, 1, 0), TXT, 14)
+	FH.windV = label(fBot, "WIND --", UDim2.new(0, 375, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
 	FH.warn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
 	FH.warn.Font = Enum.Font.GothamBlack
 end
@@ -1044,6 +1060,10 @@ local function endFlightToApron(msg)
 	camera.CameraType = Enum.CameraType.Custom
 	local r = hrp()
 	if r then r.CFrame = CFrame.new(122 * M, 3.5, 174 * M) end
+	for _, n in ipairs({ "GlassBand", "Windshield" }) do
+		local part = planeModel:FindFirstChild(n)
+		if part then part.LocalTransparencyModifier = 0 end
+	end
 	setFlightHUD(false)
 	setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
 	if msg then toast(msg, "info") end
@@ -1150,6 +1170,7 @@ function startMission(i)
 		plane.pos = Vector3.new(RWY_X1 - 1500, 115, 25)
 		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
 		plane.throttle = 40; plane.gearDown = false; plane.gearAnim = 0
+		plane.flaps = 2; plane.flapAnim = 2 -- Landeanflug: volle Klappen
 		plane.onGround = false
 		local cf = planeCF()
 		plane.vel = cf.LookVector * 34 + wind.vec
@@ -1157,6 +1178,7 @@ function startMission(i)
 		plane.pos = Vector3.new(RWY_X1 + 25, 0, 0)
 		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
 		plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+		plane.flaps = 0; plane.flapAnim = 0
 		plane.onGround = true
 		plane.vel = Vector3.new()
 	end
@@ -1212,6 +1234,12 @@ local function updateFlightPhysics(dt)
 		end
 	end
 	p.gearAnim = clamp(p.gearAnim + (p.gearDown and 1 or -1) * dt / 1.2, 0, 1)
+	-- Klappen F: 0° -> 15° -> 35° -> 0°
+	if edge(Enum.KeyCode.F) then
+		p.flaps = (p.flaps + 1) % 3
+		toast("Klappen " .. ({ "eingefahren", "15°", "35°" })[p.flaps + 1], "info")
+	end
+	p.flapAnim = damp(p.flapAnim, p.flaps, 2.2, dt)
 
 	local cf = planeCF()
 	local fwd, up = cf.LookVector, cf.UpVector
@@ -1242,17 +1270,22 @@ local function updateFlightPhysics(dt)
 	local acc = fwd * (p.throttle / 100 * PHYS.thrustAcc)
 	local gamma = speed > 2 and math.asin(clamp(vAir.Y / speed, -1, 1)) or 0
 	local aoa = p.pitch - gamma
-	local cl = clamp(0.35 + aoa * 4.6, -0.6, 1.7)
-	p.stalled = (not p.onGround) and kt < PHYS.stallKt and p.pos.Y > 1.5
+	local cl = clamp(0.35 + 0.18 * p.flapAnim + aoa * 4.6, -0.6, 1.85)
+	-- Klappen senken die Stallspeed
+	p.stalled = (not p.onGround) and kt < (PHYS.stallKt - 4 * p.flapAnim) and p.pos.Y > 1.5
 	if p.stalled then
 		cl = cl * 0.45
 		p.pitch = p.pitch - 0.7 * dt
 		p.roll = p.roll + math.sin(os.clock() * 10) * 0.25 * dt
 	end
 	local liftAcc = clamp(cl * speed * speed * PHYS.liftK, -6, 26)
+	-- Bodeneffekt nahe der Bahn
+	if not p.onGround and p.pos.Y < 9 then
+		liftAcc = liftAcc * (1 + 0.10 * (1 - p.pos.Y / 9))
+	end
 	acc = acc + up * liftAcc
 	if speed > 0.5 then
-		local dragK = PHYS.drag0 * (1 + 1.6 * cl * cl) + p.gearAnim * 0.0006
+		local dragK = PHYS.drag0 * (1 + 1.6 * cl * cl) + p.gearAnim * 0.0006 + p.flapAnim * 0.0011
 		acc = acc - vAir.Unit * (dragK * speed * speed)
 	end
 	acc = acc + Vector3.new(0, -9.81, 0)
@@ -1354,6 +1387,8 @@ local function updateFlightHUD()
 		FH.gearV.Text = "FAHRWERK …"
 		FH.gearV.TextColor3 = GOLD
 	end
+	FH.flapsV.Text = "KLAPPEN " .. ({ "0°", "15°", "35°" })[plane.flaps + 1]
+	FH.flapsV.TextColor3 = plane.flaps > 0 and GOLD or TXT
 	local warn = {}
 	if plane.stalled then table.insert(warn, "STALL") end
 	if flight.active and flight.phase == "land" and plane.pos.Y < 150 and plane.vel.Y < 0 and not plane.onGround and plane.gearAnim < 0.95 then
@@ -1383,8 +1418,14 @@ local function updateFlightCamera(dt)
 		S.camMode = S.camMode == "chase" and "cockpit" or "chase"
 	end
 	local cf = planeCF()
-	if S.camMode == "cockpit" then
-		camera.CFrame = cf * CFrame.new(0, 1.95 * M, 0.55 * M)
+	local cockpit = S.camMode == "cockpit"
+	-- Scheiben in der Cockpit-Ansicht ausblenden (freie Sicht)
+	for _, n in ipairs({ "GlassBand", "Windshield" }) do
+		local part = planeModel:FindFirstChild(n)
+		if part then part.LocalTransparencyModifier = cockpit and 1 or 0 end
+	end
+	if cockpit then
+		camera.CFrame = cf * CFrame.new(0, 2.06 * M, -0.15 * M)
 		return
 	end
 	local fwd = cf.LookVector
@@ -1585,7 +1626,7 @@ addInteract({
 			return
 		end
 		showTutorial("captain", "JOB: Captain",
-			"Dein eigenes Propellerflugzeug!\n· Shift/Strg Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft < 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
+			"Dein eigenes Propellerflugzeug!\n· Shift/Strg(X) Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· F Klappen (0°/15°/35°): mehr Auftrieb, weniger Stallspeed – ideal zum Landen\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft < 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
 			openMissionSelect)
 	end,
 })

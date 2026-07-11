@@ -341,30 +341,59 @@ for _, w in ipairs({ { -1.1, -1.8 }, { 1.1, -1.8 }, { -1.1, 1.8 }, { 1.1, 1.8 } 
 end
 cart:PivotTo(CFrame.new(-2 * M, 0, 186 * M) * CFrame.Angles(0, 0.4, 0))
 
----------------------------------------------------------------- Spieler-Propellerflugzeug
+---------------------------------------------------------------- Spieler-Propellerflugzeug (Hochdecker, Cessna-artig)
 local plane = Instance.new("Model"); plane.Name = "PlayerPlane"; plane.Parent = airport
 local proot = mpart(plane, "Root", 1, 1, 1, 0, 0, 0, COL.cream, { Transparency = 1, CanCollide = false })
 plane.PrimaryPart = proot
 local function pp(name, sx, sy, sz, x, y, z, color, props)
 	return mpart(plane, name, sx, sy, sz, x, y, z, color, props)
 end
-pp("Fus", 1.3, 1.3, 5.6, 0, 1.35, 0.3, COL.cream)
-pp("Cowl", 1.2, 1.2, 1.1, 0, 1.35, -2.9, COL.red)
-pp("Tailcone", 0.7, 0.7, 2.2, 0, 1.5, 4.0, COL.cream, { CanCollide = false })
-pp("Canopy", 0.9, 0.62, 1.5, 0, 2.05, -0.7, COL.glass, { Transparency = 0.45, CanCollide = false })
-pp("Prop1", 0.16, 2.3, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
-pp("Prop2", 2.3, 0.16, 0.1, 0, 1.35, -3.5, COL.dark, { CanCollide = false })
-pp("Wing", 10.4, 0.16, 1.6, 0, 1.9, -0.4, COL.cream)
-pp("WingStripe", 10.4, 0.06, 0.3, 0, 2.0, -1.1, COL.red, { CanCollide = false })
-pp("AilL", 1.9, 0.1, 0.5, -4.2, 1.9, 0.55, COL.red, { CanCollide = false })
-pp("AilR", 1.9, 0.1, 0.5, 4.2, 1.9, 0.55, COL.red, { CanCollide = false })
-pp("HStab", 3.6, 0.12, 1.0, 0, 1.7, 4.7, COL.cream, { CanCollide = false })
-pp("Elev", 3.6, 0.09, 0.5, 0, 1.7, 5.4, COL.red, { CanCollide = false })
-pp("VStab", 0.12, 1.8, 1.2, 0, 2.6, 4.7, COL.cream, { CanCollide = false })
-pp("Rud", 0.1, 1.6, 0.6, 0, 2.7, 5.6, COL.red, { CanCollide = false })
-for _, g in ipairs({ { "GearN", 0, -2.4 }, { "GearL", -1.3, 0.3 }, { "GearR", 1.3, 0.3 } }) do
-	pp(g[1], 0.14, 0.9, 0.14, g[2], 0.7, g[3], COL.dark, { CanCollide = false })
-	pp(g[1] .. "W", 0.6, 0.22, 0.6, g[2], 0.28, g[3], Color3.fromRGB(22, 24, 28), { CanCollide = false })
+-- Rumpf: Cowling -&gt; Kabine -&gt; Heckkonus
+pp("Cowl", 1.1, 1.1, 1.2, 0, 1.32, -2.35, COL.cream)
+pp("CowlInlet", 1.04, 0.34, 1.2, 0, 0.86, -2.3, COL.dark, { CanCollide = false })
+pp("Nose", 1.25, 1.25, 0.9, 0, 1.35, -1.3, COL.red)
+pp("Fus", 1.15, 1.25, 2.5, 0, 1.55, 0.1, COL.cream)
+pp("GlassBand", 1.17, 0.5, 1.7, 0, 1.95, -0.15, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("Windshield", 1.1, 0.62, 0.12, 0, 1.95, -1.15, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("Dash", 1.0, 0.3, 0.35, 0, 1.68, -1.0, COL.dark, { CanCollide = false })
+pp("Tailcone", 0.55, 0.7, 3.4, 0, 1.55, 3.0, COL.cream, { CanCollide = false })
+-- Propeller + Spinner + Blur-Scheibe
+pp("Prop1", 0.14, 2.15, 0.08, 0, 1.32, -3.02, COL.dark, { CanCollide = false })
+pp("Prop2", 2.15, 0.14, 0.08, 0, 1.32, -3.02, COL.dark, { CanCollide = false })
+local spin = pp("Spinner", 0.45, 0.45, 0.5, 0, 1.32, -3.25, COL.red, { CanCollide = false })
+spin.Shape = Enum.PartType.Ball
+local disc = pp("PropDisc", 2.2, 2.2, 0.05, 0, 1.32, -3.02, Color3.fromRGB(48, 52, 58), { Transparency = 1, CanCollide = false })
+disc.Shape = Enum.PartType.Cylinder
+disc.Size = Vector3.new(0.05 * M, 2.2 * M, 2.2 * M)
+disc.CFrame = CFrame.new(0, 1.32 * M, -3.02 * M) * CFrame.Angles(0, math.rad(90), 0)
+-- Hochdecker-Fluegel mit Streben, Querrudern, Klappen
+pp("Wing", 11.0, 0.15, 1.55, 0, 2.32, -0.3, COL.cream)
+pp("WingStripe", 11.0, 0.06, 0.28, 0, 2.41, -0.95, COL.red, { CanCollide = false })
+pp("TipL", 0.55, 0.13, 1.35, -5.5, 2.32, -0.3, COL.red, { CanCollide = false })
+pp("TipR", 0.55, 0.13, 1.35, 5.5, 2.32, -0.3, COL.red, { CanCollide = false })
+for _, sx in ipairs({ -1, 1 }) do
+	local strut = pp("Strut", 0.1, 2.05, 0.1, sx * 1.5, 1.6, 0.05, COL.cream, { CanCollide = false })
+	strut.CFrame = CFrame.new(sx * 1.5 * M, 1.6 * M, 0.05 * M) * CFrame.Angles(0, 0, sx * 0.9)
+end
+pp("AilL", 1.9, 0.09, 0.48, -4.2, 2.32, 0.62, COL.red, { CanCollide = false })
+pp("AilR", 1.9, 0.09, 0.48, 4.2, 2.32, 0.62, COL.red, { CanCollide = false })
+pp("FlapL", 2.2, 0.09, 0.5, -1.6, 2.30, 0.63, COL.cream, { CanCollide = false })
+pp("FlapR", 2.2, 0.09, 0.5, 1.6, 2.30, 0.63, COL.cream, { CanCollide = false })
+pp("NavL", 0.16, 0.16, 0.16, -5.72, 2.32, -0.3, Color3.fromRGB(255, 40, 40), { Material = Enum.Material.Neon, CanCollide = false })
+pp("NavR", 0.16, 0.16, 0.16, 5.72, 2.32, -0.3, Color3.fromRGB(40, 255, 70), { Material = Enum.Material.Neon, CanCollide = false })
+-- Leitwerk
+pp("HStab", 3.7, 0.11, 1.05, 0, 1.62, 4.75, COL.cream, { CanCollide = false })
+pp("Elev", 3.7, 0.08, 0.5, 0, 1.62, 5.5, COL.red, { CanCollide = false })
+local fin = pp("VStab", 0.11, 1.9, 1.15, 0, 2.55, 4.7, COL.cream, { CanCollide = false })
+fin.CFrame = CFrame.new(0, 2.55 * M, 4.7 * M) * CFrame.Angles(-0.22, 0, 0)
+pp("FinTip", 0.13, 0.55, 1.1, 0, 3.35, 4.95, COL.red, { CanCollide = false })
+pp("Rud", 0.09, 1.7, 0.6, 0, 2.6, 5.65, COL.red, { CanCollide = false })
+pp("Beacon", 0.18, 0.18, 0.18, 0, 3.68, 4.95, Color3.fromRGB(255, 60, 0), { Material = Enum.Material.Neon, CanCollide = false })
+-- Fahrwerk mit Radverkleidungen (einziehbar)
+for _, g in ipairs({ { "GearN", 0, -2.15 }, { "GearL", -1.15, 0.45 }, { "GearR", 1.15, 0.45 } }) do
+	pp(g[1], 0.12, 0.85, 0.12, g[2], 0.74, g[3], COL.dark, { CanCollide = false })
+	pp(g[1] .. "W", 0.6, 0.28, 0.6, g[2], 0.3, g[3], Color3.fromRGB(20, 22, 25), { CanCollide = false })
+	pp(g[1] .. "P", 0.26, 0.42, 0.85, g[2], 0.36, g[3], COL.red, { CanCollide = false })
 end
 plane:PivotTo(CFrame.new(130 * M, 0, 165 * M) * CFrame.Angles(0, math.rad(180), 0))
 
@@ -400,6 +429,139 @@ end
 marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
 marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
 marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+
+---------------------------------------------------------------- Realismus-Ausstattung
+local deco2 = Instance.new("Folder"); deco2.Name = "Dressing"; deco2.Parent = airport
+-- Runway-Seitenstreifen
+mpart(deco2, "EdgeLine", RWY_L + 30, 0.1, 0.9, 0, 0.28, -RWY_W / 2 + 0.8, COL.white, { CanCollide = false })
+mpart(deco2, "EdgeLine", RWY_L + 30, 0.1, 0.9, 0, 0.28, RWY_W / 2 - 0.8, COL.white, { CanCollide = false })
+-- Gummiabrieb in den Aufsetzzonen
+math.randomseed(7)
+for _, t in ipairs({ { -750, 1 }, { 750, -1 } }) do
+	for i = 1, 14 do
+		mpart(deco2, "Rubber", 7 + math.random() * 10, 0.08, 0.35 + math.random() * 0.35,
+			t[1] + t[2] * (80 + math.random(250)), 0.29, -7.5 + math.random() * 15,
+			Color3.fromRGB(30, 32, 38), { CanCollide = false, Transparency = 0.35 })
+	end
+end
+-- Hold-Short-Linien + Runway-Schilder an den Verbindern
+for _, cx in ipairs({ -700, 0, 700 }) do
+	mpart(deco2, "HoldA", 16, 0.1, 0.4, cx, 0.3, 22, COL.yellow, { CanCollide = false })
+	mpart(deco2, "HoldB", 16, 0.1, 0.4, cx, 0.3, 23, COL.yellow, { CanCollide = false })
+	for x = -7, 7, 2.2 do
+		mpart(deco2, "HoldD", 1.1, 0.1, 0.4, cx + x, 0.3, 24.4, COL.yellow, { CanCollide = false })
+		mpart(deco2, "HoldD", 1.1, 0.1, 0.4, cx + x, 0.3, 25.5, COL.yellow, { CanCollide = false })
+	end
+	local sign = mpart(deco2, "RwySign", 2.6, 0.9, 0.15, cx - 9.5, 1.0, 24, Color3.fromRGB(160, 32, 32), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(260, 90); sg.Parent = sign
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "09-27"; tl.Parent = sg
+end
+-- Blaue Taxiway-Randbefeuerung
+for x = -750, 750, 40 do
+	for _, zz in ipairs({ 70.5, 89.5 }) do
+		mpart(deco2, "TaxiLight", 0.5, 0.5, 0.5, x, 0.4, zz, Color3.fromRGB(77, 139, 255), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+-- Anflugbefeuerung (ALS) vor beiden Schwellen
+for _, t in ipairs({ { -750, -1 }, { 750, 1 } }) do
+	for i = 1, 6 do
+		local x = t[1] + t[2] * (20 + i * 28)
+		for k = -2, 2 do
+			mpart(deco2, "ALS", 0.5, 0.5, 0.5, x, 0.6, k * 2.4, Color3.fromRGB(255, 242, 204), { Material = Enum.Material.Neon, CanCollide = false })
+		end
+	end
+end
+-- Vorfeld: rote Sicherheitslinie, Gate-Schilder, Pylonen
+mpart(deco2, "RedLine", 300, 0.1, 0.35, 45, 0.3, 141, Color3.fromRGB(176, 48, 48), { CanCollide = false })
+for i, px in ipairs({ -40, 40, 130 }) do
+	local gs = mpart(deco2, "GateSign", 4.2, 1.4, 0.15, px, 5.2, 152, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 140); sg.Parent = gs
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "GATE " .. i; tl.Parent = sg
+	mpart(deco2, "GateSignPole", 0.24, 5.2, 0.24, px, 2.6, 152.2, Color3.fromRGB(102, 110, 120))
+end
+for _, jx in ipairs({ -40, 40 }) do
+	for _, o in ipairs({ { -9, -9 }, { 9, -9 }, { -12, 4 }, { 12, 4 }, { -6, 14 }, { 6, 14 } }) do
+		local cone = mpart(deco2, "Cone", 0.45, 0.55, 0.45, jx + o[1], 0.28, 165 + o[2], Color3.fromRGB(232, 106, 16), { CanCollide = false })
+		cone.Shape = Enum.PartType.Wedge
+	end
+end
+-- Bodengeraete: Tankwagen, Treppe, Pushback-Tug
+local function gse(name, x, z, yaw, build)
+	local m = Instance.new("Model"); m.Name = name; m.Parent = deco2
+	build(m)
+	m:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, yaw, 0))
+end
+gse("FuelTruck", -72, 190, 0.5, function(m)
+	mpart(m, "Body", 2.4, 1.1, 6.4, 0, 1.0, 0, Color3.fromRGB(217, 210, 196))
+	mpart(m, "Tank", 2.0, 2.0, 4.6, 0, 1.9, 0.6, Color3.fromRGB(202, 194, 178))
+	mpart(m, "Cab", 2.2, 1.3, 1.6, 0, 1.1, -3.1, Color3.fromRGB(143, 47, 36))
+end)
+gse("Stairs", -25, 175, -0.4, function(m)
+	for i = 0, 6 do
+		mpart(m, "Step", 1.6, 0.12, 0.5, 0, 0.3 + i * 0.42, -i * 0.5, Color3.fromRGB(183, 190, 200))
+	end
+	mpart(m, "Base", 1.7, 0.2, 3.6, 0, 0.16, -1.5, Color3.fromRGB(138, 146, 158))
+end)
+gse("Tug", 78, 195, 2.2, function(m)
+	mpart(m, "Body", 1.8, 0.8, 3.4, 0, 0.65, 0, Color3.fromRGB(154, 162, 58))
+	mpart(m, "Cab", 1.6, 0.9, 1.2, 0, 1.4, 0.8, Color3.fromRGB(154, 162, 58))
+end)
+-- Terminal: Schriftzug, Vordach, Deckenlicht, Absperrbaender, Kiosk, Pflanzen
+local ts = mpart(deco2, "TerminalSign", 22, 2.2, 0.2, 2, 9.3, 231.4, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+local tsg = Instance.new("SurfaceGui"); tsg.Face = Enum.NormalId.Front; tsg.CanvasSize = Vector2.new(1100, 110); tsg.Parent = ts
+local tst = Instance.new("TextLabel"); tst.Size = UDim2.fromScale(1, 1); tst.BackgroundTransparency = 1
+tst.Font = Enum.Font.GothamBold; tst.TextScaled = true; tst.TextColor3 = Color3.fromRGB(232, 238, 247); tst.Text = "✈  TERMINAL 1"; tst.Parent = tsg
+mpart(deco2, "Canopy", 150, 0.4, 5, 2.5, 7.6, 229.6, Color3.fromRGB(119, 128, 140))
+mpart(deco2, "Ceiling", 143, 0.2, 68, 2.5, 10.4, 267, Color3.fromRGB(216, 221, 228), { CanCollide = false })
+for x = -60, 70, 16 do
+	mpart(deco2, "CeilLight", 1.2, 0.15, 56, x, 10.25, 267, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
+end
+for _, z in ipairs({ 250, 253 }) do
+	for x = -52, -24, 7 do
+		mpart(deco2, "QPost", 0.18, 1.05, 0.18, x, 0.52, z, Color3.fromRGB(153, 161, 171))
+	end
+	mpart(deco2, "QBand", 28, 0.1, 0.08, -38, 0.95, z, Color3.fromRGB(176, 48, 48), { CanCollide = false })
+end
+gse("Kiosk", 62, 282, 0, function(m)
+	mpart(m, "Body", 7, 2.6, 4, 0, 1.3, 0, Color3.fromRGB(106, 74, 54))
+	mpart(m, "Roof", 7.4, 0.3, 4.4, 0, 2.75, 0, Color3.fromRGB(74, 52, 38))
+	mpart(m, "Theke", 6, 1.0, 0.7, 0, 0.5, -2.0, Color3.fromRGB(138, 95, 69))
+	local ks = mpart(m, "Schild", 5, 1, 0.12, 0, 2.2, -2.06, Color3.fromRGB(58, 42, 30), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(500, 100); sg.Parent = ks
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "CAFÉ · SNACKS"; tl.Parent = sg
+end)
+for _, p in ipairs({ { -62, 240 }, { -62, 290 }, { 8, 238 }, { 70, 250 }, { 12, 296 } }) do
+	mpart(deco2, "Pot", 1.0, 0.8, 1.0, p[1], 0.4, p[2], Color3.fromRGB(119, 80, 60))
+	local bush = mpart(deco2, "Bush", 1.5, 1.5, 1.5, p[1], 1.35, p[2], Color3.fromRGB(47, 122, 58), { CanCollide = false })
+	bush.Shape = Enum.PartType.Ball
+end
+-- Parkplatz mit Autos hinter dem Terminal
+mpart(deco2, "ParkLot", 110, 0.25, 34, -8, 0, 322, Color3.fromRGB(88, 91, 98), { Material = Enum.Material.Concrete })
+for x = -58, 40, 7 do
+	mpart(deco2, "ParkLine", 0.35, 0.1, 5.5, x, 0.2, 312, COL.white, { CanCollide = false })
+end
+math.randomseed(11)
+local carCols = { Color3.fromRGB(184, 184, 184), Color3.fromRGB(47, 58, 74), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176), Color3.fromRGB(63, 63, 63) }
+for x = -54.5, 40, 7 do
+	if math.random() &gt; 0.3 then
+		mpart(deco2, "Car", 2.2, 0.9, 4.4, x, 0.6, 309.5, carCols[math.random(#carCols)])
+		mpart(deco2, "CarCab", 1.9, 0.7, 2.2, x, 1.35, 309.9, Color3.fromRGB(34, 40, 49), { CanCollide = false })
+	end
+end
+-- Wolken
+math.randomseed(23)
+for i = 1, 10 do
+	local cx, cy, cz = math.random(-2400, 2400), math.random(380, 620), math.random(-2400, 2400)
+	for k = 1, math.random(3, 4) do
+		local s = 28 + math.random() * 26
+		local c = mpart(deco2, "Cloud", s * 2, s * 0.9, s * 1.4, cx + math.random(-50, 50), cy + math.random(-8, 8), cz + math.random(-25, 25),
+			Color3.fromRGB(250, 250, 252), { CanCollide = false, Transparency = 0.15 })
+		c.Shape = Enum.PartType.Ball
+	end
+end
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")
@@ -636,7 +798,7 @@ local legend = frame(gui, UDim2.new(0, 14, 1, -132), UDim2.new(0, 430, 0, 118))
 label(legend,
 	"&lt;b&gt;WASD&lt;/b&gt; Bewegen · &lt;b&gt;Shift&lt;/b&gt; Sprint · &lt;b&gt;E&lt;/b&gt; Interagieren · &lt;b&gt;H&lt;/b&gt; Legende\n" ..
 	"FLUG: &lt;b&gt;W/S&lt;/b&gt; Pitch · &lt;b&gt;A/D&lt;/b&gt; Roll · &lt;b&gt;Q/E&lt;/b&gt; Ruder/Bugrad\n" ..
-	"&lt;b&gt;Shift/Strg(X)&lt;/b&gt; Schub · &lt;b&gt;G&lt;/b&gt; Fahrwerk · &lt;b&gt;B&lt;/b&gt; Bremse · &lt;b&gt;C&lt;/b&gt; Kamera · &lt;b&gt;R&lt;/b&gt; Reset",
+	"&lt;b&gt;Shift/Strg(X)&lt;/b&gt; Schub · &lt;b&gt;G&lt;/b&gt; Fahrwerk · &lt;b&gt;F&lt;/b&gt; Klappen · &lt;b&gt;B&lt;/b&gt; Bremse · &lt;b&gt;C&lt;/b&gt; Kamera · &lt;b&gt;R&lt;/b&gt; Reset",
 	UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 1, -16), GREY, 14)
 
 -- Modales Panel
@@ -1255,9 +1417,9 @@ end
 
 ---------------------------------------------------------------- JOB 3 · CAPTAIN — Flugphysik
 local planeModel = airport:WaitForChild("PlayerPlane")
--- Auf vollstaendige Replikation warten: Root zuerst, GearRW wird zuletzt gebaut
+-- Auf vollstaendige Replikation warten: Root zuerst, GearRP wird zuletzt gebaut
 planeModel:WaitForChild("Root")
-planeModel:WaitForChild("GearRW")
+planeModel:WaitForChild("GearRP")
 local basePivot = planeModel:GetPivot()
 local partOffsets = {}
 for _, p in ipairs(planeModel:GetChildren()) do
@@ -1271,6 +1433,7 @@ local plane = {
 	pos = Vector3.new(130, 0, 165), vel = Vector3.new(),
 	yaw = math.pi, pitch = 0, roll = 0,
 	throttle = 0, gearDown = true, gearAnim = 1, brake = false,
+	flaps = 0, flapAnim = 0, -- Klappen: 0°/15°/35°
 	onGround = true, stalled = false, propSpin = 0,
 	ctl = { pitch = 0, roll = 0, yaw = 0 },
 }
@@ -1286,21 +1449,34 @@ local function planeHeading()
 	return h
 end
 
-local GEAR_HINGES = {
-	GearN = Vector3.new(0, 1.15, -2.4), GearNW = Vector3.new(0, 1.15, -2.4),
-	GearL = Vector3.new(-1.3, 1.15, 0.3), GearLW = Vector3.new(-1.3, 1.15, 0.3),
-	GearR = Vector3.new(1.3, 1.15, 0.3), GearRW = Vector3.new(1.3, 1.15, 0.3),
-}
-local PROP_HUB = CFrame.new(0, 1.35 * M, -3.5 * M)
+local GEAR_HINGES = {}
+for _, g in ipairs({ { "GearN", 0, -2.15 }, { "GearL", -1.15, 0.45 }, { "GearR", 1.15, 0.45 } }) do
+	local h = Vector3.new(g[2], 1.16, g[3])
+	GEAR_HINGES[g[1]] = h
+	GEAR_HINGES[g[1] .. "W"] = h
+	GEAR_HINGES[g[1] .. "P"] = h
+end
+local PROP_HUB = CFrame.new(0, 1.32 * M, -3.02 * M)
 
 local function syncPlaneMesh()
 	local cf = planeCF()
 	local propRot = CFrame.Angles(0, 0, plane.propSpin)
 	local gearRot = CFrame.Angles((1 - plane.gearAnim) * 1.9, 0, 0)
+	local rpmN = plane.throttle / 100
+	local blink = (os.clock() % 1.1) &lt; 0.09
 	for p, off in pairs(partOffsets) do
 		local n = p.Name
 		if n == "Prop1" or n == "Prop2" then
 			p.CFrame = cf * PROP_HUB * propRot * PROP_HUB:Inverse() * off
+			p.Transparency = rpmN &gt;= 0.45 and 1 or 0 -- Prop-Blur: Blaetter ausblenden
+		elseif n == "PropDisc" then
+			p.CFrame = cf * off
+			p.Transparency = 1 - math.clamp((rpmN - 0.25) * 0.9, 0, 0.4)
+		elseif n == "Beacon" then
+			p.CFrame = cf * off
+			p.Transparency = blink and 0 or 0.85
+		elseif n == "FlapL" or n == "FlapR" then
+			p.CFrame = cf * off * CFrame.Angles(plane.flapAnim * 0.3, 0, 0)
 		elseif GEAR_HINGES[n] then
 			local h = GEAR_HINGES[n]
 			local hc = CFrame.new(h.X * M, h.Y * M, h.Z * M)
@@ -1332,6 +1508,7 @@ local function resetPlaneToStand()
 	plane.vel = Vector3.new()
 	plane.yaw = PLANE_STAND.yaw; plane.pitch = 0; plane.roll = 0
 	plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+	plane.flaps = 0; plane.flapAnim = 0
 	plane.onGround = true; plane.stalled = false
 	plane.ctl.pitch = 0; plane.ctl.roll = 0; plane.ctl.yaw = 0
 	syncPlaneMesh()
@@ -1449,10 +1626,11 @@ do
 	local fWpt = frame(fhud, UDim2.new(0.5, -110, 0, 58), UDim2.new(0, 220, 0, 64))
 	FH.arrow = label(fWpt, "▲", UDim2.new(0.5, -16, 0, 2), UDim2.new(0, 32, 0, 32), CYAN, 26, Enum.TextXAlignment.Center)
 	FH.wptD = label(fWpt, "", UDim2.new(0, 0, 0, 38), UDim2.new(1, 0, 0, 20), TXT, 13, Enum.TextXAlignment.Center)
-	local fBot = frame(fhud, UDim2.new(0.5, -190, 1, -66), UDim2.new(0, 380, 0, 52))
+	local fBot = frame(fhud, UDim2.new(0.5, -245, 1, -66), UDim2.new(0, 490, 0, 52))
 	FH.thrV = label(fBot, "SCHUB 0%", UDim2.new(0, 14, 0, 0), UDim2.new(0, 110, 1, 0), GREEN, 14)
 	FH.gearV = label(fBot, "FAHRWERK ✓", UDim2.new(0, 130, 0, 0), UDim2.new(0, 130, 1, 0), GREEN, 14)
-	FH.windV = label(fBot, "WIND --", UDim2.new(0, 265, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
+	FH.flapsV = label(fBot, "KLAPPEN 0°", UDim2.new(0, 265, 0, 0), UDim2.new(0, 105, 1, 0), TXT, 14)
+	FH.windV = label(fBot, "WIND --", UDim2.new(0, 375, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
 	FH.warn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
 	FH.warn.Font = Enum.Font.GothamBlack
 end
@@ -1473,6 +1651,10 @@ local function endFlightToApron(msg)
 	camera.CameraType = Enum.CameraType.Custom
 	local r = hrp()
 	if r then r.CFrame = CFrame.new(122 * M, 3.5, 174 * M) end
+	for _, n in ipairs({ "GlassBand", "Windshield" }) do
+		local part = planeModel:FindFirstChild(n)
+		if part then part.LocalTransparencyModifier = 0 end
+	end
 	setFlightHUD(false)
 	setJobHUD("Arbeitslos", "Such dir einen Job an einer leuchtenden Station.")
 	if msg then toast(msg, "info") end
@@ -1579,6 +1761,7 @@ function startMission(i)
 		plane.pos = Vector3.new(RWY_X1 - 1500, 115, 25)
 		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
 		plane.throttle = 40; plane.gearDown = false; plane.gearAnim = 0
+		plane.flaps = 2; plane.flapAnim = 2 -- Landeanflug: volle Klappen
 		plane.onGround = false
 		local cf = planeCF()
 		plane.vel = cf.LookVector * 34 + wind.vec
@@ -1586,6 +1769,7 @@ function startMission(i)
 		plane.pos = Vector3.new(RWY_X1 + 25, 0, 0)
 		plane.yaw = -math.pi / 2; plane.pitch = 0; plane.roll = 0
 		plane.throttle = 0; plane.gearDown = true; plane.gearAnim = 1
+		plane.flaps = 0; plane.flapAnim = 0
 		plane.onGround = true
 		plane.vel = Vector3.new()
 	end
@@ -1641,6 +1825,12 @@ local function updateFlightPhysics(dt)
 		end
 	end
 	p.gearAnim = clamp(p.gearAnim + (p.gearDown and 1 or -1) * dt / 1.2, 0, 1)
+	-- Klappen F: 0° -&gt; 15° -&gt; 35° -&gt; 0°
+	if edge(Enum.KeyCode.F) then
+		p.flaps = (p.flaps + 1) % 3
+		toast("Klappen " .. ({ "eingefahren", "15°", "35°" })[p.flaps + 1], "info")
+	end
+	p.flapAnim = damp(p.flapAnim, p.flaps, 2.2, dt)
 
 	local cf = planeCF()
 	local fwd, up = cf.LookVector, cf.UpVector
@@ -1671,17 +1861,22 @@ local function updateFlightPhysics(dt)
 	local acc = fwd * (p.throttle / 100 * PHYS.thrustAcc)
 	local gamma = speed &gt; 2 and math.asin(clamp(vAir.Y / speed, -1, 1)) or 0
 	local aoa = p.pitch - gamma
-	local cl = clamp(0.35 + aoa * 4.6, -0.6, 1.7)
-	p.stalled = (not p.onGround) and kt &lt; PHYS.stallKt and p.pos.Y &gt; 1.5
+	local cl = clamp(0.35 + 0.18 * p.flapAnim + aoa * 4.6, -0.6, 1.85)
+	-- Klappen senken die Stallspeed
+	p.stalled = (not p.onGround) and kt &lt; (PHYS.stallKt - 4 * p.flapAnim) and p.pos.Y &gt; 1.5
 	if p.stalled then
 		cl = cl * 0.45
 		p.pitch = p.pitch - 0.7 * dt
 		p.roll = p.roll + math.sin(os.clock() * 10) * 0.25 * dt
 	end
 	local liftAcc = clamp(cl * speed * speed * PHYS.liftK, -6, 26)
+	-- Bodeneffekt nahe der Bahn
+	if not p.onGround and p.pos.Y &lt; 9 then
+		liftAcc = liftAcc * (1 + 0.10 * (1 - p.pos.Y / 9))
+	end
 	acc = acc + up * liftAcc
 	if speed &gt; 0.5 then
-		local dragK = PHYS.drag0 * (1 + 1.6 * cl * cl) + p.gearAnim * 0.0006
+		local dragK = PHYS.drag0 * (1 + 1.6 * cl * cl) + p.gearAnim * 0.0006 + p.flapAnim * 0.0011
 		acc = acc - vAir.Unit * (dragK * speed * speed)
 	end
 	acc = acc + Vector3.new(0, -9.81, 0)
@@ -1783,6 +1978,8 @@ local function updateFlightHUD()
 		FH.gearV.Text = "FAHRWERK …"
 		FH.gearV.TextColor3 = GOLD
 	end
+	FH.flapsV.Text = "KLAPPEN " .. ({ "0°", "15°", "35°" })[plane.flaps + 1]
+	FH.flapsV.TextColor3 = plane.flaps &gt; 0 and GOLD or TXT
 	local warn = {}
 	if plane.stalled then table.insert(warn, "STALL") end
 	if flight.active and flight.phase == "land" and plane.pos.Y &lt; 150 and plane.vel.Y &lt; 0 and not plane.onGround and plane.gearAnim &lt; 0.95 then
@@ -1812,8 +2009,14 @@ local function updateFlightCamera(dt)
 		S.camMode = S.camMode == "chase" and "cockpit" or "chase"
 	end
 	local cf = planeCF()
-	if S.camMode == "cockpit" then
-		camera.CFrame = cf * CFrame.new(0, 1.95 * M, 0.55 * M)
+	local cockpit = S.camMode == "cockpit"
+	-- Scheiben in der Cockpit-Ansicht ausblenden (freie Sicht)
+	for _, n in ipairs({ "GlassBand", "Windshield" }) do
+		local part = planeModel:FindFirstChild(n)
+		if part then part.LocalTransparencyModifier = cockpit and 1 or 0 end
+	end
+	if cockpit then
+		camera.CFrame = cf * CFrame.new(0, 2.06 * M, -0.15 * M)
 		return
 	end
 	local fwd = cf.LookVector
@@ -2014,7 +2217,7 @@ addInteract({
 			return
 		end
 		showTutorial("captain", "JOB: Captain",
-			"Dein eigenes Propellerflugzeug!\n· Shift/Strg Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft &lt; 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
+			"Dein eigenes Propellerflugzeug!\n· Shift/Strg(X) Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· F Klappen (0°/15°/35°): mehr Auftrieb, weniger Stallspeed – ideal zum Landen\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft &lt; 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
 			openMissionSelect)
 	end,
 })
