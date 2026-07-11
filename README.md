@@ -84,6 +84,15 @@ Sinkrate (<200 ft/min = 🧈 Butter · 200–600 okay · >600 hart · >1000 Cras
 Centerline-Abweichung + Aufsetzzone → **1–5 Sterne**, Bezahlung = Missionsbasis × Sterne.
 Ohne Fahrwerk oder neben der Runway = Crash, Respawn am Vorfeld.
 
+## Game-Feel („1-Million-Euro-Polish")
+
+Titelscreen mit animiertem Logo · Sound-Effekte für alles (Kassen-Klingeln,
+Erfolgs-Jingle, Level-Up-Fanfare, Reifenquietschen bei der Landung, Crash-Boom,
+UI-Klicks, Durchsagen-Gong) · Partikel-Effekte (Konfetti beim Level-Up,
+Reifenqualm beim Aufsetzen, Explosion beim Crash) · schwebende Credit-Popups ·
+**10 Erfolge** (Taste **J**) vom „Ersten Arbeitstag" bis „🧈 Butterweich" ·
+**Minimap** (Taste **M**) mit Live-Position auf dem ganzen Flughafen.
+
 ## Steuerung
 
 | Zu Fuß / Wagen | Flug |

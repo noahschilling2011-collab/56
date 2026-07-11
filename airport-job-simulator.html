@@ -88,6 +88,31 @@
   #marshal { position:fixed; top:26%; left:50%; transform:translateX(-50%); z-index:12; padding:16px 30px; text-align:center; display:none; }
   #marshal .key { font-size:44px; font-weight:800; color:#ffd75e; }
   #marshal .what { font-size:16px; color:#e8eef7; margin-top:4px; }
+  #splash { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:linear-gradient(160deg, #0b1a2e 0%, #14314f 45%, #2a5a7f 100%); }
+  #splash h1 { font-size:56px; color:#e8eef7; letter-spacing:3px; text-shadow:0 4px 24px rgba(94,200,255,.45); }
+  #splash h1 .em { color:#5ec8ff; }
+  #splash p { color:#9fb4cc; font-size:16px; margin:14px 0 34px; }
+  #splash .plane { font-size:80px; animation:fly 3.2s ease-in-out infinite; }
+  @keyframes fly { 0%,100% { transform:translateY(0) rotate(-4deg);} 50% { transform:translateY(-16px) rotate(3deg);} }
+  #splash button { font-size:22px; padding:14px 60px; border-radius:14px; border:none; cursor:pointer;
+    background:linear-gradient(180deg, #5ec8ff, #2a7fc9); color:#fff; font-weight:700; letter-spacing:2px;
+    box-shadow:0 6px 30px rgba(94,200,255,.4); font-family:inherit; }
+  #splash button:hover { transform:scale(1.05); }
+  #splash .hint { margin-top:22px; font-size:13px; color:#7f96ad; }
+  #popups { position:fixed; top:118px; left:24px; z-index:15; pointer-events:none; }
+  .pop { font-size:20px; font-weight:800; animation:popup 1.4s ease-out forwards; text-shadow:0 1px 4px #000; }
+  .pop.plus { color:#8fe89f; } .pop.minus { color:#ff8f8f; }
+  @keyframes popup { 0% { opacity:0; transform:translateY(8px);} 15% { opacity:1;} 100% { opacity:0; transform:translateY(-42px);} }
+  #achtoast { position:fixed; top:130px; left:50%; transform:translateX(-50%); z-index:25; padding:12px 26px; display:none;
+    border:1px solid rgba(255,215,94,.55) !important; text-align:center; animation:toastin .3s ease-out; }
+  #achtoast .t1 { color:#ffd75e; font-size:13px; letter-spacing:2px; }
+  #achtoast .t2 { color:#e8eef7; font-size:18px; font-weight:700; margin-top:2px; }
+  #minimap { position:fixed; bottom:14px; right:14px; z-index:10; padding:8px; }
+  #minimap canvas { display:block; border-radius:8px; }
+  #levelup { position:fixed; top:38%; left:50%; transform:translateX(-50%); z-index:26; font-size:46px; font-weight:900;
+    color:#ffd75e; text-shadow:0 0 30px rgba(255,215,94,.8); display:none; letter-spacing:3px; animation:lvl 2.4s ease-out forwards; }
+  @keyframes lvl { 0% { opacity:0; transform:translate(-50%,20px) scale(.6);} 20% { opacity:1; transform:translate(-50%,0) scale(1.1);} 35% { transform:translate(-50%,0) scale(1);} 80% { opacity:1;} 100% { opacity:0;} }
 </style>
 </head>
 <body>
@@ -112,6 +137,17 @@
 </div>
 <div id="hint-click" class="glass">Klicke ins Bild, um die Maus zu fangen (ESC gibt sie frei)</div>
 <div id="marshal" class="glass"><div class="key" id="marshal-key">W</div><div class="what" id="marshal-what"></div></div>
+<div id="popups"></div>
+<div id="achtoast" class="glass"><div class="t1">🏆 ERFOLG FREIGESCHALTET</div><div class="t2" id="achtoast-name"></div></div>
+<div id="levelup"></div>
+<div id="minimap" class="glass"><canvas id="minimapCanvas" width="210" height="150"></canvas></div>
+<div id="splash">
+  <div class="plane">✈</div>
+  <h1>AIRPORT <span class="em">SIMULATOR</span></h1>
+  <p>Vom Check-in-Schalter zum Captain — dein Flughafen, deine Karriere.</p>
+  <button id="splash-start">SPIELEN</button>
+  <div class="hint">6 Jobs · 2 Runways · begehbarer A380 · echte Flugphysik · J = Erfolge · M = Minimap</div>
+</div>
 <div id="panel-wrap"><div id="panel" class="glass"></div></div>
 <div id="tut-wrap"><div id="tut" class="glass"></div></div>
 <div id="flighthud">
@@ -1835,8 +1871,214 @@ const engineSound = (function(){
       if(S.mode === 'walk' && player.pos.z > 225) chime();
     }
   }
+  return { update, getCtx: ()=>ctx };
+})();
+
+/* ============================================================
+   GAME-FEEL: SFX · Partikel · Popups · Level-Up · Erfolge · Minimap
+   ============================================================ */
+const $id = id=>document.getElementById(id);
+function sfxTone(freq, dur, type, vol, delay){
+  const ctx = engineSound.getCtx();
+  if(!ctx) return;
+  const o = ctx.createOscillator(); o.type = type || 'sine'; o.frequency.value = freq;
+  const g = ctx.createGain(); g.gain.value = 0;
+  o.connect(g); g.connect(ctx.destination); o.start();
+  const t0 = ctx.currentTime + (delay || 0);
+  g.gain.setTargetAtTime(vol || 0.06, t0, 0.01);
+  g.gain.setTargetAtTime(0, t0 + (dur || 0.1), 0.04);
+  o.stop(t0 + (dur || 0.1) + 0.4);
+}
+const sfx = {
+  click(){ sfxTone(700, 0.04, 'square', 0.025); },
+  cash(){ sfxTone(880, 0.07, 'sine', 0.06); sfxTone(1318, 0.1, 'sine', 0.06, 0.07); },
+  error(){ sfxTone(170, 0.16, 'sawtooth', 0.05); },
+  success(){ [523, 659, 784].forEach((f, i)=>sfxTone(f, 0.12, 'sine', 0.06, i*0.11)); },
+  fanfare(){ [523, 659, 784, 1046].forEach((f, i)=>sfxTone(f, i===3?0.4:0.13, 'triangle', 0.07, i*0.13)); },
+  boom(){ sfxTone(90, 0.5, 'sawtooth', 0.12); sfxTone(55, 0.7, 'sine', 0.12, 0.05); },
+  screech(){
+    const ctx = engineSound.getCtx();
+    if(!ctx) return;
+    const len = ctx.sampleRate * 0.35;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * (1 - i/len);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 2;
+    const g = ctx.createGain(); g.gain.value = 0.09;
+    src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+    src.start();
+  },
+};
+document.addEventListener('click', e=>{
+  if(e.target.closest && e.target.closest('.btn, .mission, #splash-start')) sfx.click();
+});
+
+/* Partikel-Pool (Konfetti, Qualm, Explosion) */
+const particles = (function(){
+  const N = 420;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(N*3);
+  const col = new Float32Array(N*3);
+  for(let i=0;i<N;i++){ pos[i*3+1] = -9999; }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.55, vertexColors:true, transparent:true, opacity:0.95, depthWrite:false }));
+  pts.frustumCulled = false;
+  scene.add(pts);
+  const P = [];
+  for(let i=0;i<N;i++) P.push({ life:0, vx:0, vy:0, vz:0, g:0 });
+  let head = 0;
+  function spawn(x, y, z, opts){
+    const n = opts.n || 20;
+    for(let k=0;k<n;k++){
+      const i = head; head = (head+1)%N;
+      const p = P[i];
+      p.life = opts.life * rand(0.6, 1.15);
+      p.g = opts.g;
+      const a = rand(0, Math.PI*2), r = rand(0.2, 1) * opts.spread;
+      p.vx = Math.cos(a)*r; p.vz = Math.sin(a)*r;
+      p.vy = rand(opts.vy0, opts.vy1);
+      pos[i*3] = x + Math.cos(a)*0.4; pos[i*3+1] = y; pos[i*3+2] = z + Math.sin(a)*0.4;
+      const c = new THREE.Color(pick(opts.colors));
+      col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+    }
+    geo.attributes.color.needsUpdate = true;
+  }
+  function update(dt){
+    let any = false;
+    for(let i=0;i<N;i++){
+      const p = P[i];
+      if(p.life <= 0) continue;
+      any = true;
+      p.life -= dt;
+      p.vy -= p.g * dt;
+      pos[i*3] += p.vx*dt; pos[i*3+1] += p.vy*dt; pos[i*3+2] += p.vz*dt;
+      if(p.life <= 0) pos[i*3+1] = -9999;
+    }
+    if(any) geo.attributes.position.needsUpdate = true;
+  }
+  return {
+    update,
+    confetti(x,y,z){ spawn(x, y+1.5, z, { n:70, life:1.8, g:6, spread:3.5, vy0:3, vy1:7, colors:[0xffd75e, 0x5ec8ff, 0x8fe89f, 0xc95fa0, 0xff8f5e] }); },
+    smoke(x,y,z){ spawn(x, y, z, { n:26, life:1.3, g:-0.6, spread:2.2, vy0:0.4, vy1:1.4, colors:[0x9aa0a8, 0xb8bec6, 0x7f858d] }); },
+    boom(x,y,z){ spawn(x, y+1, z, { n:90, life:1.5, g:5, spread:8, vy0:2, vy1:10, colors:[0xff8830, 0xff5030, 0xffc040, 0x333333] }); },
+  };
+})();
+
+/* Credit-Popups neben dem HUD */
+function creditPop(n){
+  const d = document.createElement('div');
+  d.className = 'pop ' + (n>0 ? 'plus' : 'minus');
+  d.textContent = (n>0 ? '+' : '−') + Math.abs(n) + ' Cr';
+  $id('popups').appendChild(d);
+  setTimeout(()=>d.remove(), 1450);
+}
+
+/* Erfolge */
+const ACHIEVEMENTS = [
+  { id:'first_shift', name:'Erster Arbeitstag', desc:'Beende deine erste Check-in-Schicht.' },
+  { id:'rich_1000', name:'Gut im Geschäft', desc:'Besitze 1.000 Credits.' },
+  { id:'all_jobs', name:'Karriereleiter erklommen', desc:'Schalte alle Jobs frei (2.000 Credits).' },
+  { id:'sec_perfect', name:'Adlerauge', desc:'Fehlerfreie Security-Schicht.' },
+  { id:'marshal_perfect', name:'Winker-Profi', desc:'Weise einen Jet fehlerfrei ein.' },
+  { id:'a380_board', name:'Willkommen an Bord', desc:'Betrete den A380 an Gate 1.' },
+  { id:'pd_roof', name:'Über den Dächern', desc:'Steh auf dem Parkdeck-Dach.' },
+  { id:'first_mission', name:'Captain im Dienst', desc:'Schließe eine Flugmission ab.' },
+  { id:'butter', name:'🧈 Butterweich', desc:'Lande mit unter 200 ft/min.' },
+  { id:'alt_1000', name:'Über den Wolken', desc:'Erreiche 1.000 ft Flughöhe.' },
+];
+const achieved = {};
+function unlock(id){
+  if(achieved[id]) return;
+  achieved[id] = true;
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(!a) return;
+  $id('achtoast-name').textContent = a.name;
+  const t = $id('achtoast');
+  t.style.display = 'block';
+  sfx.success();
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>{ t.style.display = 'none'; }, 3400);
+}
+function showAchievements(){
+  const rows = ACHIEVEMENTS.map(a=>
+    '<div class="doc" style="opacity:' + (achieved[a.id]?1:0.45) + '">' +
+    (achieved[a.id]?'🏆 ':'🔒 ') + '<b>' + a.name + '</b><br><span style="color:#9fb4cc;font-size:13px">' + a.desc + '</span></div>'
+  ).join('');
+  showPanel('<h2>🏆 Erfolge (' + Object.keys(achieved).length + '/' + ACHIEVEMENTS.length + ')</h2>' + rows +
+    '<button class="btn" id="ach-close">Schließen</button>');
+  $id('ach-close').onclick = hidePanel;
+}
+
+/* Level-Up-Feier */
+function celebrateLevelUp(lv){
+  const el = $id('levelup');
+  el.textContent = '⭐ LEVEL ' + lv + '!';
+  el.style.display = 'block';
+  el.style.animation = 'none';
+  void el.offsetWidth; // Animation neu starten
+  el.style.animation = '';
+  sfx.fanfare();
+  const p = S.mode==='fly' ? plane.pos : player.pos;
+  particles.confetti(p.x, p.y + 1, p.z);
+  setTimeout(()=>{ el.style.display = 'none'; }, 2400);
+}
+
+/* Minimap */
+const minimap = (function(){
+  const cv = $id('minimapCanvas');
+  const c = cv.getContext('2d');
+  const W = 210, H = 150;
+  // Weltausschnitt
+  const X1 = -950, X2 = 980, Z1 = -640, Z2 = 400;
+  const mx = x => (x - X1) / (X2 - X1) * W;
+  const mz = z => (z - Z1) / (Z2 - Z1) * H;
+  const staticCv = document.createElement('canvas');
+  staticCv.width = W; staticCv.height = H;
+  const s = staticCv.getContext('2d');
+  s.fillStyle = '#22301e'; s.fillRect(0, 0, W, H);
+  function rect(x1, z1, x2, z2, col){
+    s.fillStyle = col;
+    s.fillRect(mx(x1), mz(z1), mx(x2)-mx(x1), mz(z2)-mz(z1));
+  }
+  rect(-770, -15, 770, 15, '#555a62');       // Runway 09/27
+  rect(-920, -535, 920, -505, '#555a62');    // Runway 07/25
+  rect(-770, 72, 770, 88, '#43474e');        // Taxiway
+  rect(-610, 130, 300, 228, '#5c6068');      // Vorfeld + Pier B
+  rect(320, 130, 700, 228, '#5c6068');       // Pier C
+  rect(-70, 232, 75, 302, '#8f97a2');        // Terminal 1
+  rect(-685, 180, -595, 290, '#8f97a2');     // Terminal 2
+  rect(685, 180, 775, 290, '#8f97a2');       // Terminal 3
+  rect(-166, 308, -84, 352, '#6e7680');      // Parkdeck
+  rect(740, 60, 920, 208, '#6e7680');        // Cargo
+  let visible = true;
+  addEventListener('keydown', e=>{ if(e.code === 'KeyM' && !e.repeat){ visible = !visible; $id('minimap').style.display = visible ? 'block' : 'none'; } });
+  function dot(x, z, col, r){
+    c.fillStyle = col;
+    c.beginPath(); c.arc(mx(x), mz(z), r || 3, 0, 7); c.fill();
+  }
+  function update(){
+    if(!visible) return;
+    c.drawImage(staticCv, 0, 0);
+    // Job-Stationen
+    dot(-45, 260, '#5ec8ff', 2); dot(-14, 192, '#e0a020', 2); dot(10, 256, '#9a5fd0', 2);
+    dot(-152, 215, '#d9a520', 2); dot(-130, 148, '#ff8844', 2); dot(124, 172, '#8fe89f', 2);
+    // Spieler / Flugzeug
+    if(S.mode === 'fly'){
+      dot(plane.pos.x, plane.pos.z, '#ffd75e', 4);
+    } else {
+      const px = S.mode==='cart' && S.vehicle ? S.vehicle.obj.position : player.pos;
+      dot(px.x, px.z, '#ffffff', 3);
+    }
+  }
   return { update };
 })();
+
+/* Splash-Screen */
+$id('splash-start').onclick = ()=>{
+  $id('splash').style.display = 'none';
+};
 
 /* ============================================================
    SPIELZUSTAND · HUD · INPUT · CHARAKTER · KAMERA · INTERAKTION
@@ -1880,8 +2122,16 @@ function setTimerHUD(sec){
 function addCredits(n){
   S.credits = Math.max(0, S.credits + n);
   updateHUD();
+  if(n > 0){ sfx.cash(); } else if(n < 0){ sfx.error(); }
+  if(n !== 0) creditPop(n);
+  if(S.credits >= 1000) unlock('rich_1000');
+  if(S.credits >= UNLOCK_CAPTAIN) unlock('all_jobs');
 }
-function addXP(n){ S.xp += n; updateHUD(); }
+function addXP(n){
+  const before = level();
+  S.xp += n; updateHUD();
+  if(level() > before) celebrateLevelUp(level());
+}
 function toast(msg, kind){
   const d = document.createElement('div');
   d.className = 'toast glass ' + (kind||'info');
@@ -1922,6 +2172,7 @@ addEventListener('keydown', e=>{
   if(e.repeat) return;
   keys[e.code] = true; keyEdge[e.code] = true;
   if(e.code === 'KeyH') $('legend').style.display = $('legend').style.display==='none'?'block':'none';
+  if(e.code === 'KeyJ' && S.mode !== 'fly' && !panelOpen) showAchievements();
 });
 addEventListener('keyup', e=>{ keys[e.code] = false; });
 let camYaw = 0.5, camPitch = 0.32;
@@ -2362,6 +2613,7 @@ function resolveCheckin(action){
   checkin.npcState = 'leave';
 }
 function endCheckin(){
+  unlock('first_shift');
   checkin.active = false;
   S.job = null;
   const allOk = checkin.correct === 8;
@@ -2653,7 +2905,7 @@ function resolveSec(confiscated){
     secJob.active = false;
     S.job = null;
     const allOk = secJob.correct === 8;
-    if(allOk) addCredits(80);
+    if(allOk){ addCredits(80); unlock('sec_perfect'); }
     showPanel(
       '<h2>Kontroll-Schicht beendet!</h2>'+
       '<div class="doc"><div class="big">' + secJob.correct + ' / 8 korrekt geprüft</div>'+
@@ -2758,6 +3010,7 @@ function endMarshal(){
   $('marshal').style.display = 'none';
   const pay = marshal.correct * 40;
   const perfect = marshal.mistakes === 0 && marshal.correct === marshal.signals.length;
+  if(perfect) unlock('marshal_perfect');
   const bonus = perfect ? 60 : 0;
   addCredits(pay + bonus); addXP(15 * marshal.correct);
   showPanel(
@@ -2997,7 +3250,7 @@ addInteract({
   x:()=>-158, z:()=>313.5, r:3.5,
   cond: ()=> S.mode==='walk' && player.deck==='p2',
   label: ()=> 'Treppe: Ebene 3 (Dach)',
-  action: ()=>{ player.deck = 'p3'; player.pos.set(-155, CABIN.p3.y, 315); },
+  action: ()=>{ player.deck = 'p3'; unlock('pd_roof'); player.pos.set(-155, CABIN.p3.y, 315); },
 });
 addInteract({
   x:()=>-152, z:()=>318, r:3,
@@ -3019,6 +3272,7 @@ addInteract({
   label: ()=> 'A380 betreten (Gate 1)',
   action: ()=>{
     player.deck = 'main';
+    unlock('a380_board');
     player.pos.set(-40.8, CABIN.main.y, 157.5);
     toast('Willkommen an Bord! Vorn geht es ins Cockpit, die Treppe führt aufs Oberdeck.', 'info');
   },
@@ -3462,6 +3716,8 @@ function endFlightToApron(msg){
   if(msg) toast(msg, 'info');
 }
 function crash(reason){
+  sfx.boom();
+  particles.boom(plane.pos.x, plane.pos.y, plane.pos.z);
   toast('💥 CRASH! ' + reason, 'bad');
   flight.active = false;
   showPanel(
@@ -3478,6 +3734,8 @@ function handleTouchdown(vsFpm){
   if(!gearOk){ crash('Landung ohne Fahrwerk!'); return; }
   if(!onRwy){ crash('Neben der Runway aufgesetzt!'); return; }
   if(vsFpm > 1000){ crash('Aufschlag mit '+Math.round(vsFpm)+' ft/min!'); return; }
+  sfx.screech();
+  particles.smoke(p.pos.x, p.pos.y + 0.3, p.pos.z);
   const centerDev = Math.abs(p.pos.z);
   const inTDZ = p.pos.x >= TDZ.x1 && p.pos.x <= TDZ.x2;
   if(flight.active && flight.phase === 'land'){
@@ -3491,7 +3749,7 @@ function rateLanding(st){
   const m = MISSIONS[flight.mIdx];
   let stars = 5;
   let notes = [];
-  if(st.vsFpm < 200){ notes.push('🧈 Butterweich ('+Math.round(st.vsFpm)+' ft/min)'); }
+  if(st.vsFpm < 200){ notes.push('🧈 Butterweich ('+Math.round(st.vsFpm)+' ft/min)'); unlock('butter'); }
   else if(st.vsFpm <= 600){ stars -= 1; notes.push('Okay ('+Math.round(st.vsFpm)+' ft/min)'); }
   else { stars -= 2; notes.push('Hart! ('+Math.round(st.vsFpm)+' ft/min)'); }
   if(st.centerDev <= 3) notes.push('Perfekt auf der Centerline ('+st.centerDev.toFixed(1)+' m)');
@@ -3502,6 +3760,7 @@ function rateLanding(st){
   return { stars: clamp(stars, 1, 5), notes };
 }
 function completeMission(){
+  unlock('first_mission');
   const m = MISSIONS[flight.mIdx];
   const { stars, notes } = rateLanding(flight.landStats);
   const pay = m.base * stars;
@@ -3622,6 +3881,7 @@ function updateFlightHUD(){
   $('f-flaps').textContent = ['0°','15°','35°'][p.flaps];
   $('f-flaps').style.color = p.flaps ? '#ffd75e' : '#e8eef7';
   drawHeadingBand(planeHeading());
+  if(p.pos.y*FT > 1000) unlock('alt_1000');
   // Warnungen
   let warn = '';
   if(p.stalled) warn += '<div class="warnbox">STALL</div>';
@@ -3709,6 +3969,8 @@ function tick(){
   updateMarkers(now/1000);
   for(const f of envAnims) f(now/1000, dt);
   for(const f of landAnims) f(now/1000, dt);
+  particles.update(dt);
+  minimap.update();
   engineSound.update(dt);
   updateCamera(dt);
   // Schatten-Kamera folgt grob dem Spieler

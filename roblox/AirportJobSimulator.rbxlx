@@ -1326,10 +1326,15 @@ end
 local function addCredits(n)
 	S.credits = math.max(0, S.credits + n)
 	updateHUD()
+	if n ~= 0 then creditPop(n) end
+	if S.credits &gt;= 1000 then unlock("rich_1000") end
+	if S.credits &gt;= UNLOCK_CAPTAIN then unlock("all_jobs") end
 end
 local function addXP(n)
+	local before = level()
 	S.xp = S.xp + n
 	updateHUD()
+	if level() &gt; before then celebrateLevelUp(level()) end
 end
 local function setJobHUD(name, objective)
 	jobL.Text = name
@@ -1395,6 +1400,156 @@ player.CharacterAdded:Connect(function(ch)
 		end
 	end)
 end)
+---------------------------------------------------------------- Game-Feel: Splash · Popups · Level-Up · Erfolge · Minimap
+local TweenService = game:GetService("TweenService")
+do
+	-- Titelscreen
+	local splash = Instance.new("Frame")
+	splash.Size = UDim2.fromScale(1, 1)
+	splash.BackgroundColor3 = Color3.fromRGB(15, 32, 54)
+	splash.ZIndex = 50
+	splash.Parent = gui
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new(Color3.fromRGB(11, 26, 46), Color3.fromRGB(42, 90, 127))
+	grad.Rotation = 70
+	grad.Parent = splash
+	local t1 = label(splash, "✈  AIRPORT SIMULATOR", UDim2.new(0, 0, 0.32, 0), UDim2.new(1, 0, 0, 64), Color3.fromRGB(232, 238, 247), 52, Enum.TextXAlignment.Center)
+	t1.Font = Enum.Font.GothamBlack; t1.ZIndex = 51
+	local t2 = label(splash, "Vom Check-in-Schalter zum Captain — dein Flughafen, deine Karriere.", UDim2.new(0, 0, 0.44, 0), UDim2.new(1, 0, 0, 24), GREY, 17, Enum.TextXAlignment.Center)
+	t2.ZIndex = 51
+	local t3 = label(splash, "6 Jobs · 2 Runways · begehbarer A380 · echte Flugphysik · J = Erfolge · M = Minimap", UDim2.new(0, 0, 0.68, 0), UDim2.new(1, 0, 0, 20), GREY, 14, Enum.TextXAlignment.Center)
+	t3.ZIndex = 51
+	local b = button(splash, "SPIELEN", UDim2.new(0.5, -110, 0.53, 0), UDim2.new(0, 220, 0, 54), Color3.fromRGB(42, 127, 201), function()
+		splash:Destroy()
+	end)
+	b.ZIndex = 52; b.TextSize = 24
+end
+-- Credit-Popups
+function creditPop(n)
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Position = UDim2.new(0, 30, 0, 116)
+	l.Size = UDim2.new(0, 200, 0, 26)
+	l.Font = Enum.Font.GothamBlack
+	l.TextSize = 20
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextColor3 = n &gt; 0 and GREEN or REDC
+	l.Text = (n &gt; 0 and "+" or "−") .. math.abs(n) .. " Cr"
+	l.Parent = gui
+	TweenService:Create(l, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Position = UDim2.new(0, 30, 0, 74), TextTransparency = 1 }):Play()
+	task.delay(1.4, function() l:Destroy() end)
+end
+-- Level-Up
+function celebrateLevelUp(lv)
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Position = UDim2.new(0.5, -250, 0.36, 0)
+	l.Size = UDim2.new(0, 500, 0, 60)
+	l.Font = Enum.Font.GothamBlack
+	l.TextSize = 44
+	l.TextColor3 = GOLD
+	l.Text = "⭐ LEVEL " .. lv .. "!"
+	l.TextTransparency = 1
+	l.Parent = gui
+	TweenService:Create(l, TweenInfo.new(0.35), { TextTransparency = 0 }):Play()
+	task.delay(1.8, function()
+		TweenService:Create(l, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+		task.delay(0.6, function() l:Destroy() end)
+	end)
+	-- Konfetti am Charakter
+	local r = hrp()
+	if r then
+		local e = Instance.new("ParticleEmitter")
+		e.Rate = 120
+		e.Lifetime = NumberRange.new(0.8, 1.6)
+		e.Speed = NumberRange.new(8, 16)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Color = ColorSequence.new(Color3.fromRGB(255, 215, 94), Color3.fromRGB(94, 200, 255))
+		e.Parent = r
+		task.delay(1.2, function() e.Enabled = false task.delay(2, function() e:Destroy() end) end)
+	end
+end
+-- Erfolge
+local ACHIEVEMENTS = {
+	{ id = "first_shift", name = "Erster Arbeitstag", desc = "Beende deine erste Check-in-Schicht." },
+	{ id = "rich_1000", name = "Gut im Geschäft", desc = "Besitze 1.000 Credits." },
+	{ id = "all_jobs", name = "Karriereleiter erklommen", desc = "Schalte alle Jobs frei (2.000 Credits)." },
+	{ id = "sec_perfect", name = "Adlerauge", desc = "Fehlerfreie Security-Schicht." },
+	{ id = "marshal_perfect", name = "Winker-Profi", desc = "Weise einen Jet fehlerfrei ein." },
+	{ id = "a380_board", name = "Willkommen an Bord", desc = "Betrete den A380 an Gate 1." },
+	{ id = "pd_roof", name = "Über den Dächern", desc = "Steh auf dem Parkdeck-Dach." },
+	{ id = "first_mission", name = "Captain im Dienst", desc = "Schließe eine Flugmission ab." },
+	{ id = "butter", name = "🧈 Butterweich", desc = "Lande mit unter 200 ft/min." },
+	{ id = "alt_1000", name = "Über den Wolken", desc = "Erreiche 1.000 ft Flughöhe." },
+}
+local achieved = {}
+function unlock(id)
+	if achieved[id] then return end
+	achieved[id] = true
+	local a
+	for _, x in ipairs(ACHIEVEMENTS) do if x.id == id then a = x break end end
+	if not a then return end
+	local f = frame(gui, UDim2.new(0.5, -180, 0, 126), UDim2.new(0, 360, 0, 58))
+	f.ZIndex = 25
+	local l1 = label(f, "🏆 ERFOLG FREIGESCHALTET", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GOLD, 12, Enum.TextXAlignment.Center)
+	l1.ZIndex = 26
+	local l2 = label(f, a.name, UDim2.new(0, 0, 0, 26), UDim2.new(1, 0, 0, 22), TXT, 17, Enum.TextXAlignment.Center)
+	l2.Font = Enum.Font.GothamBold; l2.ZIndex = 26
+	task.delay(3.2, function() f:Destroy() end)
+end
+function showAchievements()
+	local count = 0
+	for _ in pairs(achieved) do count = count + 1 end
+	showPanel(function(p)
+		local t = label(p, "🏆 Erfolge (" .. count .. "/" .. #ACHIEVEMENTS .. ")", UDim2.new(0, 20, 0, 12), UDim2.new(1, -40, 0, 24), CYAN, 19)
+		t.Font = Enum.Font.GothamBold
+		for i, a in ipairs(ACHIEVEMENTS) do
+			local got = achieved[a.id]
+			local row = label(p, (got and "🏆 " or "🔒 ") .. a.name .. " — " .. a.desc,
+				UDim2.new(0, 20, 0, 30 + i * 32), UDim2.new(1, -40, 0, 30), got and TXT or GREY, 14)
+			row.TextTransparency = got and 0 or 0.4
+		end
+		button(p, "Schließen", UDim2.new(0, 20, 1, -50), UDim2.new(0, 130, 0, 36), Color3.fromRGB(60, 70, 85), hidePanel)
+	end)
+end
+-- Minimap (statisches Layout + Spieler-Punkt)
+local miniDot
+do
+	local mm = frame(gui, UDim2.new(1, -234, 1, -180), UDim2.new(0, 220, 0, 160))
+	local X1, X2, Z1, Z2 = -950, 980, -640, 400
+	local function r(x1, z1, x2, z2, col)
+		local f = Instance.new("Frame")
+		f.BackgroundColor3 = col
+		f.BorderSizePixel = 0
+		f.Position = UDim2.new((x1 - X1) / (X2 - X1), 0, (z1 - Z1) / (Z2 - Z1), 0)
+		f.Size = UDim2.new((x2 - x1) / (X2 - X1), 0, (z2 - z1) / (Z2 - Z1), 0)
+		f.Parent = mm
+	end
+	r(-770, -15, 770, 15, Color3.fromRGB(85, 90, 98))
+	r(-920, -535, 920, -505, Color3.fromRGB(85, 90, 98))
+	r(-770, 72, 770, 88, Color3.fromRGB(67, 71, 78))
+	r(-610, 130, 300, 228, Color3.fromRGB(92, 96, 104))
+	r(320, 130, 700, 228, Color3.fromRGB(92, 96, 104))
+	r(-70, 232, 75, 302, Color3.fromRGB(143, 151, 162))
+	r(-685, 180, -595, 290, Color3.fromRGB(143, 151, 162))
+	r(685, 180, 775, 290, Color3.fromRGB(143, 151, 162))
+	r(-166, 308, -84, 352, Color3.fromRGB(110, 118, 128))
+	r(740, 60, 920, 208, Color3.fromRGB(110, 118, 128))
+	miniDot = Instance.new("Frame")
+	miniDot.Size = UDim2.new(0, 6, 0, 6)
+	miniDot.BackgroundColor3 = Color3.new(1, 1, 1)
+	miniDot.BorderSizePixel = 0
+	miniDot.ZIndex = 3
+	miniDot.Parent = mm
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = miniDot
+	minimapFrame = mm -- global fuer M-Toggle &amp; Update
+end
+function updateMinimap(pos)
+	local X1, X2, Z1, Z2 = -950, 980, -640, 400
+	miniDot.Position = UDim2.new((pos.X - X1) / (X2 - X1), -3, (pos.Z - Z1) / (Z2 - Z1), -3)
+end
+
 -- Sprint
 RunService.RenderStepped:Connect(function()
 	local h = humanoid()
@@ -1502,6 +1657,7 @@ end
 
 local spawnPassenger -- forward
 local function endCheckin()
+	unlock("first_shift")
 	checkin.active = false
 	S.job = nil
 	local allOk = checkin.correct == 8
@@ -1680,7 +1836,7 @@ local function resolveSec(confiscated)
 		secJob.active = false
 		S.job = nil
 		local allOk = secJob.correct == 8
-		if allOk then addCredits(80) end
+		if allOk then addCredits(80) unlock("sec_perfect") end
 		showPanel(function(p)
 			local t = label(p, "Kontroll-Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 			t.Font = Enum.Font.GothamBold
@@ -2373,6 +2529,7 @@ local function rateLanding(st)
 	local m = MISSIONS[flight.mIdx]
 	local stars, notes = 5, {}
 	if st.vsFpm &lt; 200 then
+		unlock("butter")
 		table.insert(notes, "🧈 Butterweich (" .. math.floor(st.vsFpm) .. " ft/min)")
 	elseif st.vsFpm &lt;= 600 then
 		stars = stars - 1
@@ -2400,6 +2557,7 @@ local function rateLanding(st)
 end
 
 local function completeMission()
+	unlock("first_mission")
 	local m = MISSIONS[flight.mIdx]
 	local stars, notes = rateLanding(flight.landStats)
 	local pay = m.base * stars
@@ -2644,6 +2802,7 @@ local function updateFlightHUD()
 	local vs = math.floor(plane.vel.Y * FPM / 10 + 0.5) * 10
 	FH.vsV.Text = (vs &gt; 0 and "+" or "") .. vs .. " ft/min"
 	FH.hdgV.Text = string.format("HDG %03d°", math.floor(planeHeading() + 0.5) % 360)
+	if plane.pos.Y * FT &gt; 1000 then unlock("alt_1000") end
 	FH.thrV.Text = "SCHUB " .. math.floor(plane.throttle) .. "%"
 	if plane.gearAnim &gt; 0.95 then
 		FH.gearV.Text = "FAHRWERK ✓"
@@ -2835,6 +2994,7 @@ local function endMarshal()
 	marshal.gui.Visible = false
 	local pay = marshal.correct * 40
 	local perfect = marshal.mistakes == 0 and marshal.correct == #marshal.signals
+	if perfect then unlock("marshal_perfect") end
 	local bonus = perfect and 60 or 0
 	addCredits(pay + bonus); addXP(15 * marshal.correct)
 	showPanel(function(p)
@@ -3102,6 +3262,18 @@ end)
 RunService.RenderStepped:Connect(function(dt)
 	dt = math.min(dt, 0.05)
 	if edge(Enum.KeyCode.H) then legend.Visible = not legend.Visible end
+	if edge(Enum.KeyCode.J) and S.mode ~= "fly" and not panelOpen then showAchievements() end
+	if edge(Enum.KeyCode.M) then minimapFrame.Visible = not minimapFrame.Visible end
+	do
+		local mp = S.mode == "fly" and plane.pos or playerPosM()
+		updateMinimap(mp)
+		local r0 = hrp()
+		if r0 and S.mode == "walk" then
+			local wy = r0.Position.Y
+			if mp.X &gt; -42.4 and mp.X &lt; -37.6 and mp.Z &gt; 151 and mp.Z &lt; 180 and wy &gt; 5 then unlock("a380_board") end
+			if mp.X &gt; -166 and mp.X &lt; -84 and mp.Z &gt; 308 and mp.Z &lt; 352 and wy &gt; 12 then unlock("pd_roof") end
+		end
+	end
 	if not panelOpen then
 		if S.mode == "fly" then
 			updateFlightPhysics(dt)
