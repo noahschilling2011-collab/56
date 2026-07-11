@@ -105,7 +105,7 @@
   <div><b>WASD</b> Bewegen · <b>Shift</b> Sprint · <b>E</b> Interagieren</div>
   <div><b>Maus</b> Kamera (Klick = Fangen) · <b>H</b> Legende an/aus</div>
   <div style="margin-top:5px;color:#7f96ad">FLUG: <b>W/S</b> Pitch · <b>A/D</b> Roll · <b>Q/E</b> Ruder/Lenkung</div>
-  <div style="color:#7f96ad"><b>Shift/Strg</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset</div>
+  <div style="color:#7f96ad"><b>Shift/Strg(X)</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset</div>
 </div>
 <div id="hint-click" class="glass">Klicke ins Bild, um die Maus zu fangen (ESC gibt sie frei)</div>
 <div id="panel-wrap"><div id="panel" class="glass"></div></div>
@@ -219,7 +219,7 @@ function airportFlat(x,z){
     pos.setY(i, (n-9) * airportFlat(x,z) - 0.25);
   }
   geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, mat(0x6f9e52, { flatShading:true }));
+  const ground = new THREE.Mesh(geo, mat(0x6f9e52));
   ground.receiveShadow = true;
   scene.add(ground);
 })();
@@ -230,7 +230,7 @@ function airportFlat(x,z){
   const trunkG = new THREE.CylinderGeometry(0.5,0.7,5,5);
   const crownG = new THREE.ConeGeometry(3.4,8,6);
   const trunks = new THREE.InstancedMesh(trunkG, mat(0x6e4a2f), N);
-  const crowns = new THREE.InstancedMesh(crownG, mat(0x39702e, { flatShading:true }), N);
+  const crowns = new THREE.InstancedMesh(crownG, mat(0x39702e), N);
   const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const s = new THREE.Vector3();
   let placed = 0, tries = 0;
   while(placed<N && tries<4000){
@@ -251,7 +251,7 @@ function airportFlat(x,z){
   const bodyG = new THREE.BoxGeometry(9,6,8);
   const roofG = new THREE.ConeGeometry(7.5,4,4);
   const bodies = new THREE.InstancedMesh(bodyG, mat(0xd8cfc0), H);
-  const roofs = new THREE.InstancedMesh(roofG, mat(0xa0522d, { flatShading:true }), H);
+  const roofs = new THREE.InstancedMesh(roofG, mat(0xa0522d), H);
   let hp=0; tries=0;
   while(hp<H && tries<3000){
     tries++;
@@ -382,11 +382,11 @@ function updatePapis(px, py, pz){
   const tw = box(RWY_LEN+40, 0.18, 16, grey, 0, 0, 80); tw.receiveShadow=true; scene.add(tw);
   for(let x=-760;x<760;x+=30) scene.add(box(15,0.06,0.5, yellow, x+7, 0.24, 80));
   for(const cx of [-700, 0, 700]){
-    const c = box(16, 0.18, 66, grey, cx, 0, 40); c.receiveShadow=true; scene.add(c);
+    const c = box(16, 0.18, 66, grey, cx, -0.03, 40); c.receiveShadow=true; scene.add(c); // leicht tiefer gegen Z-Fighting
     for(let z=18;z<75;z+=15) scene.add(box(0.5,0.06,8, yellow, cx, 0.24, z));
   }
   // Verbinder Taxiway -> Apron
-  const c2 = box(20, 0.18, 55, grey, 60, 0, 115); c2.receiveShadow=true; scene.add(c2);
+  const c2 = box(20, 0.18, 55, grey, 60, -0.03, 115); c2.receiveShadow=true; scene.add(c2);
   for(let z=90;z<140;z+=15) scene.add(box(0.5,0.06,8, yellow, 60, 0.24, z));
 })();
 
@@ -694,6 +694,8 @@ function showTutorial(key, title, html, cb){
 const keys = {};
 let keyEdge = {};
 addEventListener('keydown', e=>{
+  // Im Flugmodus Browser-Shortcuts unterdrücken (z. B. Strg+S)
+  if(S.mode === 'fly' && !panelOpen) e.preventDefault();
   if(e.repeat) return;
   keys[e.code] = true; keyEdge[e.code] = true;
   if(e.code === 'KeyH') $('legend').style.display = $('legend').style.display==='none'?'block':'none';
@@ -918,6 +920,7 @@ function updateAmbient(dt){
 const traffic = (function(){
   const j = makeJet(0x999999);
   j.visible = false;
+  j.rotation.order = 'YXZ'; // Pitch nach dem Yaw anwenden (Steigflug)
   scene.add(j);
   return { obj:j, state:'idle', t:0, next: 12, takeoff: true };
 })();
@@ -946,8 +949,8 @@ function updateTraffic(dt){
     if(spd > 68){
       const tc = tr.t - (68-v0)/a;
       o.position.y = Math.min(300, 0.5*9*tc*tc*0.35 + tc*8);
-      o.rotation.z = 0.14;
-    } else { o.position.y = 0; o.rotation.z = 0; }
+      o.rotation.x = 0.14; // Nase hoch (lokale X-Achse nach Yaw)
+    } else { o.position.y = 0; o.rotation.x = 0; }
     if(x > 2600){ tr.state='idle'; o.visible=false; }
   } else {
     // Landung aus Osten auf RWY 27
@@ -957,7 +960,7 @@ function updateTraffic(dt){
     o.rotation.y = Math.PI/2; // Nase nach -X
     if(x > 620) o.position.y = (x-620)*0.052;
     else o.position.y = 0;
-    o.rotation.z = 0;
+    o.rotation.x = 0;
     if(x < 620 && x > -600){
       // ausrollen
     }
@@ -1136,7 +1139,7 @@ function endCheckin(){
    ============================================================ */
 const ramp = {
   active:false, cases:[], spawned:0, delivered:0, deliveredOk:0,
-  timer:0, carrying:null, spawnT:0, collideCd:0,
+  timer:0, carrying:null, spawnT:0, collideCd:0, nextSlot:0,
 };
 function makeCase(jetIdx){
   const info = JET_INFO[jetIdx];
@@ -1151,7 +1154,7 @@ function makeCase(jetIdx){
 function startRamp(){
   ramp.active = true;
   ramp.cases = []; ramp.spawned = 0; ramp.delivered = 0; ramp.deliveredOk = 0;
-  ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = null;
+  ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = null; ramp.nextSlot = 0;
   cart.load = [];
   S.job = 'ramp';
   setJobHUD('RAMP AGENT', 'Bring 8 Koffer zu den richtigen Jets!<br><span style="color:#3a6fe8">BLAU → LH 452 (links)</span> · <span style="color:#e07820">ORANGE → EW 771 (rechts)</span>');
@@ -1179,16 +1182,17 @@ function updateRamp(dt){
       ramp.spawnT = 5;
     }
   }
-  // Band-Bewegung + Warteschlange am Ende
-  let qCount = 0;
+  // Band-Bewegung + feste Warteschlangen-Plätze am Ende
   for(const c of ramp.cases){
     if(c.state === 'belt'){
       c.beltZ -= 2.5*dt;
-      const stopZ = BELT.z2 + 1 + qCount*1.1;
-      if(c.beltZ <= stopZ){ c.beltZ = stopZ; c.state = 'queue'; }
+      const stopZ = BELT.z2 + 1 + ramp.nextSlot*1.1;
+      if(c.beltZ <= stopZ){
+        c.beltZ = stopZ; c.state = 'queue';
+        c.queueSlot = ramp.nextSlot++;
+      }
       c.obj.position.z = c.beltZ;
-      qCount++;
-    } else if(c.state === 'queue') qCount++;
+    }
   }
   if(ramp.delivered >= 8) endRamp();
 }
@@ -1519,7 +1523,8 @@ function updateFlightPhysics(dt){
   p.ctl.roll  = damp(p.ctl.roll,  tRoll,  6, dt);
   p.ctl.yaw   = damp(p.ctl.yaw,   tYaw,   6, dt);
   if(keys['ShiftLeft']||keys['ShiftRight']) p.throttle = clamp(p.throttle + 45*dt, 0, 100);
-  if(keys['ControlLeft']||keys['ControlRight']) p.throttle = clamp(p.throttle - 45*dt, 0, 100);
+  // X als sichere Alternative zu Strg (Strg+W würde den Tab schließen!)
+  if(keys['ControlLeft']||keys['ControlRight']||keys['KeyX']) p.throttle = clamp(p.throttle - 45*dt, 0, 100);
   p.brake = !!keys['KeyB'];
   // Fahrwerk
   if(keyEdge['KeyG']){
@@ -1626,10 +1631,11 @@ function updateFlightPhysics(dt){
   // Propeller & Ruderflächen animieren
   p.propSpin += (2 + p.throttle*0.55) * dt * 10;
   p.prop.rotation.z = p.propSpin;
-  p.ailL.rotation.x = -p.ctl.roll*0.55;
-  p.ailR.rotation.x =  p.ctl.roll*0.55;
-  p.elev.rotation.x = p.ctl.pitch*0.55;
-  p.rud.rotation.y = -p.ctl.yaw*0.6;
+  // Querruder: rechts hoch bei Rechtsrolle (Hinterkante +Z: rotation.x>0 = Kante runter)
+  p.ailL.rotation.x =  p.ctl.roll*0.55;
+  p.ailR.rotation.x = -p.ctl.roll*0.55;
+  p.elev.rotation.x = -p.ctl.pitch*0.55;
+  p.rud.rotation.y  =  p.ctl.yaw*0.6;
   for(const gr of p.gears){
     gr.rotation.x = (1-p.gearAnim) * 1.9;
     gr.visible = p.gearAnim > 0.03;
@@ -1666,10 +1672,14 @@ function clearRings(){
 }
 function buildRings(m){
   clearRings();
+  let prev = { x: RWY_X1+25, z: 0 }; // Startpunkt: Runway-Schwelle
   for(const [x,z,y] of m.rings){
     const ring = new THREE.Mesh(new THREE.TorusGeometry(30, 2.2, 8, 26),
       new THREE.MeshBasicMaterial({ color:0x30d5ff, transparent:true, opacity:0.85 }));
     ring.position.set(x, y, z);
+    // Ring zur Anflugrichtung ausrichten (Torus-Normale = +Z)
+    ring.rotation.y = Math.atan2(x - prev.x, z - prev.z);
+    prev = { x, z };
     scene.add(ring);
     flight.ringMeshes.push(ring);
   }
@@ -1709,6 +1719,7 @@ function startMission(i){
   syncPlaneMesh();
   camPos.copy(plane.pos).add(new THREE.Vector3(0, 6, 20));
   $('flighthud').style.display = 'block';
+  $('legend').style.display = 'none'; // Platz für die Flugleiste (H blendet wieder ein)
   $('f-wind').textContent = String(Math.round(m.wind[0])).padStart(3,'0') + '° / ' + m.wind[1] + ' kt';
   setJobHUD('CAPTAIN · ' + m.name, missionObjective());
   toast('Mission gestartet: ' + m.name, 'info');

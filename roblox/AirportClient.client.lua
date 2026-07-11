@@ -207,7 +207,7 @@ local legend = frame(gui, UDim2.new(0, 14, 1, -132), UDim2.new(0, 430, 0, 118))
 label(legend,
 	"<b>WASD</b> Bewegen · <b>Shift</b> Sprint · <b>E</b> Interagieren · <b>H</b> Legende\n" ..
 	"FLUG: <b>W/S</b> Pitch · <b>A/D</b> Roll · <b>Q/E</b> Ruder/Bugrad\n" ..
-	"<b>Shift/Strg</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset",
+	"<b>Shift/Strg(X)</b> Schub · <b>G</b> Fahrwerk · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset",
 	UDim2.new(0, 14, 0, 8), UDim2.new(1, -28, 1, -16), GREY, 14)
 
 -- Modales Panel
@@ -318,6 +318,8 @@ local function setCharacterHidden(hidden)
 	for _, d in ipairs(ch:GetDescendants()) do
 		if d:IsA("BasePart") then
 			d.LocalTransparencyModifier = hidden and 1 or 0
+		elseif d:IsA("Decal") then -- sonst schwebt das Gesicht sichtbar mit
+			d.LocalTransparencyModifier = hidden and 1 or 0
 		end
 	end
 	local h = humanoid()
@@ -325,6 +327,16 @@ local function setCharacterHidden(hidden)
 	local r = hrp()
 	if r then r.Anchored = hidden end
 end
+-- Respawn mitten im Fahren/Fliegen: neuen Charakter wieder verstecken/verankern
+player.CharacterAdded:Connect(function(ch)
+	task.defer(function()
+		ch:WaitForChild("HumanoidRootPart")
+		ch:WaitForChild("Humanoid")
+		if S.mode ~= "walk" then
+			setCharacterHidden(true)
+		end
+	end)
+end)
 -- Sprint
 RunService.RenderStepped:Connect(function()
 	local h = humanoid()
@@ -568,7 +580,7 @@ local JETS = {
 	{ name = "EW 771 · WIEN", color = Color3.fromRGB(224, 120, 32), x = 40, z = 165 },
 }
 local BELT = { x = -20, z1 = 255, z2 = 196 }
-local ramp = { active = false, cases = {}, spawned = 0, delivered = 0, deliveredOk = 0, timer = 0, carrying = nil, spawnT = 0, collideCd = 0 }
+local ramp = { active = false, cases = {}, spawned = 0, delivered = 0, deliveredOk = 0, timer = 0, carrying = nil, spawnT = 0, collideCd = 0, nextSlot = 0 }
 
 local function makeCase(jetIdx)
 	local p = Instance.new("Part")
@@ -605,6 +617,8 @@ end
 
 -- Gepaeckwagen-Zustand (kinematisch, Meter)
 local cartModel = airport:WaitForChild("Cart")
+cartModel:WaitForChild("Root") -- PrimaryPart muss repliziert sein, sonst stimmt der Pivot nicht
+cartModel:WaitForChild("Wheel")
 local cart = { pos = cartModel:GetPivot().Position / M, yaw = 0.4, vel = Vector3.new(), load = {} }
 local CART_SLOTS = {}
 for i = 0, 5 do
@@ -658,7 +672,7 @@ end
 function startRamp()
 	ramp.active = true
 	ramp.cases = {}; ramp.spawned = 0; ramp.delivered = 0; ramp.deliveredOk = 0
-	ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = nil
+	ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = nil; ramp.nextSlot = 0
 	cart.load = {}
 	S.job = "ramp"
 	setJobHUD("RAMP AGENT", "Bring 8 Koffer zu den richtigen Jets!\nBLAU → LH 452 (links) · ORANGE → EW 771 (rechts)")
@@ -677,19 +691,17 @@ local function updateRamp(dt)
 			ramp.spawnT = 5
 		end
 	end
-	local qCount = 0
+	-- feste Warteschlangen-Plaetze: aufgenommene Koffer geben ihren Platz nicht frei
 	for _, c in ipairs(ramp.cases) do
 		if c.state == "belt" then
 			c.beltZ = c.beltZ - 2.5 * dt
-			local stopZ = BELT.z2 + 1 + qCount * 1.1
+			local stopZ = BELT.z2 + 1 + ramp.nextSlot * 1.1
 			if c.beltZ <= stopZ then
 				c.beltZ = stopZ
 				c.state = "queue"
+				ramp.nextSlot = ramp.nextSlot + 1
 			end
 			c.obj.CFrame = CFrame.new(BELT.x * M, 1.35 * M, c.beltZ * M)
-			qCount = qCount + 1
-		elseif c.state == "queue" then
-			qCount = qCount + 1
 		end
 	end
 	if ramp.delivered >= 8 then endRamp() end
@@ -788,8 +800,8 @@ local function updateCart(dt)
 	-- Charakter unsichtbar am Wagen halten
 	local r = hrp()
 	if r then r.CFrame = pivot * CFrame.new(0, 2 * M, 1.6 * M) end
-	-- Kamera-Verfolger
-	local camPos = pivot * CFrame.new(0, 4.5 * M, 11 * M)
+	-- Kamera-Verfolger (hinter dem Wagen: Fahrtrichtung ist lokal +Z)
+	local camPos = pivot * CFrame.new(0, 4.5 * M, -11 * M)
 	camera.CFrame = CFrame.lookAt(camPos.Position, pivot.Position + Vector3.new(0, 1.5 * M, 0))
 	-- E-Logik im Wagen: abladen oder aussteigen
 	local nearJetIdx = nil
@@ -814,6 +826,9 @@ end
 
 ---------------------------------------------------------------- JOB 3 · CAPTAIN — Flugphysik
 local planeModel = airport:WaitForChild("PlayerPlane")
+-- Auf vollstaendige Replikation warten: Root zuerst, GearRW wird zuletzt gebaut
+planeModel:WaitForChild("Root")
+planeModel:WaitForChild("GearRW")
 local basePivot = planeModel:GetPivot()
 local partOffsets = {}
 for _, p in ipairs(planeModel:GetChildren()) do
@@ -863,13 +878,14 @@ local function syncPlaneMesh()
 			p.CFrame = cf * hc * gearRot * hc:Inverse() * off
 			p.Transparency = plane.gearAnim < 0.05 and 1 or 0
 		elseif n == "AilL" then
-			p.CFrame = cf * off * CFrame.Angles(-plane.ctl.roll * 0.55, 0, 0)
-		elseif n == "AilR" then
+			-- Hinterkante +Z: positiver Winkel = Kante runter; rechts hoch bei Rechtsrolle
 			p.CFrame = cf * off * CFrame.Angles(plane.ctl.roll * 0.55, 0, 0)
+		elseif n == "AilR" then
+			p.CFrame = cf * off * CFrame.Angles(-plane.ctl.roll * 0.55, 0, 0)
 		elseif n == "Elev" then
-			p.CFrame = cf * off * CFrame.Angles(plane.ctl.pitch * 0.55, 0, 0)
+			p.CFrame = cf * off * CFrame.Angles(-plane.ctl.pitch * 0.55, 0, 0)
 		elseif n == "Rud" then
-			p.CFrame = cf * off * CFrame.Angles(0, -plane.ctl.yaw * 0.6, 0)
+			p.CFrame = cf * off * CFrame.Angles(0, plane.ctl.yaw * 0.6, 0)
 		else
 			p.CFrame = cf * off
 		end
@@ -935,12 +951,17 @@ local function clearRings()
 end
 local function buildRings(mission)
 	clearRings()
+	local prevX, prevZ = RWY_X1 + 25, 0 -- Startpunkt: Runway-Schwelle
 	for _, r in ipairs(mission.rings) do
 		local x, z, y = r[1], r[2], r[3]
+		-- Ring zur Anflugrichtung drehen (Kreis liegt lokal in der XY-Ebene)
+		local phi = math.atan2(x - prevX, z - prevZ)
+		prevX, prevZ = x, z
 		local model = Instance.new("Model")
 		model.Name = "Ring"
 		for a = 0, 330, 30 do
 			local rad = math.rad(a)
+			local lx, ly = math.cos(rad) * 30, math.sin(rad) * 30
 			local p = Instance.new("Part")
 			p.Anchored = true
 			p.CanCollide = false
@@ -948,7 +969,7 @@ local function buildRings(mission)
 			p.Color = Color3.fromRGB(48, 213, 255)
 			p.Shape = Enum.PartType.Ball
 			p.Size = Vector3.new(4 * M, 4 * M, 4 * M)
-			p.CFrame = CFrame.new((x + math.cos(rad) * 30) * M, (y + math.sin(rad) * 30) * M, z * M)
+			p.CFrame = CFrame.new((x + lx * math.cos(phi)) * M, (y + ly) * M, (z - lx * math.sin(phi)) * M)
 			p.Parent = model
 		end
 		model.Parent = Workspace
@@ -974,37 +995,41 @@ local function missionObjective()
 	return "Lande auf Runway 09" .. (m.tdzRequired and " – in der Aufsetzzone!" or "") .. "\nPAPI: 2× rot / 2× weiß = Gleitpfad."
 end
 
--- Flug-HUD-Elemente
-local fhud = Instance.new("Frame")
-fhud.BackgroundTransparency = 1
-fhud.Size = UDim2.fromScale(1, 1)
-fhud.Visible = false
-fhud.Parent = gui
-local fSpd = frame(fhud, UDim2.new(0, 14, 0.5, -46), UDim2.new(0, 110, 0, 92))
-label(fSpd, "SPEED", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
-local fSpdV = label(fSpd, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
-fSpdV.Font = Enum.Font.GothamBold
-label(fSpd, "kt", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
-local fAlt = frame(fhud, UDim2.new(1, -124, 0.5, -46), UDim2.new(0, 110, 0, 92))
-label(fAlt, "ALT (ft)", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
-local fAltV = label(fAlt, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
-fAltV.Font = Enum.Font.GothamBold
-local fVsV = label(fAlt, "0 ft/min", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
-local fHdg = frame(fhud, UDim2.new(0.5, -110, 0, 14), UDim2.new(0, 220, 0, 36))
-local fHdgV = label(fHdg, "HDG 090°", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0), TXT, 18, Enum.TextXAlignment.Center)
-fHdgV.Font = Enum.Font.GothamBold
-local fWpt = frame(fhud, UDim2.new(0.5, -110, 0, 58), UDim2.new(0, 220, 0, 64))
-local fArrow = label(fWpt, "▲", UDim2.new(0.5, -16, 0, 2), UDim2.new(0, 32, 0, 32), CYAN, 26, Enum.TextXAlignment.Center)
-local fWptD = label(fWpt, "", UDim2.new(0, 0, 0, 38), UDim2.new(1, 0, 0, 20), TXT, 13, Enum.TextXAlignment.Center)
-local fBot = frame(fhud, UDim2.new(0.5, -190, 1, -66), UDim2.new(0, 380, 0, 52))
-local fThrV = label(fBot, "SCHUB 0%", UDim2.new(0, 14, 0, 0), UDim2.new(0, 110, 1, 0), GREEN, 14)
-local fGearV = label(fBot, "FAHRWERK ✓", UDim2.new(0, 130, 0, 0), UDim2.new(0, 130, 1, 0), GREEN, 14)
-local fWindV = label(fBot, "WIND --", UDim2.new(0, 265, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
-local fWarn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
-fWarn.Font = Enum.Font.GothamBlack
+-- Flug-HUD-Elemente (in Tabelle FH, haelt die Anzahl Top-Level-Locals klein)
+local FH = {}
+do
+	local fhud = Instance.new("Frame")
+	fhud.BackgroundTransparency = 1
+	fhud.Size = UDim2.fromScale(1, 1)
+	fhud.Visible = false
+	fhud.Parent = gui
+	FH.root = fhud
+	local fSpd = frame(fhud, UDim2.new(0, 14, 0.5, -46), UDim2.new(0, 110, 0, 92))
+	label(fSpd, "SPEED", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
+	FH.spdV = label(fSpd, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
+	FH.spdV.Font = Enum.Font.GothamBold
+	label(fSpd, "kt", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
+	local fAlt = frame(fhud, UDim2.new(1, -124, 0.5, -46), UDim2.new(0, 110, 0, 92))
+	label(fAlt, "ALT (ft)", UDim2.new(0, 0, 0, 8), UDim2.new(1, 0, 0, 14), GREY, 11, Enum.TextXAlignment.Center)
+	FH.altV = label(fAlt, "0", UDim2.new(0, 0, 0, 24), UDim2.new(1, 0, 0, 32), TXT, 26, Enum.TextXAlignment.Center)
+	FH.altV.Font = Enum.Font.GothamBold
+	FH.vsV = label(fAlt, "0 ft/min", UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 16), GREY, 12, Enum.TextXAlignment.Center)
+	local fHdg = frame(fhud, UDim2.new(0.5, -110, 0, 14), UDim2.new(0, 220, 0, 36))
+	FH.hdgV = label(fHdg, "HDG 090°", UDim2.new(0, 0, 0, 0), UDim2.new(1, 0, 1, 0), TXT, 18, Enum.TextXAlignment.Center)
+	FH.hdgV.Font = Enum.Font.GothamBold
+	local fWpt = frame(fhud, UDim2.new(0.5, -110, 0, 58), UDim2.new(0, 220, 0, 64))
+	FH.arrow = label(fWpt, "▲", UDim2.new(0.5, -16, 0, 2), UDim2.new(0, 32, 0, 32), CYAN, 26, Enum.TextXAlignment.Center)
+	FH.wptD = label(fWpt, "", UDim2.new(0, 0, 0, 38), UDim2.new(1, 0, 0, 20), TXT, 13, Enum.TextXAlignment.Center)
+	local fBot = frame(fhud, UDim2.new(0.5, -190, 1, -66), UDim2.new(0, 380, 0, 52))
+	FH.thrV = label(fBot, "SCHUB 0%", UDim2.new(0, 14, 0, 0), UDim2.new(0, 110, 1, 0), GREEN, 14)
+	FH.gearV = label(fBot, "FAHRWERK ✓", UDim2.new(0, 130, 0, 0), UDim2.new(0, 130, 1, 0), GREEN, 14)
+	FH.windV = label(fBot, "WIND --", UDim2.new(0, 265, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
+	FH.warn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
+	FH.warn.Font = Enum.Font.GothamBlack
+end
 
 local function setFlightHUD(on)
-	fhud.Visible = on
+	FH.root.Visible = on
 	legend.Visible = true
 end
 
@@ -1118,6 +1143,7 @@ function startMission(i)
 	buildRings(m)
 	S.job = "captain"
 	S.mode = "fly"
+	promptF.Visible = false -- E-Prompt der Station ausblenden
 	setCharacterHidden(true)
 	camera.CameraType = Enum.CameraType.Scriptable
 	if m.airStart then
@@ -1135,7 +1161,7 @@ function startMission(i)
 		plane.vel = Vector3.new()
 	end
 	syncPlaneMesh()
-	fWindV.Text = string.format("WIND %03d°/%dkt", m.windDir, m.windKt)
+	FH.windV.Text = string.format("WIND %03d°/%dkt", m.windDir, m.windKt)
 	setFlightHUD(true)
 	setJobHUD("CAPTAIN · " .. m.name, missionObjective())
 	toast("Mission gestartet: " .. m.name, "info")
@@ -1174,7 +1200,7 @@ local function updateFlightPhysics(dt)
 	if keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift] then
 		p.throttle = clamp(p.throttle + 45 * dt, 0, 100)
 	end
-	if keys[Enum.KeyCode.LeftControl] or keys[Enum.KeyCode.RightControl] then
+	if keys[Enum.KeyCode.LeftControl] or keys[Enum.KeyCode.RightControl] or keys[Enum.KeyCode.X] then
 		p.throttle = clamp(p.throttle - 45 * dt, 0, 100)
 	end
 	p.brake = keys[Enum.KeyCode.B] == true
@@ -1312,41 +1338,41 @@ end
 
 local function updateFlightHUD()
 	local vAir = plane.vel - wind.vec
-	fSpdV.Text = tostring(math.floor(vAir.Magnitude * KT + 0.5))
-	fAltV.Text = tostring(math.max(0, math.floor(plane.pos.Y * FT + 0.5)))
+	FH.spdV.Text = tostring(math.floor(vAir.Magnitude * KT + 0.5))
+	FH.altV.Text = tostring(math.max(0, math.floor(plane.pos.Y * FT + 0.5)))
 	local vs = math.floor(plane.vel.Y * FPM / 10 + 0.5) * 10
-	fVsV.Text = (vs > 0 and "+" or "") .. vs .. " ft/min"
-	fHdgV.Text = string.format("HDG %03d°", math.floor(planeHeading() + 0.5) % 360)
-	fThrV.Text = "SCHUB " .. math.floor(plane.throttle) .. "%"
+	FH.vsV.Text = (vs > 0 and "+" or "") .. vs .. " ft/min"
+	FH.hdgV.Text = string.format("HDG %03d°", math.floor(planeHeading() + 0.5) % 360)
+	FH.thrV.Text = "SCHUB " .. math.floor(plane.throttle) .. "%"
 	if plane.gearAnim > 0.95 then
-		fGearV.Text = "FAHRWERK ✓"
-		fGearV.TextColor3 = GREEN
+		FH.gearV.Text = "FAHRWERK ✓"
+		FH.gearV.TextColor3 = GREEN
 	elseif plane.gearAnim < 0.05 then
-		fGearV.Text = "FAHRWERK EIN"
-		fGearV.TextColor3 = GREY
+		FH.gearV.Text = "FAHRWERK EIN"
+		FH.gearV.TextColor3 = GREY
 	else
-		fGearV.Text = "FAHRWERK …"
-		fGearV.TextColor3 = GOLD
+		FH.gearV.Text = "FAHRWERK …"
+		FH.gearV.TextColor3 = GOLD
 	end
 	local warn = {}
 	if plane.stalled then table.insert(warn, "STALL") end
 	if flight.active and flight.phase == "land" and plane.pos.Y < 150 and plane.vel.Y < 0 and not plane.onGround and plane.gearAnim < 0.95 then
 		table.insert(warn, "GEAR!")
 	end
-	fWarn.Text = table.concat(warn, "   ")
-	fWarn.Visible = #warn > 0 and (math.floor(os.clock() * 3) % 2 == 0)
+	FH.warn.Text = table.concat(warn, "   ")
+	FH.warn.Visible = #warn > 0 and (math.floor(os.clock() * 3) % 2 == 0)
 	if flight.active then
 		local t = currentTarget()
 		local dx, dz = t.X - plane.pos.X, t.Z - plane.pos.Z
 		local brg = math.deg(math.atan2(dx, -dz)) % 360
 		local rel = (brg - planeHeading() + 540) % 360 - 180
-		fArrow.Rotation = rel
+		FH.arrow.Rotation = rel
 		local dist = math.sqrt(dx * dx + dz * dz)
 		local what = flight.phase == "fly" and "Wegpunkt" or "Runway 09"
 		if dist > 1000 then
-			fWptD.Text = what .. " · " .. string.format("%.1f km", dist / 1000)
+			FH.wptD.Text = what .. " · " .. string.format("%.1f km", dist / 1000)
 		else
-			fWptD.Text = what .. " · " .. math.floor(dist) .. " m"
+			FH.wptD.Text = what .. " · " .. math.floor(dist) .. " m"
 		end
 	end
 end

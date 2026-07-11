@@ -73,7 +73,21 @@ local COL = {
 }
 
 ---------------------------------------------------------------- Boden
-mpart(airport, "Ground", 7000, 1, 7000, 0, -0.5, 0, COL.grass, { Material = Enum.Material.Grass })
+-- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -> grosse Flaechen kacheln!
+-- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
+local function tiled(parent, name, sx, sy, sz, x, y, z, color, props)
+	local MAXM = 1000
+	local nx = math.ceil(sx / MAXM)
+	local nz = math.ceil(sz / MAXM)
+	local tw, td = sx / nx, sz / nz
+	for ix = 0, nx - 1 do
+		for iz = 0, nz - 1 do
+			mpart(parent, name, tw, sy, td,
+				x - sx / 2 + tw * (ix + 0.5), y, z - sz / 2 + td * (iz + 0.5), color, props)
+		end
+	end
+end
+tiled(airport, "Ground", 7000, 1, 7000, 0, -0.5, 0, COL.grass, { Material = Enum.Material.Grass })
 
 -- ein paar Low-Poly-Baeume und Haeuser als Deko
 local deko = Instance.new("Folder"); deko.Name = "Deko"; deko.Parent = airport
@@ -100,7 +114,7 @@ end
 
 ---------------------------------------------------------------- Runway 09/27 (1500 m)
 local RWY_L, RWY_W = 1500, 30
-mpart(airport, "Runway", RWY_L + 40, 0.4, RWY_W, 0, 0.05, 0, COL.asphalt, { Material = Enum.Material.Asphalt })
+tiled(airport, "Runway", RWY_L + 40, 0.4, RWY_W, 0, 0.05, 0, COL.asphalt, { Material = Enum.Material.Asphalt })
 -- Centerline
 for x = -660, 660, 60 do
 	mpart(airport, "CL", 30, 0.1, 0.9, x, 0.3, 0, COL.white, { CanCollide = false })
@@ -129,7 +143,8 @@ for _, t in ipairs({ { -750, 1, "09" }, { 750, -1, "27" } }) do
 	tl.TextColor3 = COL.white
 	tl.TextScaled = true
 	tl.Font = Enum.Font.GothamBlack
-	tl.Rotation = (dir == 1) and 90 or -90
+	-- SurfaceGui-Top-Face: "oben" zeigt Richtung +X -> 0° fuer 09 (Anflug aus Westen), 180° fuer 27
+	tl.Rotation = (dir == 1) and 0 or 180
 	tl.Parent = sg
 end
 -- Randbefeuerung + Schwellenlichter
@@ -160,17 +175,17 @@ papi("PAPI09", -450, -RWY_W / 2 - 8) -- Anflug von Westen
 papi("PAPI27", 450, RWY_W / 2 + 8)   -- Anflug von Osten
 
 ---------------------------------------------------------------- Taxiway + Vorfeld
-mpart(airport, "Taxiway", RWY_L + 40, 0.35, 16, 0, 0.02, 80, COL.taxi)
+tiled(airport, "Taxiway", RWY_L + 40, 0.35, 16, 0, 0.02, 80, COL.taxi)
 for x = -750, 740, 30 do
 	mpart(airport, "TL", 15, 0.1, 0.5, x + 7, 0.3, 80, COL.yellow, { CanCollide = false })
 end
 for _, cx in ipairs({ -700, 0, 700 }) do
-	mpart(airport, "Conn", 16, 0.35, 66, cx, 0.02, 40, COL.taxi)
+	mpart(airport, "Conn", 16, 0.35, 66, cx, -0.02, 40, COL.taxi) -- leicht tiefer gegen Z-Fighting
 	for z = 18, 70, 15 do
 		mpart(airport, "TL", 0.5, 0.1, 8, cx, 0.3, z, COL.yellow, { CanCollide = false })
 	end
 end
-mpart(airport, "Conn2", 20, 0.35, 55, 60, 0.02, 115, COL.taxi)
+mpart(airport, "Conn2", 20, 0.35, 55, 60, -0.02, 115, COL.taxi)
 mpart(airport, "Apron", 320, 0.35, 95, 45, 0.02, 182, COL.apron, { Material = Enum.Material.Concrete })
 for _, px in ipairs({ -40, 40, 130 }) do
 	mpart(airport, "Stand", 0.6, 0.1, 22, px, 0.3, 176, COL.yellow, { CanCollide = false })
@@ -275,9 +290,14 @@ local FLIGHTS = {
 	{ "KL 233", "AMSTERDAM", "15:20", "OPEN" },
 	{ "SK 660", "OSLO", "15:40", "CLOSED" },
 }
+-- Umlaut-sichere Spaltenbreite (utf8.len statt Byte-Laenge)
+local function pad(s, n)
+	local len = utf8.len(s) or #s
+	return s .. string.rep(" ", math.max(0, n - len))
+end
 for i, f in ipairs(FLIGHTS) do
 	local col = f[4] == "OPEN" and Color3.fromRGB(84, 208, 106) or f[4] == "BOARDING" and Color3.fromRGB(255, 215, 94) or Color3.fromRGB(255, 99, 99)
-	boardLine(string.format("%-8s%-14s%-7s%s", f[1], f[2], f[3], f[4]), 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
+	boardLine(pad(f[1], 8) .. pad(f[2], 14) .. f[3], 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
 	local st = boardLine(f[4], 60 + i * 38, col, 22)
 	st.Position = UDim2.new(0, 470, 0, 60 + i * 38)
 end
@@ -298,9 +318,9 @@ mpart(cart, "Cab", 2.2, 1.5, 1.6, 0, 1.6, 1.6, Color3.fromRGB(42, 109, 181))
 mpart(cart, "Windshield", 2, 0.7, 0.15, 0, 2.0, 0.85, COL.glass, { Transparency = 0.5, CanCollide = false })
 mpart(cart, "Bed", 2.3, 0.15, 3.2, 0, 0.95, -1.4, Color3.fromRGB(139, 149, 161))
 for _, w in ipairs({ { -1.1, -1.8 }, { 1.1, -1.8 }, { -1.1, 1.8 }, { 1.1, 1.8 } }) do
+	-- Zylinderachse = X = Radachse (links/rechts): keine Zusatzrotation noetig
 	local wh = mpart(cart, "Wheel", 0.8, 0.35, 0.8, w[1], 0.4, w[2], Color3.fromRGB(22, 24, 28))
 	wh.Shape = Enum.PartType.Cylinder
-	wh.CFrame = CFrame.new(w[1] * M, 0.4 * M, w[2] * M) * CFrame.Angles(0, 0, math.rad(90))
 	wh.Size = Vector3.new(0.35 * M, 0.8 * M, 0.8 * M)
 end
 cart:PivotTo(CFrame.new(-2 * M, 0, 186 * M) * CFrame.Angles(0, 0.4, 0))
