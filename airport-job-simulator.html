@@ -85,6 +85,9 @@
   #tut ul { margin:8px 0 8px 20px; }
   #stars { font-size:34px; color:#ffd75e; letter-spacing:6px; margin:8px 0; }
   #hint-click { position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:8; padding:7px 16px; font-size:13px; color:#9fb4cc; }
+  #marshal { position:fixed; top:26%; left:50%; transform:translateX(-50%); z-index:12; padding:16px 30px; text-align:center; display:none; }
+  #marshal .key { font-size:44px; font-weight:800; color:#ffd75e; }
+  #marshal .what { font-size:16px; color:#e8eef7; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -108,6 +111,7 @@
   <div style="color:#7f96ad"><b>Shift/Strg(X)</b> Schub · <b>G</b> Fahrwerk · <b>F</b> Klappen · <b>B</b> Bremse · <b>C</b> Kamera · <b>R</b> Reset</div>
 </div>
 <div id="hint-click" class="glass">Klicke ins Bild, um die Maus zu fangen (ESC gibt sie frei)</div>
+<div id="marshal" class="glass"><div class="key" id="marshal-key">W</div><div class="what" id="marshal-what"></div></div>
 <div id="panel-wrap"><div id="panel" class="glass"></div></div>
 <div id="tut-wrap"><div id="tut" class="glass"></div></div>
 <div id="flighthud">
@@ -252,28 +256,190 @@ function cyl(rt,rb,h,seg,material,x,y,z){
   return m;
 }
 
-/* ---------------- Terrain ---------------- */
-// Flughafen-Flachzone: x -1300..1300, z -260..420
+/* ---------------- Terrain & Landschafts-Masken ---------------- */
+// Flughafen-Flachzone: x -1400..1400, z -260..480
 function airportFlat(x,z){
-  const dx = Math.max(0, Math.abs(x)-1300);
-  const dz = Math.max(0, Math.max(-260-z, z-420));
+  const dx = Math.max(0, Math.abs(x)-1400);
+  const dz = Math.max(0, Math.max(-260-z, z-480));
   const d = Math.sqrt(dx*dx+dz*dz);
   return clamp(d/260, 0, 1); // 0 = flach
 }
+const CITY = { x:1800, z:1500, r:520 };
+const LAKE = { x:-1700, z:-900, r:340 };
+function riverZ(x){ return -1250 + Math.sin(x*0.0012)*320; } // Fluss nördlich der Bahn
+// Autobahn: Terminal-Parkplatz -> Stadt (2 Segmente)
+const ROAD = [ {x:0,z:352}, {x:0,z:1000}, {x:CITY.x-160, z:CITY.z-120} ];
+function distToSeg(px,pz,a,b){
+  const dx=b.x-a.x, dz=b.z-a.z;
+  const t = clamp(((px-a.x)*dx+(pz-a.z)*dz)/(dx*dx+dz*dz), 0, 1);
+  return Math.hypot(px-(a.x+dx*t), pz-(a.z+dz*t));
+}
+function terrainH(x, z){
+  let h = (smoothNoise(x*0.0012+7, z*0.0012+3)*24 + smoothNoise(x*0.006, z*0.006)*5 - 9);
+  // Flach am Flughafen, in der Stadt und entlang der Autobahn
+  let flat = airportFlat(x, z);
+  flat = Math.min(flat, clamp((Math.hypot(x-CITY.x, z-CITY.z)-CITY.r)/260, 0, 1));
+  for(let i=0;i<ROAD.length-1;i++) flat = Math.min(flat, clamp((distToSeg(x,z,ROAD[i],ROAD[i+1])-40)/140, 0, 1));
+  h *= flat;
+  // Fluss- und Seebett eintiefen
+  const dr = Math.abs(z - riverZ(x));
+  if(dr < 150) h = lerp(Math.min(h, -3), h, clamp((dr-75)/75, 0, 1));
+  const dl = Math.hypot(x-LAKE.x, z-LAKE.z);
+  if(dl < LAKE.r+130) h = lerp(Math.min(h, -3.5), h, clamp((dl-LAKE.r)/130, 0, 1));
+  return h - 0.25;
+}
 (function buildTerrain(){
-  const size = 7000, seg = 72;
+  const size = 7000, seg = 96;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg);
   geo.rotateX(-Math.PI/2);
   const pos = geo.attributes.position;
   for(let i=0;i<pos.count;i++){
-    const x = pos.getX(i), z = pos.getZ(i);
-    const n = smoothNoise(x*0.0012+7, z*0.0012+3)*24 + smoothNoise(x*0.006, z*0.006)*5;
-    pos.setY(i, (n-9) * airportFlat(x,z) - 0.25);
+    pos.setY(i, terrainH(pos.getX(i), pos.getZ(i)));
   }
   geo.computeVertexNormals();
   const ground = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color:0xffffff, map:grassTex }));
   ground.receiveShadow = true;
   scene.add(ground);
+})();
+
+/* ---------------- Landschaft: Fluss, See, Stadt, Berge, Autobahn, Windräder ---------------- */
+const landAnims = []; // wird von envAnims mit aufgerufen
+(function buildLandscape(){
+  const waterM = new THREE.MeshLambertMaterial({ color:0x3a7abf });
+  // Fluss als Segmentkette entlang der Kurve
+  for(let x=-3400; x<3400; x+=250){
+    const z1 = riverZ(x), z2 = riverZ(x+250);
+    const seg = box(280, 0.15, 130, waterM, x+125, -1.5, (z1+z2)/2);
+    seg.rotation.y = -Math.atan2(z2-z1, 250);
+    scene.add(seg);
+  }
+  // See
+  const lake = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r+40, 26), waterM);
+  lake.rotation.x = -Math.PI/2;
+  lake.position.set(LAKE.x, -1.6, LAKE.z);
+  scene.add(lake);
+  // Brücke, wo die Autobahn den Fluss quert? (Fluss ist noerdlich, Autobahn suedlich -> nicht noetig)
+
+  // Stadt: Hochhaus-Skyline (Instancing, per-Instanz skaliert)
+  (function(){
+    const N = 80;
+    const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial(), N);
+    const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const s = new THREE.Vector3();
+    const col = new THREE.Color();
+    const cols = [0x9aa4b0, 0x7f8c9a, 0xb8c2cc, 0x6f8fa8, 0x8899aa];
+    for(let i=0;i<N;i++){
+      const a = rand(0, Math.PI*2), rr = Math.sqrt(Math.random())*CITY.r*0.85;
+      const bx = CITY.x + Math.cos(a)*rr, bz = CITY.z + Math.sin(a)*rr;
+      const hgt = rr < 200 ? rand(35, 95) : rand(12, 40); // Zentrum hoch, Rand flach
+      q.setFromEuler(new THREE.Euler(0, Math.floor(rand(0,4))*Math.PI/2, 0));
+      s.set(rand(14, 30), hgt, rand(14, 30));
+      m4.compose(new THREE.Vector3(bx, terrainH(bx, bz)+0.2, bz), q, s);
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, col.setHex(pick(cols)));
+    }
+    if(im.instanceColor) im.instanceColor.needsUpdate = true;
+    scene.add(im);
+    // Fernsehturm als Wahrzeichen
+    scene.add(cyl(3, 6, 130, 8, mat(0xc5ccd4), CITY.x, 65, CITY.z));
+    const kugel = new THREE.Mesh(new THREE.SphereGeometry(9, 10, 8), mat(0x8fa8bf));
+    kugel.position.set(CITY.x, 105, CITY.z); scene.add(kugel);
+  })();
+
+  // Berge am Horizont (mit Schneekappen)
+  for(let i=0;i<16;i++){
+    const a = rand(0, Math.PI*2);
+    const rr = rand(3000, 3800);
+    const mx = Math.cos(a)*rr, mz = Math.sin(a)*rr;
+    const h = rand(260, 560), r = h*rand(1.3, 1.9);
+    const berg = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), mat(0x5d7263));
+    berg.position.set(mx, h/2-40, mz);
+    scene.add(berg);
+    const schnee = new THREE.Mesh(new THREE.ConeGeometry(r*0.32, h*0.3, 7), mat(0xeef2f5));
+    schnee.position.set(mx, h-40-h*0.15+2, mz);
+    scene.add(schnee);
+  }
+
+  // Autobahn mit Mittellinie
+  const roadM = mat(0x44474e);
+  for(let i=0;i<ROAD.length-1;i++){
+    const a = ROAD[i], b = ROAD[i+1];
+    const len = Math.hypot(b.x-a.x, b.z-a.z);
+    const seg = box(14, 0.25, len+8, roadM, (a.x+b.x)/2, 0.02, (a.z+b.z)/2);
+    seg.rotation.y = -Math.atan2(b.x-a.x, b.z-a.z);
+    seg.receiveShadow = true; scene.add(seg);
+    const n = Math.floor(len/26);
+    for(let k=0;k<n;k++){
+      const t = (k+0.5)/n;
+      const dash = box(0.4, 0.06, 9, mat(0xd8d8d8), a.x+(b.x-a.x)*t, 0.2, a.z+(b.z-a.z)*t);
+      dash.rotation.y = -Math.atan2(b.x-a.x, b.z-a.z);
+      scene.add(dash);
+    }
+  }
+  // Fahrende Autos auf der Autobahn
+  (function(){
+    const pts = ROAD;
+    const lens = []; let total = 0;
+    for(let i=0;i<pts.length-1;i++){ const l = Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].z-pts[i].z); lens.push(l); total += l; }
+    function roadPos(s){
+      s = ((s % total) + total) % total;
+      for(let i=0;i<lens.length;i++){
+        if(s <= lens[i]){
+          const t = s/lens[i], a = pts[i], b = pts[i+1];
+          return { x:a.x+(b.x-a.x)*t, z:a.z+(b.z-a.z)*t, ang:-Math.atan2(b.x-a.x, b.z-a.z) };
+        }
+        s -= lens[i];
+      }
+      return { x:pts[0].x, z:pts[0].z, ang:0 };
+    }
+    const N = 14;
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(2, 1.4, 4.2), new THREE.MeshLambertMaterial(), N);
+    const col = new THREE.Color();
+    const cars = [];
+    for(let i=0;i<N;i++){
+      im.setColorAt(i, col.setHex(pick([0xb8b8b8, 0x2f3a4a, 0x8f2f24, 0x3a6fb0, 0xd9d2c4, 0x555])));
+      cars.push({ s: rand(0, total), dir: i%2 ? 1 : -1, v: rand(16, 24) });
+    }
+    if(im.instanceColor) im.instanceColor.needsUpdate = true;
+    scene.add(im);
+    const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const e = new THREE.Euler();
+    landAnims.push((t, dt)=>{
+      cars.forEach((c, i)=>{
+        c.s += c.v*c.dir*dt;
+        const p = roadPos(c.s);
+        const side = 3 * c.dir;
+        q.setFromEuler(e.set(0, p.ang + (c.dir<0 ? Math.PI : 0), 0));
+        m4.compose(new THREE.Vector3(p.x + Math.cos(p.ang)*side, 0.9, p.z - Math.sin(p.ang)*side*0 + Math.sin(p.ang)*0), q, new THREE.Vector3(1,1,1));
+        // seitlicher Versatz senkrecht zur Fahrbahn
+        const ox = Math.cos(p.ang)*side, oz = Math.sin(p.ang)*side;
+        m4.setPosition(p.x + ox, 0.9, p.z + oz);
+        im.setMatrixAt(i, m4);
+      });
+      im.instanceMatrix.needsUpdate = true;
+    });
+  })();
+
+  // Windräder auf den Hügeln westlich (drehen sich)
+  for(const [wx, wz] of [[-1750, 350],[-1950, 620],[-2150, 200],[-1600, 800],[-2300, 500]]){
+    const base = terrainH(wx, wz);
+    const g = new THREE.Group();
+    g.add(cyl(0.9, 1.6, 46, 8, mat(0xe8ecef), 0, 23, 0));
+    g.add(box(3.2, 2.2, 2.2, mat(0xdde2e6), 0, 46.5, 0));
+    const rotor = new THREE.Group();
+    for(let b=0;b<3;b++){
+      const blade = box(1.4, 19, 0.35, mat(0xf2f5f7), 0, 9.5, 0);
+      const holder = new THREE.Group();
+      holder.rotation.z = b * Math.PI*2/3;
+      holder.add(blade);
+      rotor.add(holder);
+    }
+    rotor.position.set(0, 46.5, -1.6);
+    g.add(rotor);
+    g.position.set(wx, base, wz);
+    g.rotation.y = rand(-0.4, 0.4);
+    scene.add(g);
+    landAnims.push((t, dt)=>{ rotor.rotation.z += dt*1.1; });
+  }
 })();
 
 /* Bäume + Häuser als Instancing */
@@ -285,11 +451,14 @@ function airportFlat(x,z){
   const crowns = new THREE.InstancedMesh(crownG, mat(0x39702e), N);
   const m4 = new THREE.Matrix4(); const q = new THREE.Quaternion(); const s = new THREE.Vector3();
   let placed = 0, tries = 0;
-  while(placed<N && tries<4000){
+  while(placed<N && tries<6000){
     tries++;
     const x = rand(-3200,3200), z = rand(-3200,3200);
     if(airportFlat(x,z) < 0.55) continue;
-    const y = 0; const sc = rand(0.7,1.6);
+    if(Math.hypot(x-CITY.x, z-CITY.z) < CITY.r+120) continue;
+    if(Math.hypot(x-LAKE.x, z-LAKE.z) < LAKE.r+140) continue;
+    if(Math.abs(z - riverZ(x)) < 160) continue;
+    const y = terrainH(x, z); const sc = rand(0.7,1.6);
     q.setFromEuler(new THREE.Euler(0, rand(0,6.28), 0));
     s.set(sc,sc,sc);
     m4.compose(new THREE.Vector3(x, y+2.5*sc, z), q, s); trunks.setMatrixAt(placed, m4);
@@ -305,15 +474,19 @@ function airportFlat(x,z){
   const bodies = new THREE.InstancedMesh(bodyG, mat(0xd8cfc0), H);
   const roofs = new THREE.InstancedMesh(roofG, mat(0xa0522d), H);
   let hp=0; tries=0;
-  while(hp<H && tries<3000){
+  while(hp<H && tries<5000){
     tries++;
     const x = rand(-2800,2800), z = rand(-2800,2800);
     if(airportFlat(x,z) < 0.75) continue;
+    if(Math.hypot(x-CITY.x, z-CITY.z) < CITY.r+140) continue;
+    if(Math.hypot(x-LAKE.x, z-LAKE.z) < LAKE.r+150) continue;
+    if(Math.abs(z - riverZ(x)) < 170) continue;
+    const gy = terrainH(x, z);
     const rot = Math.floor(rand(0,4))*Math.PI/2;
     q.setFromEuler(new THREE.Euler(0, rot, 0)); s.set(rand(0.8,1.5),rand(0.8,1.3),rand(0.8,1.5));
-    m4.compose(new THREE.Vector3(x, 3*s.y, z), q, s); bodies.setMatrixAt(hp, m4);
+    m4.compose(new THREE.Vector3(x, gy+3*s.y, z), q, s); bodies.setMatrixAt(hp, m4);
     q.setFromEuler(new THREE.Euler(0, rot+Math.PI/4, 0));
-    m4.compose(new THREE.Vector3(x, 6*s.y+2*s.y, z), q, s); roofs.setMatrixAt(hp, m4);
+    m4.compose(new THREE.Vector3(x, gy+6*s.y+2*s.y, z), q, s); roofs.setMatrixAt(hp, m4);
     hp++;
   }
   bodies.count = roofs.count = hp;
@@ -447,10 +620,10 @@ function updatePapis(px, py, pz){
 
 /* Apron / Vorfeld */
 (function buildApron(){
-  const ap = box(320, 0.18, 95, new THREE.MeshLambertMaterial({ color:0xffffff, map:concreteTex }), 45, 0, 182);
+  const ap = box(510, 0.18, 95, new THREE.MeshLambertMaterial({ color:0xffffff, map:concreteTex }), 45, 0, 182);
   ap.receiveShadow = true; scene.add(ap);
-  // Parkpositions-Markierungen
-  for(const px of [-40, 40, 130]){
+  // Parkpositions-Markierungen (Gate 4 bei -130 bleibt frei für den Marshaller-Job)
+  for(const px of [-130, -40, 40, 130, 200]){
     scene.add(box(0.6,0.06,22, mat(0xd8b62a), px, 0.24, 176));
     scene.add(box(14,0.06,0.6, mat(0xd8b62a), px, 0.24, 165));
   }
@@ -524,21 +697,179 @@ function makeJet(color){
   bogie(-1.4, 3.6, 2); bogie(1.4, 3.6, 2);
   return g;
 }
+/* Weitere Flugzeugtypen (alle: Ursprung am Boden, Nase Richtung -Z) */
+function makeNarrowbody(color){ // A320-Klasse
+  const g = new THREE.Group();
+  const white = mat(0xf4f4f6), dk = mat(0x2a3644);
+  const tube = cyl(1.65, 1.65, 24, 12, white, 0, 2.6, 0);
+  tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.65, 10, 8), white);
+  nose.position.set(0, 2.6, -12.6); nose.scale.z = 1.5; g.add(nose);
+  g.add(box(1.9, 0.45, 0.5, mat(0x10151c), 0, 3.4, -13.2));
+  const tc = cyl(0.25, 1.65, 7, 10, white, 0, 3.1, 15); tc.rotation.x = Math.PI/2 + 0.1; g.add(tc);
+  for(const sx of [-1,1]){
+    g.add(box(0.05, 0.3, 21, dk, sx*1.63, 3.1, 0));
+    g.add(box(0.04, 0.4, 24, mat(color), sx*1.66, 2.2, 0));
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(15, 0.32, 4.4), white.clone());
+    wing.geometry.translate(7.5, 0, 1.1);
+    wing.position.set(sx*1.4, 1.9, 0.6);
+    wing.rotation.y = sx>0 ? -0.45 : Math.PI + 0.45;
+    wing.rotation.z = sx*0.06;
+    wing.castShadow = true; g.add(wing);
+    const wl = box(0.15, 1.6, 1.2, mat(color), sx*14.4, 3.0, 6.8); g.add(wl); // Winglet!
+    const eng = cyl(0.95, 0.95, 2.8, 10, mat(0xaab0b8), sx*4.6, 1.35, 2.2);
+    eng.rotation.x = Math.PI/2; g.add(eng);
+    const hs = new THREE.Mesh(new THREE.BoxGeometry(6, 0.25, 2.6), white.clone());
+    hs.geometry.translate(3, 0, 0.8);
+    hs.position.set(sx*0.3, 3.3, 14.6);
+    hs.rotation.y = sx>0 ? -0.5 : Math.PI + 0.5;
+    g.add(hs);
+  }
+  const fin = box(0.35, 6, 3.6, mat(color), 0, 6.2, 14.6); fin.rotation.x = -0.3; fin.castShadow = true; g.add(fin);
+  g.add(cyl(0.16,0.16,1.7,6, mat(0x3a3d44), 0, 0.95, -9.5));
+  for(const [gx,gz] of [[-1.9,1.4],[1.9,1.4],[0,-9.5]]){
+    const wh = cyl(0.42,0.42,0.7,8, mat(0x14161a), gx, 0.42, gz); wh.rotation.z = Math.PI/2; g.add(wh);
+    if(gz>0) g.add(cyl(0.16,0.16,1.7,6, mat(0x3a3d44), gx, 0.95, gz));
+  }
+  return g;
+}
+function makeJumbo(color){ // B747-Klasse: Buckel nur vorn, 4 Triebwerke
+  const g = new THREE.Group();
+  const white = mat(0xf4f4f6), dk = mat(0x2a3644);
+  const tube = cyl(2.05, 2.05, 30, 12, white, 0, 2.9, 1);
+  tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
+  const hump = cyl(1.35, 1.35, 10, 10, white, 0, 4.9, -8.5);
+  hump.rotation.x = Math.PI/2; g.add(hump);
+  const humpTail = cyl(0.3, 1.35, 5, 8, white, 0, 4.9, -1.5); humpTail.rotation.x = Math.PI/2 + 0.2; g.add(humpTail);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(2.05, 10, 8), white);
+  nose.position.set(0, 2.9, -14.4); nose.scale.z = 1.4; g.add(nose);
+  const noseUp = new THREE.Mesh(new THREE.SphereGeometry(1.35, 8, 7), white);
+  noseUp.position.set(0, 4.9, -13); noseUp.scale.z = 1.4; g.add(noseUp);
+  g.add(box(2.2, 0.45, 0.5, mat(0x10151c), 0, 4.15, -14.6));
+  const tc = cyl(0.3, 2.05, 8, 10, white, 0, 3.5, 20); tc.rotation.x = Math.PI/2 + 0.1; g.add(tc);
+  for(const sx of [-1,1]){
+    g.add(box(0.06, 0.32, 27, dk, sx*2.03, 3.4, 1));
+    g.add(box(0.05, 0.45, 29, mat(color), sx*2.06, 4.0, 1));
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(21, 0.4, 6), white.clone());
+    wing.geometry.translate(10.5, 0, 1.4);
+    wing.position.set(sx*1.7, 2.4, 1.8);
+    wing.rotation.y = sx>0 ? -0.55 : Math.PI + 0.55;
+    wing.rotation.z = sx*0.055;
+    wing.castShadow = true; g.add(wing);
+    for(const [ex, ez] of [[6.2, 4.6],[11.5, 7.9]]){
+      const eng = cyl(1.0, 1.0, 3.2, 10, mat(0xaab0b8), sx*ex, 1.35, ez);
+      eng.rotation.x = Math.PI/2; g.add(eng);
+    }
+    const hs = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.28, 3), white.clone());
+    hs.geometry.translate(3.75, 0, 1);
+    hs.position.set(sx*0.4, 3.7, 19);
+    hs.rotation.y = sx>0 ? -0.55 : Math.PI + 0.55;
+    g.add(hs);
+  }
+  const fin = box(0.4, 8, 4.6, mat(color), 0, 7.6, 18.8); fin.rotation.x = -0.3; fin.castShadow = true; g.add(fin);
+  for(const [gx,gz] of [[0,-11],[-2.2,2.5],[2.2,2.5],[-1.2,4.2],[1.2,4.2]]){
+    g.add(cyl(0.2,0.2,1.9,6, mat(0x3a3d44), gx, 1.2, gz));
+    const wh = cyl(0.48,0.48,0.8,8, mat(0x14161a), gx, 0.48, gz); wh.rotation.z = Math.PI/2; g.add(wh);
+  }
+  return g;
+}
+function makeTurboprop(color){ // ATR-Klasse: Hochdecker, T-Leitwerk, 2 Props
+  const g = new THREE.Group();
+  const white = mat(0xf4f4f6);
+  const tube = cyl(1.25, 1.25, 17, 10, white, 0, 2.2, 0);
+  tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.25, 9, 8), white);
+  nose.position.set(0, 2.2, -8.6); nose.scale.z = 1.4; g.add(nose);
+  g.add(box(1.5, 0.4, 0.4, mat(0x10151c), 0, 2.8, -9.1));
+  const tc = cyl(0.35, 1.25, 5.5, 8, white, 0, 2.8, 11); tc.rotation.x = Math.PI/2 + 0.15; g.add(tc);
+  const wing = box(19, 0.3, 2.6, white, 0, 3.5, -0.5); wing.castShadow = true; g.add(wing);
+  g.add(box(19, 0.06, 0.5, mat(color), 0, 3.6, -1.4));
+  for(const sx of [-1,1]){
+    const eng = box(1.1, 1.2, 3.2, mat(0xaab0b8), sx*3.6, 3.1, -1.2); g.add(eng);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1.7, 18),
+      new THREE.MeshBasicMaterial({ color:0x30343a, transparent:true, opacity:0.3, side:THREE.DoubleSide }));
+    disc.position.set(sx*3.6, 3.1, -2.9); g.add(disc);
+    g.add(box(0.05, 0.28, 14, mat(0x2a3644), sx*1.23, 2.5, 0));
+  }
+  const fin = box(0.3, 4.2, 2.6, mat(color), 0, 5.2, 12.6); fin.rotation.x = -0.25; fin.castShadow = true; g.add(fin);
+  g.add(box(7, 0.22, 2.0, white, 0, 7.15, 13.4)); // T-Leitwerk oben
+  for(const [gx,gz] of [[0,-6.5],[-1.0,0.8],[1.0,0.8]]){
+    g.add(cyl(0.12,0.12,1.1,6, mat(0x3a3d44), gx, 0.6, gz));
+    const wh = cyl(0.35,0.35,0.4,8, mat(0x14161a), gx, 0.35, gz); wh.rotation.z = Math.PI/2; g.add(wh);
+  }
+  return g;
+}
+function makeBizjet(color){ // Businessjet: T-Leitwerk, Hecktriebwerke
+  const g = new THREE.Group();
+  const white = mat(0xf7f7f9);
+  const tube = cyl(0.85, 0.85, 11, 10, white, 0, 1.7, 0);
+  tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.85, 9, 8), white);
+  nose.position.set(0, 1.7, -5.6); nose.scale.z = 1.7; g.add(nose);
+  g.add(box(1.0, 0.32, 0.35, mat(0x10151c), 0, 2.1, -6.0));
+  const tc = cyl(0.2, 0.85, 3.6, 8, white, 0, 2.0, 7.1); tc.rotation.x = Math.PI/2 + 0.12; g.add(tc);
+  for(const sx of [-1,1]){
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.2, 2.2), white.clone());
+    wing.geometry.translate(3.75, 0, 0.7);
+    wing.position.set(sx*0.7, 1.2, 0.6);
+    wing.rotation.y = sx>0 ? -0.45 : Math.PI + 0.45;
+    wing.rotation.z = sx*0.09;
+    g.add(wing);
+    const eng = cyl(0.5, 0.5, 1.9, 8, mat(0x9aa0a8), sx*1.35, 2.3, 4.9);
+    eng.rotation.x = Math.PI/2; g.add(eng);
+    g.add(box(0.05, 0.25, 8, mat(0x2a3644), sx*0.84, 1.95, -0.5));
+    g.add(box(0.04, 0.3, 10, mat(color), sx*0.86, 1.35, 0));
+  }
+  const fin = box(0.22, 2.8, 2.0, mat(color), 0, 3.6, 7.6); fin.rotation.x = -0.3; g.add(fin);
+  g.add(box(4.6, 0.16, 1.5, white, 0, 5.05, 8.3)); // T-Leitwerk
+  for(const [gx,gz] of [[0,-4.2],[-0.9,0.9],[0.9,0.9]]){
+    g.add(cyl(0.08,0.08,0.9,6, mat(0x3a3d44), gx, 0.45, gz));
+    const wh = cyl(0.26,0.26,0.3,8, mat(0x14161a), gx, 0.26, gz); wh.rotation.z = Math.PI/2; g.add(wh);
+  }
+  return g;
+}
+
 const JET_INFO = [
   { name:'LH 452 · MÜNCHEN', color:0x2255cc, colName:'BLAU',   x:-40, z:165, hex:'#3a6fe8' },
   { name:'EW 771 · WIEN',    color:0xe07820, colName:'ORANGE', x: 40, z:165, hex:'#e07820' },
 ];
 const jets = [];
-for(const ji of JET_INFO){
+// Gate 1: A380 (begehbar) · Gate 2: A320
+{
+  const ji = JET_INFO[0];
   const j = makeJet(ji.color);
   j.position.set(ji.x, 0, ji.z);
   scene.add(j);
   jets.push(Object.assign({ obj:j }, ji));
-  // Rumpf + die vier Triebwerke blockieren (unter den Flügeln kann man durchfahren)
   addCollider(ji.x-3.4, ji.z-19.5, ji.x+3.4, ji.z+23);
   for(const sx of [-1,1]) for(const [ex,ez] of ENGINE_POS){
     addCollider(ji.x+sx*ex-1.5, ji.z+ez-2.2, ji.x+sx*ex+1.5, ji.z+ez+2.2);
   }
+}
+{
+  const ji = JET_INFO[1];
+  const j = makeNarrowbody(ji.color);
+  j.position.set(ji.x, 0, ji.z);
+  scene.add(j);
+  jets.push(Object.assign({ obj:j }, ji));
+  addCollider(ji.x-2.2, ji.z-15, ji.x+2.2, ji.z+17);
+  for(const sx of [-1,1]) addCollider(ji.x+sx*4.6-1.2, ji.z+1, ji.x+sx*4.6+1.2, ji.z+3.6);
+}
+// Weitere Deko-Flieger: B747 an Gate 5, ATR-Turboprop, Businessjet
+{
+  const j747 = makeJumbo(0x2a7a4a);
+  j747.position.set(200, 0, 168);
+  scene.add(j747);
+  addCollider(197, 150, 203, 190);
+  const atr = makeTurboprop(0xb03030);
+  atr.position.set(-185, 0, 172);
+  scene.add(atr);
+  addCollider(-187.5, 162, -182.5, 185);
+  const biz = makeBizjet(0x4a5a8f);
+  biz.position.set(268, 0, 182);
+  biz.rotation.y = 0.5;
+  scene.add(biz);
+  addCollider(264, 174, 272, 190); // grob um den Bizjet
 }
 
 /* Terminal */
@@ -725,6 +1056,24 @@ const cart = (function(){
 })();
 cart.obj.rotation.y = cart.yaw;
 
+/* Tankwagen (fahrbar, parkt am Fuel Depot) */
+const fuelTruck = (function(){
+  const g = new THREE.Group();
+  g.add(box(2.4, 1.1, 6.4, mat(0xd9d2c4), 0, 1.0, 0));
+  const tank = cyl(1.0, 1.0, 4.6, 12, mat(0xcac2b2), 0, 1.9, -0.6);
+  tank.rotation.x = Math.PI/2; g.add(tank);
+  g.add(box(2.2, 1.3, 1.6, mat(0x8f2f24), 0, 1.1, 3.1)); // Kabine vorn (+Z = Fahrtrichtung)
+  g.add(box(2.0, 0.6, 0.12, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.5 }), 0, 1.6, 2.4));
+  for(const [wx, wz] of [[-1.05,2.2],[1.05,2.2],[-1.05,-1.6],[1.05,-1.6],[-1.05,-2.6],[1.05,-2.6]]){
+    const w = cyl(0.5, 0.5, 0.4, 10, mat(0x16181c), wx, 0.5, wz);
+    w.rotation.z = Math.PI/2; g.add(w);
+  }
+  g.position.set(-146, 0, 216);
+  scene.add(g);
+  return { obj:g, yaw: 2.0, vel: new THREE.Vector3(), load: [] };
+})();
+fuelTruck.obj.rotation.y = fuelTruck.yaw;
+
 /* ============================================================
    REALISMUS-AUSSTATTUNG · Befeuerung, Markierungen, GSE, Deko
    ============================================================ */
@@ -794,14 +1143,14 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
   }
 
   /* --- Vorfeld: rote Sicherheitslinie, Gate-Schilder, Pylonen --- */
-  scene.add(box(300, 0.06, 0.35, red, 45, 0.26, 141));
-  for(const [i, px] of [[-40, 0],[40, 1],[130, 2]].map((v,i)=>[i, v[0]])){
+  scene.add(box(490, 0.06, 0.35, red, 45, 0.26, 141));
+  [-130, -40, 40, 130, 200].forEach((px, i)=>{
     const tx = textSignTex('GATE ' + (i+1), '#15202f', '#ffd75e', 384, 128, 58);
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.4), new THREE.MeshBasicMaterial({ map: tx }));
     sg.position.set(px, 5.2, 138); // vor der Flugzeugnase
     scene.add(sg);
     scene.add(cyl(0.12, 0.12, 5.2, 6, mat(0x666e78), px, 2.6, 138.2));
-  }
+  });
   (function(){
     const spots = [];
     for(const jx of [-40, 40]) for(const [ox, oz] of [[-9,-9],[9,-9],[-12,4],[12,4],[-6,14],[6,14]]) spots.push([jx+ox, 165+oz]);
@@ -811,18 +1160,8 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
     scene.add(cones);
   })();
 
-  /* --- Bodengeräte: Tankwagen, Gangway-Treppe, Pushback-Tug --- */
+  /* --- Bodengeräte: Gangway-Treppe, Pushback-Tug (Tankwagen ist jetzt fahrbar, s. u.) --- */
   (function(){
-    const fuel = new THREE.Group();
-    fuel.add(box(2.4, 1.1, 6.4, mat(0xd9d2c4), 0, 1.0, 0));
-    const tank = cyl(1.0, 1.0, 4.6, 12, mat(0xcac2b2), 0, 1.9, 0.6); tank.rotation.x = Math.PI/2; fuel.add(tank);
-    fuel.add(box(2.2, 1.3, 1.6, mat(0x8f2f24), 0, 1.1, -3.1));
-    for(const [wx, wz] of [[-1.05,-2.2],[1.05,-2.2],[-1.05,1.6],[1.05,1.6],[-1.05,2.6],[1.05,2.6]]){
-      const w = cyl(0.5, 0.5, 0.4, 10, mat(0x16181c), wx, 0.5, wz); w.rotation.z = Math.PI/2; fuel.add(w);
-    }
-    fuel.position.set(-72, 0, 190); fuel.rotation.y = 0.5;
-    scene.add(fuel);
-    addCollider(-76, 186, -68, 194);
 
     // Boarding-Treppe an der vorderen linken Tür des A380 (Gate 1)
     const stairs = new THREE.Group();
@@ -900,6 +1239,80 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
     }
   })();
 
+  /* --- Parkdeck: 3 Ebenen, begehbar über das Treppenhaus --- */
+  (function(){
+    const PD = { x1:-166, x2:-84, z1:308, z2:352 };
+    const cx = (PD.x1+PD.x2)/2, cz = (PD.z1+PD.z2)/2, w = PD.x2-PD.x1, d = PD.z2-PD.z1;
+    const slabM = new THREE.MeshLambertMaterial({ color:0xffffff, map:concreteTex });
+    // Bodenplatte + 2 Decks + Dachkante
+    const g0 = box(w, 0.2, d, slabM, cx, 0.02, cz); g0.receiveShadow = true; scene.add(g0);
+    for(const y of [3.3, 6.7]){
+      const slab = box(w, 0.28, d, slabM, cx, y, cz);
+      slab.castShadow = slab.receiveShadow = true; scene.add(slab);
+    }
+    // Brüstungen auf Ebene 2 + Dach
+    for(const y of [4.1, 7.5]){
+      scene.add(box(w, 0.9, 0.25, mat(0xaab2ba), cx, y, PD.z1));
+      scene.add(box(w, 0.9, 0.25, mat(0xaab2ba), cx, y, PD.z2));
+      scene.add(box(0.25, 0.9, d, mat(0xaab2ba), PD.x1, y, cz));
+      scene.add(box(0.25, 0.9, d, mat(0xaab2ba), PD.x2, y, cz));
+    }
+    // Stützen + Bodenkollision
+    for(let x=PD.x1+6; x<PD.x2; x+=16){
+      for(const z of [PD.z1+8, PD.z2-8]){
+        scene.add(box(0.7, 6.7, 0.7, mat(0x9aa2aa), x, 3.35, z));
+        addCollider(x-0.5, z-0.5, x+0.5, z+0.5);
+      }
+    }
+    // Zufahrtsrampe (Deko) an der Ostseite
+    const ramp = box(7, 0.25, 26, mat(0x565a60), PD.x2-4, 1.6, cz);
+    ramp.rotation.x = -0.26; scene.add(ramp);
+    // Treppenhaus
+    scene.add(box(5, 8.6, 5, mat(0x8a929e), -161, 4.3, 310.8));
+    addCollider(-163.5, 308.3, -158.5, 313.3);
+    const pSign = new THREE.Mesh(new THREE.PlaneGeometry(3, 3),
+      new THREE.MeshBasicMaterial({ map: textSignTex('P', '#1a3a7a', '#ffffff', 128, 128, 96) }));
+    pSign.position.set(-161, 9.5, 311);
+    scene.add(pSign);
+    // Autos auf allen Ebenen
+    const NC = 26;
+    const pdBodies = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 0.9, 4.4), new THREE.MeshLambertMaterial(), NC);
+    const pdCabs = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 0.7, 2.2), mat(0x222831), NC);
+    const m4 = new THREE.Matrix4(); const col = new THREE.Color();
+    let ci = 0;
+    for(const y of [0.6, 4.0, 7.4]){
+      for(let x=PD.x1+10; x<PD.x2-8 && ci<NC; x+=8){
+        if(Math.random() < 0.35) continue;
+        pdBodies.setColorAt(ci, col.setHex(pick([0xb8b8b8, 0x2f3a4a, 0x8f2f24, 0x3a6fb0, 0x3f3f3f, 0xd9d2c4])));
+        m4.setPosition(x, y, cz + (Math.random()<0.5 ? -12 : 12));
+        pdBodies.setMatrixAt(ci, m4);
+        m4.setPosition(x, y+0.75, cz + (m4.elements[14]/1 > cz ? 12.4 : -11.6));
+        pdCabs.setMatrixAt(ci, m4);
+        ci++;
+      }
+    }
+    pdBodies.count = pdCabs.count = ci;
+    if(pdBodies.instanceColor) pdBodies.instanceColor.needsUpdate = true;
+    scene.add(pdBodies, pdCabs);
+  })();
+
+  /* --- Tanklager (Fuel Depot) am Westende des Vorfelds --- */
+  (function(){
+    for(const dz of [-4, 4]){
+      const tank = cyl(2.2, 2.2, 9, 12, mat(0xd9d2c4), 0, 0, 0);
+      tank.rotation.z = Math.PI/2;
+      tank.position.set(-152, 2.4, 208+dz);
+      scene.add(tank);
+    }
+    scene.add(box(10, 0.3, 14, mat(0x565a60), -152, 0.15, 208));
+    const fs = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.2),
+      new THREE.MeshBasicMaterial({ map: textSignTex('⛽ FUEL DEPOT', '#442200', '#ffd75e', 512, 96, 52) }));
+    fs.position.set(-152, 5.6, 202.8);
+    scene.add(fs);
+    scene.add(box(0.15, 5.0, 0.15, mat(0x666e78), -152, 2.5, 203));
+    addCollider(-157, 203.5, -147, 212.5);
+  })();
+
   /* --- Parkplatz mit Autos hinter dem Terminal --- */
   (function(){
     const lot = box(110, 0.14, 34, new THREE.MeshLambertMaterial({ color:0xffffff, map:concreteTex }), -8, 0, 322);
@@ -953,8 +1366,10 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
    Welt-Koordinaten; Jet A steht bei (-40, 165), Nase Richtung -Z
    ============================================================ */
 const CABIN = {
-  main:  { x1:-42.0, x2:-38.0, z1:151.0, z2:179.4, y:1.62 },
-  upper: { x1:-41.2, x2:-38.8, z1:156.2, z2:171.8, y:4.05 },
+  main:  { x1:-42.0, x2:-38.0, z1:151.0, z2:179.4, y:1.62, ceil:3.72 },
+  upper: { x1:-41.2, x2:-38.8, z1:156.2, z2:171.8, y:4.05, ceil:6.1 },
+  p2:    { x1:-166, x2:-84, z1:308, z2:352, y:3.45, ceil:6.2 },  // Parkdeck Ebene 2
+  p3:    { x1:-166, x2:-84, z1:308, z2:352, y:6.85 },            // Parkdeck Ebene 3 (offen)
 };
 (function buildA380Interior(){
   const JX = -40, JZ = 165;
@@ -1092,12 +1507,13 @@ const engineSound = (function(){
    ============================================================ */
 const S = {
   credits: 0, xp: 0,
-  job: null,            // null | 'checkin' | 'ramp' | 'captain'
+  job: null,            // null | 'checkin' | 'ramp' | 'fuel' | 'marshal' | 'captain'
   mode: 'walk',         // walk | cart | fly | ui
+  vehicle: null,        // aktives Fahrzeug (cart | fuelTruck)
   tutorialSeen: {},
   camMode: 'chase',     // im Flug: chase | cockpit
 };
-const UNLOCK_RAMP = 500, UNLOCK_CAPTAIN = 2000;
+const UNLOCK_RAMP = 500, UNLOCK_FUEL = 1000, UNLOCK_MARSHAL = 1500, UNLOCK_CAPTAIN = 2000;
 const level = ()=>Math.floor(S.xp/100)+1;
 
 const $ = id=>document.getElementById(id);
@@ -1107,6 +1523,8 @@ function updateHUD(){
   $('hud-xpfill').style.width = (S.xp % 100) + '%';
   let prog = 'Alle Jobs freigeschaltet ✈';
   if(S.credits < UNLOCK_RAMP) prog = 'Noch ' + (UNLOCK_RAMP-S.credits) + ' Credits bis Ramp Agent';
+  else if(S.credits < UNLOCK_FUEL) prog = 'Noch ' + (UNLOCK_FUEL-S.credits) + ' Credits bis Tankwagen';
+  else if(S.credits < UNLOCK_MARSHAL) prog = 'Noch ' + (UNLOCK_MARSHAL-S.credits) + ' Credits bis Marshaller';
   else if(S.credits < UNLOCK_CAPTAIN) prog = 'Noch ' + (UNLOCK_CAPTAIN-S.credits) + ' Credits bis Captain';
   $('hud-progress').textContent = prog;
 }
@@ -1273,7 +1691,7 @@ function updateCamera(dt){
   let focus, dist, hgt;
   if(S.mode === 'fly'){ updateFlightCamera(dt); return; }
   if(S.mode === 'cart'){
-    focus = cart.obj.position.clone().add(new THREE.Vector3(0,1.6,0));
+    focus = (S.vehicle || cart).obj.position.clone().add(new THREE.Vector3(0,1.6,0));
     dist = 10; hgt = 0;
   } else {
     focus = player.pos.clone().add(new THREE.Vector3(0, player.deck ? 1.35 : 1.7, 0));
@@ -1286,8 +1704,8 @@ function updateCamera(dt){
   ).multiplyScalar(dist);
   const want = focus.clone().add(off);
   want.y = Math.max(want.y, 0.6);
-  if(S.mode==='walk' && player.deck==='main') want.y = Math.min(want.y, 3.72);
-  if(S.mode==='walk' && player.deck==='upper') want.y = Math.min(want.y, 6.1);
+  const zone = S.mode==='walk' && player.deck ? CABIN[player.deck] : null;
+  if(zone && zone.ceil !== undefined) want.y = Math.min(want.y, zone.ceil);
   camPos.x = damp(camPos.x, want.x, 10, dt);
   camPos.y = damp(camPos.y, want.y, 10, dt);
   camPos.z = damp(camPos.z, want.z, 10, dt);
@@ -1396,13 +1814,15 @@ function updateAmbient(dt){
   ambient.heads.instanceMatrix.needsUpdate = true;
 }
 
-/* ---------------- Deko-Flugverkehr (alle 90 s) ---------------- */
+/* ---------------- Deko-Flugverkehr (alle 90 s, wechselnde Typen) ---------------- */
 const traffic = (function(){
-  const j = makeJet(0x999999);
-  j.visible = false;
-  j.rotation.order = 'YXZ'; // Pitch nach dem Yaw anwenden (Steigflug)
-  scene.add(j);
-  return { obj:j, state:'idle', t:0, next: 12, takeoff: true };
+  const variants = [makeJet(0x999999), makeNarrowbody(0x2a8a8f), makeJumbo(0x8f6a2a)];
+  for(const v of variants){
+    v.visible = false;
+    v.rotation.order = 'YXZ'; // Pitch nach dem Yaw anwenden (Steigflug)
+    scene.add(v);
+  }
+  return { variants, obj:variants[0], state:'idle', t:0, next: 12, takeoff: true };
 })();
 function updateTraffic(dt){
   const tr = traffic;
@@ -1411,7 +1831,9 @@ function updateTraffic(dt){
     if(tr.next <= 0){
       tr.state = tr.takeoff ? 'to' : 'ldg';
       tr.takeoff = !tr.takeoff;
-      tr.t = 0; tr.obj.visible = true;
+      tr.t = 0;
+      tr.obj = pick(tr.variants); // zufälliger Flugzeugtyp
+      tr.obj.visible = true;
       tr.next = 90;
     }
     return;
@@ -1711,46 +2133,49 @@ function endRamp(){
   $('rp-close').onclick = ()=>{ hidePanel(); setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
 }
 
-/* ---------------- Gepäckwagen fahren ---------------- */
-function enterCart(){
+/* ---------------- Fahrzeuge (Gepäckwagen & Tankwagen) ---------------- */
+function enterVehicle(v){
   S.mode = 'cart';
+  S.vehicle = v;
   player.group.visible = false;
 }
-function exitCart(){
+function exitVehicle(){
+  const v = S.vehicle;
   S.mode = 'walk';
-  const f = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
-  player.pos.copy(cart.obj.position).addScaledVector(new THREE.Vector3(-f.z, 0, f.x), 2.2);
+  S.vehicle = null;
+  const f = new THREE.Vector3(Math.sin(v.yaw), 0, Math.cos(v.yaw));
+  player.pos.copy(v.obj.position).addScaledVector(new THREE.Vector3(-f.z, 0, f.x), 2.6);
   player.pos.y = 0;
   player.group.visible = true;
   player.group.position.copy(player.pos);
 }
-function updateCart(dt){
-  const o = cart.obj;
-  if(S.mode === 'cart'){
-    const fwd = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
+function updateVehicle(v, dt){
+  const o = v.obj;
+  if(S.mode === 'cart' && S.vehicle === v){
+    const fwd = new THREE.Vector3(Math.sin(v.yaw), 0, Math.cos(v.yaw));
     const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
     let acc = 0;
     if(keys['KeyW']) acc += 7;
     if(keys['KeyS']) acc -= 5;
-    cart.vel.addScaledVector(fwd, acc*dt);
-    let fs = cart.vel.dot(fwd), ls = cart.vel.dot(right);
+    v.vel.addScaledVector(fwd, acc*dt);
+    let fs = v.vel.dot(fwd), ls = v.vel.dot(right);
     // Lenkung (wirkt mit Geschwindigkeit)
     let steer = 0;
     if(keys['KeyA']) steer += 1;
     if(keys['KeyD']) steer -= 1;
-    cart.yaw += steer * 1.7 * clamp(fs/5, -1, 1) * dt;
+    v.yaw += steer * 1.7 * clamp(fs/5, -1, 1) * dt;
     // leichtes Driften: Querreibung begrenzt
     ls *= Math.exp(-3.2*dt);
     fs *= Math.exp(-0.55*dt);
     fs = clamp(fs, -5, 11);
-    const f2 = new THREE.Vector3(Math.sin(cart.yaw), 0, Math.cos(cart.yaw));
+    const f2 = new THREE.Vector3(Math.sin(v.yaw), 0, Math.cos(v.yaw));
     const r2 = new THREE.Vector3(f2.z, 0, -f2.x);
-    cart.vel.copy(f2).multiplyScalar(fs).addScaledVector(r2, ls);
-    const speedBefore = cart.vel.length();
-    o.position.addScaledVector(cart.vel, dt);
+    v.vel.copy(f2).multiplyScalar(fs).addScaledVector(r2, ls);
+    const speedBefore = v.vel.length();
+    o.position.addScaledVector(v.vel, dt);
     o.position.x = clamp(o.position.x, -800, 800);
     o.position.z = clamp(o.position.z, -60, 228);
-    o.rotation.y = cart.yaw;
+    o.rotation.y = v.yaw;
     // Kollision (Jets, Gebäude) über die statischen Kollisionsboxen
     if(ramp.collideCd > 0) ramp.collideCd -= dt;
     const before = o.position.clone();
@@ -1762,34 +2187,231 @@ function updateCart(dt){
         addCredits(-30);
         toast('💥 Kollision mit dem Flugzeug! −30 Credits', 'bad');
       }
-      cart.vel.multiplyScalar(-0.25);
+      v.vel.multiplyScalar(-0.25);
     }
-    // Prompt + E-Logik im Wagen
-    let nearJet = null;
-    for(const [i,j] of jets.entries()){
-      if(Math.hypot(o.position.x - j.x, o.position.z - j.z) < 24) nearJet = i;
-    }
-    const prompt = $('prompt');
-    if(nearJet !== null && cart.load.length){
-      $('prompt-text').textContent = 'Gepäck abladen bei ' + jets[nearJet].name;
-      prompt.style.display = 'block';
-      if(keyEdge['KeyE']){ keyEdge['KeyE']=false; deliverAtJet(nearJet, cart.load.slice()); cart.load = []; }
+    // Fahrzeugspezifische Prompt-/E-Logik
+    if(v === cart) cartPrompts(o);
+    else fuelPrompts(o, dt);
+  } else {
+    v.vel.multiplyScalar(Math.exp(-2*dt));
+    if(v.vel.lengthSq() > 0.001) o.position.addScaledVector(v.vel, dt);
+  }
+}
+function cartPrompts(o){
+  let nearJet = null;
+  for(const [i,j] of jets.entries()){
+    if(Math.hypot(o.position.x - j.x, o.position.z - j.z) < 24) nearJet = i;
+  }
+  const prompt = $('prompt');
+  if(nearJet !== null && cart.load.length){
+    $('prompt-text').textContent = 'Gepäck abladen bei ' + jets[nearJet].name;
+    prompt.style.display = 'block';
+    if(keyEdge['KeyE']){ keyEdge['KeyE']=false; deliverAtJet(nearJet, cart.load.slice()); cart.load = []; }
+  } else {
+    $('prompt-text').textContent = 'Aussteigen';
+    prompt.style.display = 'block';
+    if(keyEdge['KeyE']){ keyEdge['KeyE']=false; exitVehicle(); }
+  }
+}
+function fuelPrompts(o, dt){
+  const prompt = $('prompt');
+  const speed = fuelTruck.vel.length();
+  if(fuelJob.active && fuelJob.fueling !== null){
+    const j = jets[fuelJob.fueling];
+    if(speed > 0.8){
+      fuelJob.fueling = null;
+      toast('Betankung abgebrochen – Wagen bewegt!', 'bad');
     } else {
-      $('prompt-text').textContent = 'Aussteigen';
+      fuelJob.progress += dt;
+      const pct = Math.min(100, Math.round(fuelJob.progress/8*100));
+      $('prompt-text').textContent = '⛽ Betanke ' + j.name + ' … ' + pct + '%';
       prompt.style.display = 'block';
-      if(keyEdge['KeyE']){ keyEdge['KeyE']=false; exitCart(); }
+      if(fuelJob.progress >= 8){
+        fuelJob.fueled[fuelJob.fueling] = true;
+        fuelJob.fueling = null;
+        addCredits(120); addXP(20);
+        toast('✔ ' + j.name + ' vollgetankt: +120 Credits', 'good');
+        if(fuelJob.fueled.every(Boolean)) endFuelJob(true);
+        else setJobHUD('TANKWAGEN', 'Noch zu betanken: ' + jets.map((jj,i)=>fuelJob.fueled[i]?null:jj.name).filter(Boolean).join(' · '));
+      }
+      return;
+    }
+  }
+  let nearJet = null;
+  if(fuelJob.active){
+    for(const [i,j] of jets.entries()){
+      if(!fuelJob.fueled[i] && Math.hypot(o.position.x - j.x, o.position.z - j.z) < 26) nearJet = i;
+    }
+  }
+  if(nearJet !== null){
+    $('prompt-text').textContent = 'Betanken starten: ' + jets[nearJet].name;
+    prompt.style.display = 'block';
+    if(keyEdge['KeyE']){ keyEdge['KeyE']=false; fuelJob.fueling = nearJet; fuelJob.progress = 0; }
+  } else {
+    $('prompt-text').textContent = 'Aussteigen';
+    prompt.style.display = 'block';
+    if(keyEdge['KeyE']){ keyEdge['KeyE']=false; exitVehicle(); }
+  }
+}
+
+/* ============================================================
+   JOB 3 · TANKWAGEN-FAHRER (ab 1000 Credits)
+   ============================================================ */
+const fuelJob = { active:false, fueled:[false,false], fueling:null, progress:0, timer:0 };
+function startFuelJob(){
+  fuelJob.active = true;
+  fuelJob.fueled = [false, false];
+  fuelJob.fueling = null;
+  fuelJob.timer = 150;
+  S.job = 'fuel';
+  setJobHUD('TANKWAGEN', 'Betanke beide Jets!<br>Steig in den Tankwagen am Fuel Depot und fahr zu LH 452 und EW 771.');
+}
+function endFuelJob(success){
+  if(!fuelJob.active) return;
+  fuelJob.active = false;
+  S.job = null;
+  setTimerHUD(null);
+  const n = fuelJob.fueled.filter(Boolean).length;
+  const bonus = (success && fuelJob.timer > 0) ? 60 : 0;
+  if(bonus) addCredits(bonus);
+  if(S.mode === 'cart' && S.vehicle === fuelTruck) exitVehicle();
+  showPanel(
+    '<h2>' + (success ? 'Beide Jets betankt!' : 'Zeit abgelaufen') + '</h2>'+
+    '<div class="doc"><div class="big">' + n + ' / 2 Flugzeuge betankt</div>'+
+    (bonus ? '<b style="color:#8fe89f">Rechtzeitig fertig: +' + bonus + ' Bonus!</b>' : '')+'</div>'+
+    '<button class="btn green" id="fu-again">Neue Schicht</button>'+
+    '<button class="btn" id="fu-close">Feierabend</button>'
+  );
+  $('fu-again').onclick = ()=>{ hidePanel(); startFuelJob(); };
+  $('fu-close').onclick = ()=>{ hidePanel(); setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
+}
+function updateFuelJob(dt){
+  if(!fuelJob.active) return;
+  fuelJob.timer -= dt;
+  setTimerHUD(Math.max(0, fuelJob.timer));
+  if(fuelJob.timer <= 0) endFuelJob(false);
+}
+
+/* ============================================================
+   JOB 4 · MARSHALLER / EINWEISER (ab 1500 Credits)
+   Ein Jet rollt an Gate 4 — gib die richtigen Handzeichen!
+   ============================================================ */
+const marshal = (function(){
+  const obj = makeNarrowbody(0x8a8f99);
+  obj.visible = false;
+  scene.add(obj);
+  return {
+    active:false, obj, s:0, correct:0, mistakes:0, waiting:null, sigIdx:0, timer:0,
+    // Pfad: Taxiway West -> Gate 4 (Wegpunkte in Metern)
+    pts: [{x:-700,z:80},{x:-130,z:80},{x:-130,z:158}],
+    signals: [
+      { s:180, key:'KeyW', sym:'W', what:'Weiter geradeaus rollen' },
+      { s:400, key:'KeyS', sym:'S', what:'Langsamer!' },
+      { s:565, key:'KeyA', sym:'A', what:'Nach links einlenken' },
+      { s:610, key:'KeyW', sym:'W', what:'Weiter vorziehen' },
+      { s:645, key:'KeyX', sym:'X', what:'STOP – Parkposition erreicht' },
+    ],
+  };
+})();
+function marshalPathPos(s){
+  const pts = marshal.pts;
+  for(let i=0;i<pts.length-1;i++){
+    const a = pts[i], b = pts[i+1];
+    const l = Math.hypot(b.x-a.x, b.z-a.z);
+    if(s <= l){
+      const t = s/l;
+      return { x:a.x+(b.x-a.x)*t, z:a.z+(b.z-a.z)*t, dx:(b.x-a.x)/l, dz:(b.z-a.z)/l };
+    }
+    s -= l;
+  }
+  const a = pts[pts.length-2], b = pts[pts.length-1];
+  const l = Math.hypot(b.x-a.x, b.z-a.z);
+  return { x:b.x, z:b.z, dx:(b.x-a.x)/l, dz:(b.z-a.z)/l };
+}
+const MARSHAL_LEN = 570 + 78;
+function startMarshal(){
+  marshal.active = true;
+  marshal.s = 0; marshal.correct = 0; marshal.mistakes = 0;
+  marshal.waiting = null; marshal.sigIdx = 0; marshal.timer = 150;
+  marshal.obj.visible = true;
+  S.job = 'marshal';
+  setJobHUD('MARSHALLER', 'Ein A320 rollt zu <b>Gate 4</b>.<br>Bleib an der Einweiser-Position und gib die Zeichen!');
+}
+function endMarshal(){
+  marshal.active = false;
+  S.job = null;
+  setTimerHUD(null);
+  $('marshal').style.display = 'none';
+  const pay = marshal.correct * 40;
+  const perfect = marshal.mistakes === 0 && marshal.correct === marshal.signals.length;
+  const bonus = perfect ? 60 : 0;
+  addCredits(pay + bonus); addXP(15 * marshal.correct);
+  showPanel(
+    '<h2>Flugzeug eingewiesen!</h2>'+
+    '<div class="doc"><div class="big">' + marshal.correct + ' / ' + marshal.signals.length + ' Zeichen richtig</div>'+
+    (marshal.mistakes ? marshal.mistakes + ' Fehlzeichen' : '') +
+    (perfect ? '<br><b style="color:#8fe89f">Perfekt eingewiesen! +' + bonus + ' Bonus</b>' : '') + '</div>'+
+    '<div class="doc"><div class="big" style="color:#ffd75e">+' + (pay+bonus) + ' Credits</div></div>'+
+    '<button class="btn green" id="ma-again">Nächster Flieger</button>'+
+    '<button class="btn" id="ma-close">Feierabend</button>'
+  );
+  $('ma-again').onclick = ()=>{ hidePanel(); startMarshal(); };
+  $('ma-close').onclick = ()=>{ hidePanel(); marshal.obj.visible = false; setJobHUD('Arbeitslos', 'Such dir einen Job an einer leuchtenden Station.'); };
+}
+function updateMarshal(dt){
+  if(!marshal.active) return;
+  marshal.timer -= dt;
+  setTimerHUD(Math.max(0, marshal.timer));
+  const box = $('marshal');
+  const atStation = Math.hypot(player.pos.x + 130, player.pos.z - 148) < 22 && S.mode === 'walk';
+  if(marshal.waiting){
+    if(!atStation){
+      box.style.display = 'none';
+      setJobHUD('MARSHALLER', '⚠ Geh zur <b>Einweiser-Position</b> an Gate 4 – der Pilot sieht dich nicht!');
+    } else {
+      box.style.display = 'block';
+      $('marshal-key').textContent = marshal.waiting.sym;
+      $('marshal-what').textContent = marshal.waiting.what;
+      for(const code of ['KeyW','KeyA','KeyS','KeyD','KeyX']){
+        if(keyEdge[code]){
+          keyEdge[code] = false;
+          if(code === marshal.waiting.key){
+            marshal.correct++;
+            toast('✔ Richtiges Zeichen!', 'good');
+            marshal.waiting = null;
+            box.style.display = 'none';
+          } else {
+            marshal.mistakes++;
+            addCredits(-20);
+            toast('✘ Falsches Zeichen! −20 Credits', 'bad');
+          }
+        }
+      }
     }
   } else {
-    cart.vel.multiplyScalar(Math.exp(-2*dt));
-    if(cart.vel.lengthSq() > 0.001) o.position.addScaledVector(cart.vel, dt);
+    // Jet rollt weiter; Geschwindigkeit sinkt zum Gate hin
+    const spd = marshal.s < 570 ? 9 : 3.5;
+    marshal.s += spd * dt;
+    const sig = marshal.signals[marshal.sigIdx];
+    if(sig && marshal.s >= sig.s){
+      marshal.waiting = sig;
+      marshal.sigIdx++;
+    }
+    if(marshal.s >= MARSHAL_LEN){
+      endMarshal();
+      return;
+    }
   }
+  const p = marshalPathPos(Math.min(marshal.s, MARSHAL_LEN));
+  marshal.obj.position.set(p.x, 0, p.z);
+  marshal.obj.rotation.y = Math.atan2(-p.dx, -p.dz); // Nase = -Z
 }
 
 /* ---------------- Stationen registrieren ---------------- */
 makeMarker(-45, 260.7, 0x5ec8ff);
 addInteract({
   x:()=>-45, z:()=>260.7, r:3.4,
-  cond: ()=> S.mode==='walk' && S.job!=='ramp' && S.job!=='captain',
+  cond: ()=> S.mode==='walk' && (S.job===null || S.job==='checkin'),
   label: ()=> checkin.active
     ? (checkin.npcState==='waiting' ? 'Passagier abfertigen' : 'Warten auf Passagier …')
     : 'Check-in-Schicht starten',
@@ -1810,7 +2432,7 @@ addInteract({
 makeMarker(-14, 192, 0xe0a020);
 addInteract({
   x:()=>-14, z:()=>192, r:4,
-  cond: ()=> S.mode==='walk' && !checkin.active && S.job!=='captain',
+  cond: ()=> S.mode==='walk' && (S.job===null || S.job==='ramp'),
   label: ()=> S.credits >= UNLOCK_RAMP || ramp.active ? (ramp.active?'Welle läuft …':'Gepäck-Schicht starten (Ramp Agent)') : 'Ramp Agent – gesperrt ('+UNLOCK_RAMP+' Credits nötig)',
   action: ()=>{
     if(ramp.active) return;
@@ -1874,7 +2496,84 @@ addInteract({
   x:()=>cart.obj.position.x, z:()=>cart.obj.position.z, r:3.2,
   cond: ()=> S.mode==='walk' && !ramp.carrying && !player.deck,
   label: ()=> 'Gepäckwagen fahren',
-  action: enterCart,
+  action: ()=>enterVehicle(cart),
+});
+// In den Tankwagen einsteigen
+addInteract({
+  x:()=>fuelTruck.obj.position.x, z:()=>fuelTruck.obj.position.z, r:3.4,
+  cond: ()=> S.mode==='walk' && !ramp.carrying && !player.deck,
+  label: ()=> 'Tankwagen fahren',
+  action: ()=>enterVehicle(fuelTruck),
+});
+
+/* ---------------- Station: Tankwagen-Job (Fuel Depot) ---------------- */
+makeMarker(-152, 215, 0xd9a520);
+addInteract({
+  x:()=>-152, z:()=>215, r:4,
+  cond: ()=> S.mode==='walk' && (S.job===null || S.job==='fuel'),
+  label: ()=>{
+    if(fuelJob.active) return 'Schicht läuft – ab in den Tankwagen!';
+    return S.credits >= UNLOCK_FUEL ? 'Tank-Schicht starten (Tankwagen)' : 'Tankwagen – gesperrt ('+UNLOCK_FUEL+' Credits nötig)';
+  },
+  action: ()=>{
+    if(fuelJob.active) return;
+    if(S.credits < UNLOCK_FUEL){ toast('Du brauchst '+UNLOCK_FUEL+' Credits für diesen Job!', 'bad'); return; }
+    showTutorial('fuel', 'JOB: Tankwagen-Fahrer',
+      '<p>Beide Jets brauchen Kerosin:</p><ul>'+
+      '<li>Steig in den <b>Tankwagen</b> am Fuel Depot (E)</li>'+
+      '<li>Fahr dicht an <b>LH 452</b> bzw. <b>EW 771</b> heran und drücke <b>E</b></li>'+
+      '<li>Beim Betanken <b>stillstehen</b> – wegfahren bricht ab!</li>'+
+      '<li>120 Credits pro Jet · beide in 2:30 = Bonus</li></ul>',
+      startFuelJob);
+  },
+});
+
+/* ---------------- Station: Marshaller (Gate 4) ---------------- */
+makeMarker(-130, 148, 0xff8844);
+addInteract({
+  x:()=>-130, z:()=>148, r:4.5,
+  cond: ()=> S.mode==='walk' && (S.job===null || S.job==='marshal'),
+  label: ()=>{
+    if(marshal.active) return 'Einweisung läuft – bleib hier stehen!';
+    return S.credits >= UNLOCK_MARSHAL ? 'Marshaller-Einsatz starten' : 'Marshaller – gesperrt ('+UNLOCK_MARSHAL+' Credits nötig)';
+  },
+  action: ()=>{
+    if(marshal.active) return;
+    if(S.credits < UNLOCK_MARSHAL){ toast('Du brauchst '+UNLOCK_MARSHAL+' Credits für diesen Job!', 'bad'); return; }
+    showTutorial('marshal', 'JOB: Marshaller (Einweiser)',
+      '<p>Ein A320 rollt vom Taxiway zu <b>Gate 4</b> – du weist ihn ein:</p><ul>'+
+      '<li>Bleib an der <b>leuchtenden Einweiser-Position</b> stehen</li>'+
+      '<li>Wenn der Jet stoppt, zeigt das HUD das geforderte Zeichen: <b>W</b> weiter · <b>S</b> langsamer · <b>A</b> links · <b>X</b> STOP</li>'+
+      '<li>Richtiges Zeichen = +40 Cr · falsches = −20 Cr</li>'+
+      '<li>Fehlerfrei = +60 Bonus</li></ul>',
+      startMarshal);
+  },
+});
+
+/* ---------------- Parkdeck: Ebenen wechseln ---------------- */
+addInteract({
+  x:()=>-158, z:()=>313.5, r:3,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> 'Parkdeck: Treppe zu Ebene 2',
+  action: ()=>{ player.deck = 'p2'; player.pos.set(-155, CABIN.p2.y, 315); },
+});
+addInteract({
+  x:()=>-158, z:()=>313.5, r:3.5,
+  cond: ()=> S.mode==='walk' && player.deck==='p2',
+  label: ()=> 'Treppe: Ebene 3 (Dach)',
+  action: ()=>{ player.deck = 'p3'; player.pos.set(-155, CABIN.p3.y, 315); },
+});
+addInteract({
+  x:()=>-152, z:()=>318, r:3,
+  cond: ()=> S.mode==='walk' && player.deck==='p2',
+  label: ()=> 'Treppe: Erdgeschoss',
+  action: ()=>{ player.deck = null; player.pos.set(-155, 0, 316); },
+});
+addInteract({
+  x:()=>-158, z:()=>313.5, r:3.5,
+  cond: ()=> S.mode==='walk' && player.deck==='p3',
+  label: ()=> 'Treppe: Ebene 2',
+  action: ()=>{ player.deck = 'p2'; player.pos.set(-155, CABIN.p2.y, 315); },
 });
 
 /* ---------------- A380 betreten / Decks wechseln ---------------- */
@@ -2386,7 +3085,7 @@ function completeMission(){
 makeMarker(124, 172, 0x8fe89f);
 addInteract({
   x:()=>124, z:()=>172, r:5,
-  cond: ()=> S.mode==='walk' && !checkin.active && !ramp.active,
+  cond: ()=> S.mode==='walk' && S.job===null,
   label: ()=> S.credits >= UNLOCK_CAPTAIN ? 'Ins Flugzeug steigen (Captain)' : 'Captain – gesperrt ('+UNLOCK_CAPTAIN+' Credits nötig)',
   action: ()=>{
     if(S.credits < UNLOCK_CAPTAIN){ toast('Du brauchst '+UNLOCK_CAPTAIN+' Credits für die Captain-Lizenz!', 'bad'); return; }
@@ -2539,9 +3238,10 @@ function updateFlightCamera(dt){
 updateHUD();
 setJobHUD('Arbeitslos', 'Geh zum leuchtenden <b>Check-in-Schalter</b> im Terminal und drücke E.');
 showTutorial('welcome', 'Willkommen am Flughafen!',
-  '<p>Du fängst ganz unten an: am <b>Check-in-Schalter</b>. Verdiene Credits, schalte den <b>Ramp-Agent</b>-Job frei (500 Cr) und arbeite dich zum <b>Captain</b> hoch (2000 Cr)!</p>'+
-  '<ul><li><b>WASD</b> laufen · <b>Shift</b> sprinten · <b>Maus</b> Kamera (ins Bild klicken)</li>'+
-  '<li><b>E</b> an leuchtenden Stationen interagieren · <b>H</b> Steuerungslegende</li></ul>');
+  '<p>Du fängst ganz unten an: am <b>Check-in-Schalter</b>. Karriereleiter:</p>'+
+  '<ul><li><b>500 Cr</b> → Ramp Agent (Gepäck) · <b>1000 Cr</b> → Tankwagen</li>'+
+  '<li><b>1500 Cr</b> → Marshaller (Einweiser) · <b>2000 Cr</b> → Captain</li></ul>'+
+  '<p><b>WASD</b> laufen · <b>Shift</b> sprinten · <b>Maus</b> Kamera (ins Bild klicken) · <b>E</b> an leuchtenden Stationen · <b>H</b> Legende. Schau dir auch den begehbaren A380 an Gate 1 und das Parkdeck an!</p>');
 
 let lastT = performance.now();
 function tick(){
@@ -2556,9 +3256,12 @@ function tick(){
       updateMission(dt);
     } else {
       updatePlayer(dt);
-      updateCart(dt);
+      updateVehicle(cart, dt);
+      updateVehicle(fuelTruck, dt);
       updateCheckin(dt);
       updateRamp(dt);
+      updateFuelJob(dt);
+      updateMarshal(dt);
     }
     updateInteract();
   }
@@ -2568,6 +3271,7 @@ function tick(){
   updateWindsock(dt);
   updateMarkers(now/1000);
   for(const f of envAnims) f(now/1000, dt);
+  for(const f of landAnims) f(now/1000, dt);
   engineSound.update();
   updateCamera(dt);
   // Schatten-Kamera folgt grob dem Spieler
