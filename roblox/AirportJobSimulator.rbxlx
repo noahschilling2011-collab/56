@@ -1694,6 +1694,144 @@ print("[Airport] Flughafen aufgebaut. Skalierung: 1 m = " .. M .. " Studs.")
 </ProtectedString>
 			</Properties>
 		</Item>
+		<Item class="Script" referent="RBX8">
+			<Properties>
+				<string name="Name">AirportEconomy</string>
+				<ProtectedString name="Source">-- AirportEconomy · Server-Oekonomie (Phase 3)
+-- leaderstats (Credits, Level), validierte Job-Belohnungen, Shop-Kaeufe gegen
+-- ShopData, DataStore-Persistenz (Credits, XP, Unlocks) mit pcall + Retry.
+-- Der Client meldet nur Abschluesse; gerechnet und gespeichert wird hier.
+
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local ShopData = require(RS:WaitForChild("ShopData"))
+
+local earnEv = Instance.new("RemoteEvent"); earnEv.Name = "EarnCredits"; earnEv.Parent = RS
+local buyEv = Instance.new("RemoteEvent"); buyEv.Name = "BuyItem"; buyEv.Parent = RS
+local syncEv = Instance.new("RemoteEvent"); syncEv.Name = "SyncState"; syncEv.Parent = RS
+local achEv = Instance.new("RemoteEvent"); achEv.Name = "UnlockAch"; achEv.Parent = RS
+
+-- plausible Obergrenzen pro gemeldetem Auftrag (Credits); XP pro Meldung max. 200
+local CAPS = {
+	checkin = 150, security = 200, ramp = 450, fuel = 350,
+	marshal = 550, flight = 2600, xp = 0, misc = 120,
+}
+local MIN_EARN = -300
+
+local store = nil
+pcall(function()
+	store = game:GetService("DataStoreService"):GetDataStore("AirportJobSim_v1")
+end)
+
+local state = {} -- [Player] = { credits, xp, unlocks = {id=true} }
+
+local function level(xp)
+	return math.floor(xp / 100) + 1
+end
+
+local function pushLeaderstats(pl)
+	local st = state[pl]
+	local ls = pl:FindFirstChild("leaderstats")
+	if not st or not ls then return end
+	ls.Credits.Value = st.credits
+	ls.Level.Value = level(st.xp)
+end
+
+local function withRetry(what, fn)
+	for attempt = 1, 3 do
+		local ok, err = pcall(fn)
+		if ok then return true end
+		warn("[AirportEconomy] " .. what .. " fehlgeschlagen (Versuch " .. attempt .. "): " .. tostring(err))
+		task.wait(attempt)
+	end
+	return false
+end
+
+Players.PlayerAdded:Connect(function(pl)
+	local st = { credits = 0, xp = 0, unlocks = {} }
+	state[pl] = st
+	if store then
+		withRetry("Laden", function()
+			local data = store:GetAsync("p" .. pl.UserId)
+			if type(data) == "table" then
+				st.credits = tonumber(data.c) or 0
+				st.xp = tonumber(data.x) or 0
+				if type(data.u) == "table" then
+					for _, id in ipairs(data.u) do st.unlocks[tostring(id)] = true end
+				end
+			end
+		end)
+	end
+	local ls = Instance.new("Folder"); ls.Name = "leaderstats"
+	local cv = Instance.new("IntValue"); cv.Name = "Credits"; cv.Value = st.credits; cv.Parent = ls
+	local lv = Instance.new("IntValue"); lv.Name = "Level"; lv.Value = level(st.xp); lv.Parent = ls
+	ls.Parent = pl
+	local unlockList = {}
+	for id in pairs(st.unlocks) do table.insert(unlockList, id) end
+	syncEv:FireClient(pl, st.credits, st.xp, unlockList)
+end)
+
+earnEv.OnServerEvent:Connect(function(pl, reason, credits, xp)
+	local st = state[pl]
+	if not st then return end
+	reason = type(reason) == "string" and reason or "misc"
+	local cap = CAPS[reason] or CAPS.misc
+	credits = math.clamp(tonumber(credits) or 0, MIN_EARN, cap)
+	xp = math.clamp(tonumber(xp) or 0, 0, 200)
+	st.credits = math.max(0, st.credits + math.floor(credits))
+	st.xp = st.xp + math.floor(xp)
+	pushLeaderstats(pl)
+	syncEv:FireClient(pl, st.credits, st.xp)
+end)
+
+buyEv.OnServerEvent:Connect(function(pl, shopIdx, itemIdx)
+	local st = state[pl]
+	if not st then return end
+	local s = ShopData[tonumber(shopIdx) or 0]
+	local it = s and s.items[tonumber(itemIdx) or 0]
+	if not it then return end
+	local price = it[2]
+	if st.credits &lt; price then
+		buyEv:FireClient(pl, false, shopIdx, itemIdx, st.credits)
+		return
+	end
+	st.credits = st.credits - price
+	pushLeaderstats(pl)
+	buyEv:FireClient(pl, true, shopIdx, itemIdx, st.credits)
+end)
+
+achEv.OnServerEvent:Connect(function(pl, id)
+	local st = state[pl]
+	if st and type(id) == "string" and #id &lt;= 40 then
+		st.unlocks[id] = true
+	end
+end)
+
+local function save(pl)
+	local st = state[pl]
+	if not st or not store then return end
+	local unlockList = {}
+	for id in pairs(st.unlocks) do table.insert(unlockList, id) end
+	withRetry("Speichern", function()
+		store:SetAsync("p" .. pl.UserId, { c = st.credits, x = st.xp, u = unlockList })
+	end)
+end
+
+Players.PlayerRemoving:Connect(function(pl)
+	save(pl)
+	state[pl] = nil
+end)
+
+game:BindToClose(function()
+	for _, pl in ipairs(Players:GetPlayers()) do
+		save(pl)
+	end
+end)
+
+print("[AirportEconomy] bereit — leaderstats, EarnCredits/BuyItem, DataStore " .. (store and "aktiv" or "NICHT verfügbar (Studio ohne API-Zugriff?)"))
+</ProtectedString>
+			</Properties>
+		</Item>
 	</Item>
 	<Item class="StarterPlayer" referent="RBX3">
 		<Properties>
@@ -1738,6 +1876,13 @@ local character = waitChar()
 player.CharacterAdded:Connect(function(ch)
 	character = ch
 end)
+
+-- Server-Oekonomie (Phase 3): Der Server rechnet Credits/XP, der Client zeigt an
+local ecoRS = game:GetService("ReplicatedStorage")
+local earnEv = ecoRS:WaitForChild("EarnCredits")
+local buyEv = ecoRS:WaitForChild("BuyItem")
+local syncEv = ecoRS:WaitForChild("SyncState")
+local achEv = ecoRS:WaitForChild("UnlockAch")
 
 local function hrp() return character and character:FindFirstChild("HumanoidRootPart") end
 local function humanoid() return character and character:FindFirstChildOfClass("Humanoid") end
@@ -1980,10 +2125,14 @@ local function updateHUD()
 		progressL.Text = "Alle Jobs freigeschaltet ✈"
 	end
 end
-local function addCredits(n)
+local function addCredits(n, reason)
+	-- optimistische Anzeige; autoritativ rechnet der Server (SyncState ueberschreibt)
 	S.credits = math.max(0, S.credits + n)
 	updateHUD()
-	if n ~= 0 then creditPop(n) end
+	if n ~= 0 then
+		creditPop(n)
+		earnEv:FireServer(reason or "misc", n, 0)
+	end
 	if S.credits &gt;= 1000 then unlock("rich_1000") end
 	if S.credits &gt;= UNLOCK_CAPTAIN then unlock("all_jobs") end
 end
@@ -1991,6 +2140,7 @@ local function addXP(n)
 	local before = level()
 	S.xp = S.xp + n
 	updateHUD()
+	earnEv:FireServer("xp", 0, n)
 	if level() &gt; before then celebrateLevelUp(level()) end
 end
 local function setJobHUD(name, objective)
@@ -2145,6 +2295,7 @@ local achieved = {}
 function unlock(id)
 	if achieved[id] then return end
 	achieved[id] = true
+	achEv:FireServer(id) -- Persistenz im Server (Phase 3)
 	local a
 	for _, x in ipairs(ACHIEVEMENTS) do if x.id == id then a = x break end end
 	if not a then return end
@@ -2156,6 +2307,16 @@ function unlock(id)
 	l2.Font = Enum.Font.GothamBold; l2.ZIndex = 26
 	task.delay(3.2, function() f:Destroy() end)
 end
+
+-- Autoritativer Kontostand + gespeicherte Erfolge vom Server (Join + nach jeder Meldung)
+syncEv.OnClientEvent:Connect(function(credits, xp, unlocks)
+	S.credits = credits
+	S.xp = xp
+	if unlocks then
+		for _, id in ipairs(unlocks) do achieved[id] = true end -- still, ohne Toast
+	end
+	updateHUD()
+end)
 function showAchievements()
 	local count = 0
 	for _ in pairs(achieved) do count = count + 1 end
@@ -2321,7 +2482,7 @@ local function endCheckin()
 	checkin.active = false
 	S.job = nil
 	local allOk = checkin.correct == 8
-	if allOk then addCredits(100) end
+	if allOk then addCredits(100, "checkin") end
 	showPanel(function(p)
 		local t = label(p, "Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -2382,10 +2543,10 @@ local function resolveCheckin(action)
 		local pay = 60 + (action == "fee" and 50 or 0)
 		checkin.correct = checkin.correct + 1
 		checkin.earned = checkin.earned + pay
-		addCredits(pay); addXP(12)
+		addCredits(pay, "checkin"); addXP(12)
 		toast("✔ Richtig! +" .. pay .. " Credits · " .. reason, "good")
 	else
-		addCredits(-40)
+		addCredits(-40, "checkin")
 		toast("✘ Falsch! −40 Credits · " .. reason, "bad")
 	end
 	local leaveTo = (docsOk and (action == "accept" or action == "fee")) and Vector3.new(34, 0, 250) or Vector3.new(-4, 0, 299)
@@ -2485,10 +2646,10 @@ local function resolveSec(confiscated)
 	if correct then
 		secJob.correct = secJob.correct + 1
 		secJob.earned = secJob.earned + 50
-		addCredits(50); addXP(10)
+		addCredits(50, "security"); addXP(10)
 		toast(c.bad and "✔ Richtig! Verbotener Gegenstand einkassiert. +50" or "✔ Richtig! Gepäck war sauber. +50", "good")
 	else
-		addCredits(-35)
+		addCredits(-35, "security")
 		toast(c.bad and "✘ Verbotenen Gegenstand durchgewunken! −35" or "✘ Fehlalarm – Gepäck war sauber! −35", "bad")
 	end
 	secJob.idx = secJob.idx + 1
@@ -2496,7 +2657,7 @@ local function resolveSec(confiscated)
 		secJob.active = false
 		S.job = nil
 		local allOk = secJob.correct == 8
-		if allOk then addCredits(80) unlock("sec_perfect") end
+		if allOk then addCredits(80, "security") unlock("sec_perfect") end
 		showPanel(function(p)
 			local t = label(p, "Kontroll-Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 			t.Font = Enum.Font.GothamBold
@@ -2615,8 +2776,8 @@ local function deliverAtJet(jetIdx, items)
 		end
 		removeCase(c)
 	end
-	if okPay &gt; 0 then addCredits(okPay); addXP(math.floor(okPay / 5)); toast("✔ Gepäck verladen: +" .. okPay .. " Credits", "good") end
-	if badPay &gt; 0 then addCredits(-badPay); toast("✘ Falscher Flieger! −" .. badPay .. " Credits", "bad") end
+	if okPay &gt; 0 then addCredits(okPay, "ramp"); addXP(math.floor(okPay / 5)); toast("✔ Gepäck verladen: +" .. okPay .. " Credits", "good") end
+	if badPay &gt; 0 then addCredits(-badPay, "ramp"); toast("✘ Falscher Flieger! −" .. badPay .. " Credits", "bad") end
 end
 
 local function endRamp()
@@ -2630,7 +2791,7 @@ local function endRamp()
 	cart.load = {}
 	local perfect = ramp.deliveredOk == 8
 	local bonus = (perfect and ramp.timer &gt; 0) and 80 or 0
-	if bonus &gt; 0 then addCredits(bonus) end
+	if bonus &gt; 0 then addCredits(bonus, "ramp") end
 	showPanel(function(p)
 		local t = label(p, "Gepäck-Welle beendet", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -2790,7 +2951,7 @@ local function fuelPrompts(dt)
 			if fuelJob.progress &gt;= 8 then
 				fuelJob.fueled[fuelJob.fueling] = true
 				fuelJob.fueling = nil
-				addCredits(120); addXP(20)
+				addCredits(120, "fuel"); addXP(20)
 				toast("✔ " .. j.name .. " vollgetankt: +120 Credits", "good")
 				if fuelJob.fueled[1] and fuelJob.fueled[2] then endFuelJob(true) end
 			end
@@ -2849,7 +3010,7 @@ local function updateVehicle(v, dt)
 		end
 		if nearJet and speedBefore &gt; 4 and ramp.collideCd &lt;= 0 then
 			ramp.collideCd = 3
-			addCredits(-30)
+			addCredits(-30, "fuel")
 			toast("💥 Kollision mit dem Flugzeug! −30 Credits", "bad")
 		end
 		v.vel = v.vel * -0.25
@@ -2878,7 +3039,7 @@ endFuelJob = function(success)
 	setTimerHUD(nil)
 	local n = (fuelJob.fueled[1] and 1 or 0) + (fuelJob.fueled[2] and 1 or 0)
 	local bonus = (success and fuelJob.timer &gt; 0) and 60 or 0
-	if bonus &gt; 0 then addCredits(bonus) end
+	if bonus &gt; 0 then addCredits(bonus, "fuel") end
 	if S.mode == "cart" and S.vehicle == fuelTruck then exitVehicle() end
 	showPanel(function(p)
 		local t = label(p, success and "Beide Jets betankt!" or "Zeit abgelaufen", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
@@ -3221,7 +3382,7 @@ local function completeMission()
 	local m = MISSIONS[flight.mIdx]
 	local stars, notes = rateLanding(flight.landStats)
 	local pay = m.base * stars
-	addCredits(pay)
+	addCredits(pay, "flight")
 	addXP(30 * stars)
 	flight.active = false
 	showPanel(function(p)
@@ -3656,7 +3817,7 @@ local function endMarshal()
 	local perfect = marshal.mistakes == 0 and marshal.correct == #marshal.signals
 	if perfect then unlock("marshal_perfect") end
 	local bonus = perfect and 60 or 0
-	addCredits(pay + bonus); addXP(15 * marshal.correct)
+	addCredits(pay + bonus, "marshal"); addXP(15 * marshal.correct)
 	showPanel(function(p)
 		local t = label(p, "Flugzeug eingewiesen!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -3705,7 +3866,7 @@ local function updateMarshal(dt)
 						marshal.gui.Visible = false
 					else
 						marshal.mistakes = marshal.mistakes + 1
-						addCredits(-20)
+						addCredits(-20, "flight")
 						toast("✘ Falsches Zeichen! −20 Credits", "bad")
 					end
 				end
@@ -4035,18 +4196,22 @@ do
 	end
 	local openShopPanel
 	local function buyItem(si, ii)
-		local s = SHOPS[si]
-		local it = s.items[ii]
-		if S.credits &lt; it[2] then
-			toast("Zu wenig Credits für " .. it[1] .. "!", "bad")
-			return
-		end
-		S.credits = S.credits - it[2]
-		updateHUD()
-		unlock("shopper")
-		applyEffect(it[3], it[1])
-		openShopPanel(si)
+		buyEv:FireServer(si, ii) -- Server prueft Preis gegen ShopData und zieht ab (Phase 3)
 	end
+	buyEv.OnClientEvent:Connect(function(ok, si, ii, newCredits)
+		S.credits = newCredits
+		updateHUD()
+		local s = SHOPS[si]
+		local it = s and s.items[ii]
+		if not it then return end
+		if ok then
+			unlock("shopper")
+			applyEffect(it[3], it[1])
+			if panelOpen then openShopPanel(si) end
+		else
+			toast("Zu wenig Credits für " .. it[1] .. "!", "bad")
+		end
+	end)
 	openShopPanel = function(si)
 		local s = SHOPS[si]
 		showPanel(function(p)

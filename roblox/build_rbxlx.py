@@ -3,6 +3,7 @@
 
 Die .rbxlx ist eine normale Roblox-Studio-Place-Datei (XML):
 - ReplicatedStorage/ShopData          (ModuleScript) -> eine Wahrheit fuer alle Shops
+- ServerScriptService/AirportEconomy  (Script)     -> leaderstats, Remotes, DataStore
 - ServerScriptService/AirportServer   (Script)     -> baut den Flughafen
 - StarterPlayerScripts/AirportClient  (LocalScript) -> Jobs, HUD, Flugphysik
 
@@ -26,6 +27,7 @@ def xml_escape(s: str) -> str:
 server_src = xml_escape((HERE / "AirportServer.server.lua").read_text(encoding="utf-8"))
 client_src = xml_escape((HERE / "AirportClient.client.lua").read_text(encoding="utf-8"))
 shopdata_src = xml_escape((HERE / "ShopData.module.lua").read_text(encoding="utf-8"))
+economy_src = xml_escape((HERE / "AirportEconomy.server.lua").read_text(encoding="utf-8"))
 
 rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<Meta name="ExplicitAutoJoints">true</Meta>
@@ -55,6 +57,12 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 			<Properties>
 				<string name="Name">AirportServer</string>
 				<ProtectedString name="Source">{server_src}</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX8">
+			<Properties>
+				<string name="Name">AirportEconomy</string>
+				<ProtectedString name="Source">{economy_src}</ProtectedString>
 			</Properties>
 		</Item>
 	</Item>

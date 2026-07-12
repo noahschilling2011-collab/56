@@ -31,6 +31,13 @@ player.CharacterAdded:Connect(function(ch)
 	character = ch
 end)
 
+-- Server-Oekonomie (Phase 3): Der Server rechnet Credits/XP, der Client zeigt an
+local ecoRS = game:GetService("ReplicatedStorage")
+local earnEv = ecoRS:WaitForChild("EarnCredits")
+local buyEv = ecoRS:WaitForChild("BuyItem")
+local syncEv = ecoRS:WaitForChild("SyncState")
+local achEv = ecoRS:WaitForChild("UnlockAch")
+
 local function hrp() return character and character:FindFirstChild("HumanoidRootPart") end
 local function humanoid() return character and character:FindFirstChildOfClass("Humanoid") end
 -- Spielerposition in METERN
@@ -272,10 +279,14 @@ local function updateHUD()
 		progressL.Text = "Alle Jobs freigeschaltet ✈"
 	end
 end
-local function addCredits(n)
+local function addCredits(n, reason)
+	-- optimistische Anzeige; autoritativ rechnet der Server (SyncState ueberschreibt)
 	S.credits = math.max(0, S.credits + n)
 	updateHUD()
-	if n ~= 0 then creditPop(n) end
+	if n ~= 0 then
+		creditPop(n)
+		earnEv:FireServer(reason or "misc", n, 0)
+	end
 	if S.credits >= 1000 then unlock("rich_1000") end
 	if S.credits >= UNLOCK_CAPTAIN then unlock("all_jobs") end
 end
@@ -283,6 +294,7 @@ local function addXP(n)
 	local before = level()
 	S.xp = S.xp + n
 	updateHUD()
+	earnEv:FireServer("xp", 0, n)
 	if level() > before then celebrateLevelUp(level()) end
 end
 local function setJobHUD(name, objective)
@@ -437,6 +449,7 @@ local achieved = {}
 function unlock(id)
 	if achieved[id] then return end
 	achieved[id] = true
+	achEv:FireServer(id) -- Persistenz im Server (Phase 3)
 	local a
 	for _, x in ipairs(ACHIEVEMENTS) do if x.id == id then a = x break end end
 	if not a then return end
@@ -448,6 +461,16 @@ function unlock(id)
 	l2.Font = Enum.Font.GothamBold; l2.ZIndex = 26
 	task.delay(3.2, function() f:Destroy() end)
 end
+
+-- Autoritativer Kontostand + gespeicherte Erfolge vom Server (Join + nach jeder Meldung)
+syncEv.OnClientEvent:Connect(function(credits, xp, unlocks)
+	S.credits = credits
+	S.xp = xp
+	if unlocks then
+		for _, id in ipairs(unlocks) do achieved[id] = true end -- still, ohne Toast
+	end
+	updateHUD()
+end)
 function showAchievements()
 	local count = 0
 	for _ in pairs(achieved) do count = count + 1 end
@@ -613,7 +636,7 @@ local function endCheckin()
 	checkin.active = false
 	S.job = nil
 	local allOk = checkin.correct == 8
-	if allOk then addCredits(100) end
+	if allOk then addCredits(100, "checkin") end
 	showPanel(function(p)
 		local t = label(p, "Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -674,10 +697,10 @@ local function resolveCheckin(action)
 		local pay = 60 + (action == "fee" and 50 or 0)
 		checkin.correct = checkin.correct + 1
 		checkin.earned = checkin.earned + pay
-		addCredits(pay); addXP(12)
+		addCredits(pay, "checkin"); addXP(12)
 		toast("✔ Richtig! +" .. pay .. " Credits · " .. reason, "good")
 	else
-		addCredits(-40)
+		addCredits(-40, "checkin")
 		toast("✘ Falsch! −40 Credits · " .. reason, "bad")
 	end
 	local leaveTo = (docsOk and (action == "accept" or action == "fee")) and Vector3.new(34, 0, 250) or Vector3.new(-4, 0, 299)
@@ -777,10 +800,10 @@ local function resolveSec(confiscated)
 	if correct then
 		secJob.correct = secJob.correct + 1
 		secJob.earned = secJob.earned + 50
-		addCredits(50); addXP(10)
+		addCredits(50, "security"); addXP(10)
 		toast(c.bad and "✔ Richtig! Verbotener Gegenstand einkassiert. +50" or "✔ Richtig! Gepäck war sauber. +50", "good")
 	else
-		addCredits(-35)
+		addCredits(-35, "security")
 		toast(c.bad and "✘ Verbotenen Gegenstand durchgewunken! −35" or "✘ Fehlalarm – Gepäck war sauber! −35", "bad")
 	end
 	secJob.idx = secJob.idx + 1
@@ -788,7 +811,7 @@ local function resolveSec(confiscated)
 		secJob.active = false
 		S.job = nil
 		local allOk = secJob.correct == 8
-		if allOk then addCredits(80) unlock("sec_perfect") end
+		if allOk then addCredits(80, "security") unlock("sec_perfect") end
 		showPanel(function(p)
 			local t = label(p, "Kontroll-Schicht beendet!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 			t.Font = Enum.Font.GothamBold
@@ -907,8 +930,8 @@ local function deliverAtJet(jetIdx, items)
 		end
 		removeCase(c)
 	end
-	if okPay > 0 then addCredits(okPay); addXP(math.floor(okPay / 5)); toast("✔ Gepäck verladen: +" .. okPay .. " Credits", "good") end
-	if badPay > 0 then addCredits(-badPay); toast("✘ Falscher Flieger! −" .. badPay .. " Credits", "bad") end
+	if okPay > 0 then addCredits(okPay, "ramp"); addXP(math.floor(okPay / 5)); toast("✔ Gepäck verladen: +" .. okPay .. " Credits", "good") end
+	if badPay > 0 then addCredits(-badPay, "ramp"); toast("✘ Falscher Flieger! −" .. badPay .. " Credits", "bad") end
 end
 
 local function endRamp()
@@ -922,7 +945,7 @@ local function endRamp()
 	cart.load = {}
 	local perfect = ramp.deliveredOk == 8
 	local bonus = (perfect and ramp.timer > 0) and 80 or 0
-	if bonus > 0 then addCredits(bonus) end
+	if bonus > 0 then addCredits(bonus, "ramp") end
 	showPanel(function(p)
 		local t = label(p, "Gepäck-Welle beendet", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -1082,7 +1105,7 @@ local function fuelPrompts(dt)
 			if fuelJob.progress >= 8 then
 				fuelJob.fueled[fuelJob.fueling] = true
 				fuelJob.fueling = nil
-				addCredits(120); addXP(20)
+				addCredits(120, "fuel"); addXP(20)
 				toast("✔ " .. j.name .. " vollgetankt: +120 Credits", "good")
 				if fuelJob.fueled[1] and fuelJob.fueled[2] then endFuelJob(true) end
 			end
@@ -1141,7 +1164,7 @@ local function updateVehicle(v, dt)
 		end
 		if nearJet and speedBefore > 4 and ramp.collideCd <= 0 then
 			ramp.collideCd = 3
-			addCredits(-30)
+			addCredits(-30, "fuel")
 			toast("💥 Kollision mit dem Flugzeug! −30 Credits", "bad")
 		end
 		v.vel = v.vel * -0.25
@@ -1170,7 +1193,7 @@ endFuelJob = function(success)
 	setTimerHUD(nil)
 	local n = (fuelJob.fueled[1] and 1 or 0) + (fuelJob.fueled[2] and 1 or 0)
 	local bonus = (success and fuelJob.timer > 0) and 60 or 0
-	if bonus > 0 then addCredits(bonus) end
+	if bonus > 0 then addCredits(bonus, "fuel") end
 	if S.mode == "cart" and S.vehicle == fuelTruck then exitVehicle() end
 	showPanel(function(p)
 		local t = label(p, success and "Beide Jets betankt!" or "Zeit abgelaufen", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
@@ -1513,7 +1536,7 @@ local function completeMission()
 	local m = MISSIONS[flight.mIdx]
 	local stars, notes = rateLanding(flight.landStats)
 	local pay = m.base * stars
-	addCredits(pay)
+	addCredits(pay, "flight")
 	addXP(30 * stars)
 	flight.active = false
 	showPanel(function(p)
@@ -1948,7 +1971,7 @@ local function endMarshal()
 	local perfect = marshal.mistakes == 0 and marshal.correct == #marshal.signals
 	if perfect then unlock("marshal_perfect") end
 	local bonus = perfect and 60 or 0
-	addCredits(pay + bonus); addXP(15 * marshal.correct)
+	addCredits(pay + bonus, "marshal"); addXP(15 * marshal.correct)
 	showPanel(function(p)
 		local t = label(p, "Flugzeug eingewiesen!", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), CYAN, 20)
 		t.Font = Enum.Font.GothamBold
@@ -1997,7 +2020,7 @@ local function updateMarshal(dt)
 						marshal.gui.Visible = false
 					else
 						marshal.mistakes = marshal.mistakes + 1
-						addCredits(-20)
+						addCredits(-20, "flight")
 						toast("✘ Falsches Zeichen! −20 Credits", "bad")
 					end
 				end
@@ -2327,18 +2350,22 @@ do
 	end
 	local openShopPanel
 	local function buyItem(si, ii)
-		local s = SHOPS[si]
-		local it = s.items[ii]
-		if S.credits < it[2] then
-			toast("Zu wenig Credits für " .. it[1] .. "!", "bad")
-			return
-		end
-		S.credits = S.credits - it[2]
-		updateHUD()
-		unlock("shopper")
-		applyEffect(it[3], it[1])
-		openShopPanel(si)
+		buyEv:FireServer(si, ii) -- Server prueft Preis gegen ShopData und zieht ab (Phase 3)
 	end
+	buyEv.OnClientEvent:Connect(function(ok, si, ii, newCredits)
+		S.credits = newCredits
+		updateHUD()
+		local s = SHOPS[si]
+		local it = s and s.items[ii]
+		if not it then return end
+		if ok then
+			unlock("shopper")
+			applyEffect(it[3], it[1])
+			if panelOpen then openShopPanel(si) end
+		else
+			toast("Zu wenig Credits für " .. it[1] .. "!", "bad")
+		end
+	end)
 	openShopPanel = function(si)
 		local s = SHOPS[si]
 		showPanel(function(p)
