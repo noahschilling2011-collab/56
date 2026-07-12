@@ -2307,22 +2307,8 @@ do
 		worn[kind] = made
 	end
 
-	-- Laeden: Sortiment, Kauf-Panel, Effekte
-	local SHOPS = {
-		{ x = -62, z = 293.2, name = "🍔 Burger Palace", items = { { "🍔 Burger", 12, "xp6" }, { "🍟 Menü Groß", 20, "xp12" }, { "🥤 Cola", 5, "xp3" } } },
-		{ x = -46, z = 293.2, name = "🍕 Pizza Milano", items = { { "🍕 Pizza Margherita", 15, "xp8" }, { "🥟 Calzone", 18, "xp10" }, { "☕ Espresso", 6, "boost" } } },
-		{ x = 14, z = 293.2, name = "👗 Mode Boutique", items = { { "🕶 Sonnenbrille", 45, "glasses" }, { "🧢 Basecap", 25, "xp5" }, { "🧣 Schal", 18, "xp5" } } },
-		{ x = 30, z = 293.2, name = "📱 Elektronik", items = { { "🎧 Kopfhörer", 60, "phones" }, { "🔋 Powerbank", 25, "xp5" }, { "🔌 Reiseadapter", 15, "xp5" } } },
-		{ x = 48, z = 293.2, name = "➕ Apotheke", items = { { "💊 Vitamin-Booster", 15, "boost" }, { "🩹 Pflaster", 6, "xp3" }, { "💊 Reisetabletten", 10, "xp5" } } },
-		{ x = 64, z = 293.2, name = "📰 Presse & Tabak", items = { { "📖 Magazin", 8, "xp6" }, { "🗺 Reiseführer", 14, "xp10" }, { "🍬 Kaugummi", 3, "xp2" } } },
-		{ x = 68.5, z = 250, name = "📚 Buchladen", items = { { "📕 Roman", 12, "xp10" }, { "🔎 Krimi", 15, "xp12" }, { "🧸 Kinderbuch", 9, "xp6" } } },
-		{ x = 68.5, z = 266, name = "🎁 Souvenirs", items = { { "✈ Mini-A380", 30, "souvenir" }, { "🔑 Schlüsselanhänger", 10, "xp5" }, { "❄ Schneekugel", 16, "xp8" } } },
-		{ x = 50, z = 284.8, name = "✨ Duty Free", items = { { "🌸 Parfüm", 40, "xp15" }, { "🍫 Schokolade XXL", 18, "xp10" }, { "🧴 Sonnencreme", 12, "xp5" } } },
-		{ x = 62, z = 278.6, name = "☕ Café am Gate", items = { { "☕ Kaffee", 6, "boost" }, { "☕ Cappuccino", 8, "boost" }, { "🥐 Croissant", 7, "xp5" } } },
-		{ x = 14, z = 294, y2 = true, name = "🍣 Sushi Bar", items = { { "🍣 Sushi-Box", 22, "xp15" }, { "🍜 Miso-Suppe", 9, "xp6" }, { "🍵 Grüner Tee", 5, "boost" } } },
-		{ x = 32, z = 294, y2 = true, name = "🌮 Taco Loco", items = { { "🌮 Taco-Teller", 16, "xp10" }, { "🌯 Burrito", 18, "xp12" }, { "🍋 Limonade", 5, "xp3" } } },
-		{ x = 52, z = 294, y2 = true, name = "🍦 Eiscafé Venezia", items = { { "🍨 Eisbecher", 10, "xp8" }, { "🧇 Waffel", 8, "xp6" }, { "🥤 Milchshake", 9, "boost" } } },
-	}
+	-- Laeden: EINE Datenquelle (ReplicatedStorage/ShopData) fuer Panel + Prompts
+	local SHOPS = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
 	local function applyEffect(eff, nm)
 		if eff == "boost" then
 			S.boostUntil = os.clock() + 60
@@ -2372,12 +2358,15 @@ do
 		end)
 	end
 	for si, s in ipairs(SHOPS) do
+		-- Interaktionspunkt = Geometrie-Anker + 4.4 m vor der Front -> passt immer zusammen
+		local ix = s.pos.x + math.sin(s.rotation) * 4.4
+		local iz = s.pos.z + math.cos(s.rotation) * 4.4
 		addInteract({
-			x = function() return s.x end, z = function() return s.z end, r = 3.4,
+			x = function() return ix end, z = function() return iz end, r = 3.4,
 			cond = function()
 				if S.mode ~= "walk" then return false end
 				local onG = py() > 3.5
-				return (s.y2 and onG) or (not s.y2 and not onG)
+				return (s.ebene == 2 and onG) or (s.ebene == 1 and not onG)
 			end,
 			label = function() return s.name .. " — einkaufen" end,
 			action = function() openShopPanel(si) end,

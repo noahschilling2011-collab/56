@@ -72,6 +72,9 @@ local COL = {
 	cream = Color3.fromRGB(245, 240, 232),
 }
 
+-- Eine Wahrheit fuer alle Shops (Geometrie hier, Prompts/Panels im Client)
+local ShopData = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
+
 ---------------------------------------------------------------- Boden
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -> grosse Flaechen kacheln!
 -- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
@@ -1029,14 +1032,12 @@ local function shop(x, z, ry, name, col)
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
 end
-shop(-62, 297.8, math.pi, "🍔 BURGER PALACE", Color3.fromRGB(194, 59, 46))
-shop(-46, 297.8, math.pi, "🍕 PIZZA MILANO", Color3.fromRGB(42, 122, 74))
-shop(14, 297.8, math.pi, "👗 MODE BOUTIQUE", Color3.fromRGB(201, 95, 160))
-shop(30, 297.8, math.pi, "📱 ELEKTRONIK", Color3.fromRGB(42, 109, 181))
-shop(72.6, 250, -math.pi / 2, "📚 BUCHLADEN", Color3.fromRGB(138, 106, 58))
-shop(72.6, 266, -math.pi / 2, "🎁 SOUVENIRS", Color3.fromRGB(201, 164, 79))
-shop(48, 297.8, math.pi, "➕ APOTHEKE", Color3.fromRGB(42, 157, 92))
-shop(64, 297.8, math.pi, "📰 PRESSE & TABAK", Color3.fromRGB(138, 146, 158))
+-- Fassaden aus ShopData (fassade = false -> Spezial-Geometrie bleibt separat)
+for _, sd in ipairs(ShopData) do
+	if sd.ebene == 1 and sd.fassade ~= false then
+		shop(sd.pos.x, sd.pos.z, sd.rotation, sd.name, sd.akzentfarbe)
+	end
+end
 
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
 do
@@ -1284,9 +1285,9 @@ do
 		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
 	end
-	gshop(14, "🍣 SUSHI BAR", Color3.fromRGB(42, 143, 143))
-	gshop(32, "🌮 TACO LOCO", Color3.fromRGB(224, 120, 32))
-	gshop(52, "🍦 EISCAFÉ VENEZIA", Color3.fromRGB(201, 95, 160))
+	for _, sd in ipairs(ShopData) do
+		if sd.ebene == 2 then gshop(sd.pos.x, sd.name, sd.akzentfarbe) end
+	end
 	-- Food-Court-Tische mit Hockern (2 davon echte Sitzplaetze)
 	for _, t in ipairs({ { 10, 276 }, { 22, 279 }, { 34, 274 }, { 46, 280 }, { 58, 274 }, { 64, 285 } }) do
 		local top = mpart(mega, "FCTable", 0.07, 1.5, 1.5, t[1], 4.78 + 0.78, t[2], Color3.fromRGB(217, 210, 196), { CanCollide = false })

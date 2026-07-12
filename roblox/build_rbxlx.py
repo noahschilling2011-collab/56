@@ -2,6 +2,7 @@
 """Baut AirportJobSimulator.rbxlx aus den beiden Lua-Quellen.
 
 Die .rbxlx ist eine normale Roblox-Studio-Place-Datei (XML):
+- ReplicatedStorage/ShopData          (ModuleScript) -> eine Wahrheit fuer alle Shops
 - ServerScriptService/AirportServer   (Script)     -> baut den Flughafen
 - StarterPlayerScripts/AirportClient  (LocalScript) -> Jobs, HUD, Flugphysik
 
@@ -24,6 +25,7 @@ def xml_escape(s: str) -> str:
 
 server_src = xml_escape((HERE / "AirportServer.server.lua").read_text(encoding="utf-8"))
 client_src = xml_escape((HERE / "AirportClient.client.lua").read_text(encoding="utf-8"))
+shopdata_src = xml_escape((HERE / "ShopData.module.lua").read_text(encoding="utf-8"))
 
 rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<Meta name="ExplicitAutoJoints">true</Meta>
@@ -33,6 +35,17 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 		<Properties>
 			<string name="Name">Workspace</string>
 		</Properties>
+	</Item>
+	<Item class="ReplicatedStorage" referent="RBX6">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX7">
+			<Properties>
+				<string name="Name">ShopData</string>
+				<ProtectedString name="Source">{shopdata_src}</ProtectedString>
+			</Properties>
+		</Item>
 	</Item>
 	<Item class="ServerScriptService" referent="RBX1">
 		<Properties>

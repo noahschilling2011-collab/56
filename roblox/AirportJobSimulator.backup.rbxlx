@@ -7,94 +7,6 @@
 			<string name="Name">Workspace</string>
 		</Properties>
 	</Item>
-	<Item class="ReplicatedStorage" referent="RBX6">
-		<Properties>
-			<string name="Name">ReplicatedStorage</string>
-		</Properties>
-		<Item class="ModuleScript" referent="RBX7">
-			<Properties>
-				<string name="Name">ShopData</string>
-				<ProtectedString name="Source">-- ShopData · EINE Wahrheit fuer alle 13 Shops.
--- Server baut die Geometrie daraus, Client baut Prompts + Kauf-Panels daraus.
--- pos = Anker der Geometrie (Meter) · rotation = Blickrichtung der Front (Yaw)
--- Interaktionspunkt = pos + Frontrichtung * 4.4 (leitet der Client ab -&gt; passt immer zur Geometrie)
--- ebene: 1 = Erdgeschoss, 2 = Food-Court-Galerie (Boden bei 4.78 m)
--- fassade = false: Shop hat (noch) eigene Spezial-Geometrie im Server, keine Standard-Fassade
--- items: { Name, Preis, Effekt } · Effekt: xpN | boost | glasses | phones | souvenir
-
-local ShopData = {
-	{
-		id = "burger", name = "🍔 Burger Palace", akzentfarbe = Color3.fromRGB(194, 59, 46),
-		pos = { x = -62, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "🍔 Burger", 12, "xp6" }, { "🍟 Menü Groß", 20, "xp12" }, { "🥤 Cola", 5, "xp3" } },
-	},
-	{
-		id = "pizza", name = "🍕 Pizza Milano", akzentfarbe = Color3.fromRGB(42, 122, 74),
-		pos = { x = -46, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "🍕 Pizza Margherita", 15, "xp8" }, { "🥟 Calzone", 18, "xp10" }, { "☕ Espresso", 6, "boost" } },
-	},
-	{
-		id = "mode", name = "👗 Mode Boutique", akzentfarbe = Color3.fromRGB(201, 95, 160),
-		pos = { x = 14, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "🕶 Sonnenbrille", 45, "glasses" }, { "🧢 Basecap", 25, "xp5" }, { "🧣 Schal", 18, "xp5" } },
-	},
-	{
-		id = "elektronik", name = "📱 Elektronik", akzentfarbe = Color3.fromRGB(42, 109, 181),
-		pos = { x = 30, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "🎧 Kopfhörer", 60, "phones" }, { "🔋 Powerbank", 25, "xp5" }, { "🔌 Reiseadapter", 15, "xp5" } },
-	},
-	{
-		id = "apotheke", name = "➕ Apotheke", akzentfarbe = Color3.fromRGB(42, 157, 92),
-		pos = { x = 48, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "💊 Vitamin-Booster", 15, "boost" }, { "🩹 Pflaster", 6, "xp3" }, { "💊 Reisetabletten", 10, "xp5" } },
-	},
-	{
-		id = "presse", name = "📰 Presse &amp; Tabak", akzentfarbe = Color3.fromRGB(138, 146, 158),
-		pos = { x = 64, z = 297.8 }, ebene = 1, rotation = math.pi,
-		items = { { "📖 Magazin", 8, "xp6" }, { "🗺 Reiseführer", 14, "xp10" }, { "🍬 Kaugummi", 3, "xp2" } },
-	},
-	{
-		id = "buchladen", name = "📚 Buchladen", akzentfarbe = Color3.fromRGB(138, 106, 58),
-		pos = { x = 72.6, z = 250 }, ebene = 1, rotation = -math.pi / 2,
-		items = { { "📕 Roman", 12, "xp10" }, { "🔎 Krimi", 15, "xp12" }, { "🧸 Kinderbuch", 9, "xp6" } },
-	},
-	{
-		id = "souvenirs", name = "🎁 Souvenirs", akzentfarbe = Color3.fromRGB(201, 164, 79),
-		pos = { x = 72.6, z = 266 }, ebene = 1, rotation = -math.pi / 2,
-		items = { { "✈ Mini-A380", 30, "souvenir" }, { "🔑 Schlüsselanhänger", 10, "xp5" }, { "❄ Schneekugel", 16, "xp8" } },
-	},
-	{
-		id = "dutyfree", name = "✨ Duty Free", akzentfarbe = Color3.fromRGB(141, 95, 201),
-		pos = { x = 50, z = 289 }, ebene = 1, rotation = math.pi, fassade = false, -- Regal-Geometrie bleibt bis Phase 2
-		items = { { "🌸 Parfüm", 40, "xp15" }, { "🍫 Schokolade XXL", 18, "xp10" }, { "🧴 Sonnencreme", 12, "xp5" } },
-	},
-	{
-		id = "cafe", name = "☕ Café am Gate", akzentfarbe = Color3.fromRGB(255, 215, 94),
-		pos = { x = 62, z = 282 }, ebene = 1, rotation = math.pi, fassade = false, -- Kiosk-Geometrie bleibt bis Phase 2
-		items = { { "☕ Kaffee", 6, "boost" }, { "☕ Cappuccino", 8, "boost" }, { "🥐 Croissant", 7, "xp5" } },
-	},
-	{
-		id = "sushi", name = "🍣 Sushi Bar", akzentfarbe = Color3.fromRGB(42, 143, 143),
-		pos = { x = 14, z = 296.5 }, ebene = 2, rotation = math.pi,
-		items = { { "🍣 Sushi-Box", 22, "xp15" }, { "🍜 Miso-Suppe", 9, "xp6" }, { "🍵 Grüner Tee", 5, "boost" } },
-	},
-	{
-		id = "taco", name = "🌮 Taco Loco", akzentfarbe = Color3.fromRGB(224, 120, 32),
-		pos = { x = 32, z = 296.5 }, ebene = 2, rotation = math.pi,
-		items = { { "🌮 Taco-Teller", 16, "xp10" }, { "🌯 Burrito", 18, "xp12" }, { "🍋 Limonade", 5, "xp3" } },
-	},
-	{
-		id = "eiscafe", name = "🍦 Eiscafé Venezia", akzentfarbe = Color3.fromRGB(201, 95, 160),
-		pos = { x = 52, z = 296.5 }, ebene = 2, rotation = math.pi,
-		items = { { "🍨 Eisbecher", 10, "xp8" }, { "🧇 Waffel", 8, "xp6" }, { "🥤 Milchshake", 9, "boost" } },
-	},
-}
-
-return ShopData
-</ProtectedString>
-			</Properties>
-		</Item>
-	</Item>
 	<Item class="ServerScriptService" referent="RBX1">
 		<Properties>
 			<string name="Name">ServerScriptService</string>
@@ -175,9 +87,6 @@ local COL = {
 	red = Color3.fromRGB(194, 59, 46),
 	cream = Color3.fromRGB(245, 240, 232),
 }
-
--- Eine Wahrheit fuer alle Shops (Geometrie hier, Prompts/Panels im Client)
-local ShopData = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
 
 ---------------------------------------------------------------- Boden
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -&gt; grosse Flaechen kacheln!
@@ -1136,12 +1045,14 @@ local function shop(x, z, ry, name, col)
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
 end
--- Fassaden aus ShopData (fassade = false -&gt; Spezial-Geometrie bleibt separat)
-for _, sd in ipairs(ShopData) do
-	if sd.ebene == 1 and sd.fassade ~= false then
-		shop(sd.pos.x, sd.pos.z, sd.rotation, sd.name, sd.akzentfarbe)
-	end
-end
+shop(-62, 297.8, math.pi, "🍔 BURGER PALACE", Color3.fromRGB(194, 59, 46))
+shop(-46, 297.8, math.pi, "🍕 PIZZA MILANO", Color3.fromRGB(42, 122, 74))
+shop(14, 297.8, math.pi, "👗 MODE BOUTIQUE", Color3.fromRGB(201, 95, 160))
+shop(30, 297.8, math.pi, "📱 ELEKTRONIK", Color3.fromRGB(42, 109, 181))
+shop(72.6, 250, -math.pi / 2, "📚 BUCHLADEN", Color3.fromRGB(138, 106, 58))
+shop(72.6, 266, -math.pi / 2, "🎁 SOUVENIRS", Color3.fromRGB(201, 164, 79))
+shop(48, 297.8, math.pi, "➕ APOTHEKE", Color3.fromRGB(42, 157, 92))
+shop(64, 297.8, math.pi, "📰 PRESSE &amp; TABAK", Color3.fromRGB(138, 146, 158))
 
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
 do
@@ -1389,9 +1300,9 @@ do
 		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
 	end
-	for _, sd in ipairs(ShopData) do
-		if sd.ebene == 2 then gshop(sd.pos.x, sd.name, sd.akzentfarbe) end
-	end
+	gshop(14, "🍣 SUSHI BAR", Color3.fromRGB(42, 143, 143))
+	gshop(32, "🌮 TACO LOCO", Color3.fromRGB(224, 120, 32))
+	gshop(52, "🍦 EISCAFÉ VENEZIA", Color3.fromRGB(201, 95, 160))
 	-- Food-Court-Tische mit Hockern (2 davon echte Sitzplaetze)
 	for _, t in ipairs({ { 10, 276 }, { 22, 279 }, { 34, 274 }, { 46, 280 }, { 58, 274 }, { 64, 285 } }) do
 		local top = mpart(mega, "FCTable", 0.07, 1.5, 1.5, t[1], 4.78 + 0.78, t[2], Color3.fromRGB(217, 210, 196), { CanCollide = false })
@@ -3975,8 +3886,22 @@ do
 		worn[kind] = made
 	end
 
-	-- Laeden: EINE Datenquelle (ReplicatedStorage/ShopData) fuer Panel + Prompts
-	local SHOPS = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
+	-- Laeden: Sortiment, Kauf-Panel, Effekte
+	local SHOPS = {
+		{ x = -62, z = 293.2, name = "🍔 Burger Palace", items = { { "🍔 Burger", 12, "xp6" }, { "🍟 Menü Groß", 20, "xp12" }, { "🥤 Cola", 5, "xp3" } } },
+		{ x = -46, z = 293.2, name = "🍕 Pizza Milano", items = { { "🍕 Pizza Margherita", 15, "xp8" }, { "🥟 Calzone", 18, "xp10" }, { "☕ Espresso", 6, "boost" } } },
+		{ x = 14, z = 293.2, name = "👗 Mode Boutique", items = { { "🕶 Sonnenbrille", 45, "glasses" }, { "🧢 Basecap", 25, "xp5" }, { "🧣 Schal", 18, "xp5" } } },
+		{ x = 30, z = 293.2, name = "📱 Elektronik", items = { { "🎧 Kopfhörer", 60, "phones" }, { "🔋 Powerbank", 25, "xp5" }, { "🔌 Reiseadapter", 15, "xp5" } } },
+		{ x = 48, z = 293.2, name = "➕ Apotheke", items = { { "💊 Vitamin-Booster", 15, "boost" }, { "🩹 Pflaster", 6, "xp3" }, { "💊 Reisetabletten", 10, "xp5" } } },
+		{ x = 64, z = 293.2, name = "📰 Presse &amp; Tabak", items = { { "📖 Magazin", 8, "xp6" }, { "🗺 Reiseführer", 14, "xp10" }, { "🍬 Kaugummi", 3, "xp2" } } },
+		{ x = 68.5, z = 250, name = "📚 Buchladen", items = { { "📕 Roman", 12, "xp10" }, { "🔎 Krimi", 15, "xp12" }, { "🧸 Kinderbuch", 9, "xp6" } } },
+		{ x = 68.5, z = 266, name = "🎁 Souvenirs", items = { { "✈ Mini-A380", 30, "souvenir" }, { "🔑 Schlüsselanhänger", 10, "xp5" }, { "❄ Schneekugel", 16, "xp8" } } },
+		{ x = 50, z = 284.8, name = "✨ Duty Free", items = { { "🌸 Parfüm", 40, "xp15" }, { "🍫 Schokolade XXL", 18, "xp10" }, { "🧴 Sonnencreme", 12, "xp5" } } },
+		{ x = 62, z = 278.6, name = "☕ Café am Gate", items = { { "☕ Kaffee", 6, "boost" }, { "☕ Cappuccino", 8, "boost" }, { "🥐 Croissant", 7, "xp5" } } },
+		{ x = 14, z = 294, y2 = true, name = "🍣 Sushi Bar", items = { { "🍣 Sushi-Box", 22, "xp15" }, { "🍜 Miso-Suppe", 9, "xp6" }, { "🍵 Grüner Tee", 5, "boost" } } },
+		{ x = 32, z = 294, y2 = true, name = "🌮 Taco Loco", items = { { "🌮 Taco-Teller", 16, "xp10" }, { "🌯 Burrito", 18, "xp12" }, { "🍋 Limonade", 5, "xp3" } } },
+		{ x = 52, z = 294, y2 = true, name = "🍦 Eiscafé Venezia", items = { { "🍨 Eisbecher", 10, "xp8" }, { "🧇 Waffel", 8, "xp6" }, { "🥤 Milchshake", 9, "boost" } } },
+	}
 	local function applyEffect(eff, nm)
 		if eff == "boost" then
 			S.boostUntil = os.clock() + 60
@@ -4026,15 +3951,12 @@ do
 		end)
 	end
 	for si, s in ipairs(SHOPS) do
-		-- Interaktionspunkt = Geometrie-Anker + 4.4 m vor der Front -&gt; passt immer zusammen
-		local ix = s.pos.x + math.sin(s.rotation) * 4.4
-		local iz = s.pos.z + math.cos(s.rotation) * 4.4
 		addInteract({
-			x = function() return ix end, z = function() return iz end, r = 3.4,
+			x = function() return s.x end, z = function() return s.z end, r = 3.4,
 			cond = function()
 				if S.mode ~= "walk" then return false end
 				local onG = py() &gt; 3.5
-				return (s.ebene == 2 and onG) or (s.ebene == 1 and not onG)
+				return (s.y2 and onG) or (not s.y2 and not onG)
 			end,
 			label = function() return s.name .. " — einkaufen" end,
 			action = function() openShopPanel(si) end,
