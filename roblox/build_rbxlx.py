@@ -38,6 +38,50 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 			<string name="Name">Workspace</string>
 		</Properties>
 	</Item>
+	<Item class="Lighting" referent="RBX9">
+		<Properties>
+			<string name="Name">Lighting</string>
+			<token name="Technology">4</token>
+			<string name="TimeOfDay">15:00:00</string>
+			<bool name="GlobalShadows">true</bool>
+			<float name="Brightness">2.2</float>
+			<float name="EnvironmentDiffuseScale">0.5</float>
+			<float name="EnvironmentSpecularScale">0.6</float>
+			<float name="ShadowSoftness">0.2</float>
+			<Color3 name="Ambient"><R>0.27</R><G>0.28</G><B>0.31</B></Color3>
+			<Color3 name="OutdoorAmbient"><R>0.5</R><G>0.52</G><B>0.55</B></Color3>
+		</Properties>
+		<Item class="Atmosphere" referent="RBX10">
+			<Properties>
+				<string name="Name">Atmosphere</string>
+				<float name="Density">0.35</float>
+				<float name="Offset">0.25</float>
+				<float name="Glare">0.2</float>
+				<float name="Haze">1.4</float>
+				<Color3 name="Color"><R>0.8</R><G>0.78</G><B>0.75</B></Color3>
+				<Color3 name="Decay"><R>0.42</R><G>0.44</G><B>0.49</B></Color3>
+			</Properties>
+		</Item>
+		<Item class="BloomEffect" referent="RBX11">
+			<Properties>
+				<string name="Name">Bloom</string>
+				<bool name="Enabled">true</bool>
+				<float name="Intensity">0.35</float>
+				<float name="Size">24</float>
+				<float name="Threshold">1.1</float>
+			</Properties>
+		</Item>
+		<Item class="ColorCorrectionEffect" referent="RBX12">
+			<Properties>
+				<string name="Name">ColorCorrection</string>
+				<bool name="Enabled">true</bool>
+				<float name="Brightness">0.02</float>
+				<float name="Contrast">0.05</float>
+				<float name="Saturation">0.03</float>
+				<Color3 name="TintColor"><R>1</R><G>0.976</G><B>0.945</B></Color3>
+			</Properties>
+		</Item>
+	</Item>
 	<Item class="ReplicatedStorage" referent="RBX6">
 		<Properties>
 			<string name="Name">ReplicatedStorage</string>

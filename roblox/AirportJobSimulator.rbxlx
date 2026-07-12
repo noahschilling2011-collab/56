@@ -7,6 +7,50 @@
 			<string name="Name">Workspace</string>
 		</Properties>
 	</Item>
+	<Item class="Lighting" referent="RBX9">
+		<Properties>
+			<string name="Name">Lighting</string>
+			<token name="Technology">4</token>
+			<string name="TimeOfDay">15:00:00</string>
+			<bool name="GlobalShadows">true</bool>
+			<float name="Brightness">2.2</float>
+			<float name="EnvironmentDiffuseScale">0.5</float>
+			<float name="EnvironmentSpecularScale">0.6</float>
+			<float name="ShadowSoftness">0.2</float>
+			<Color3 name="Ambient"><R>0.27</R><G>0.28</G><B>0.31</B></Color3>
+			<Color3 name="OutdoorAmbient"><R>0.5</R><G>0.52</G><B>0.55</B></Color3>
+		</Properties>
+		<Item class="Atmosphere" referent="RBX10">
+			<Properties>
+				<string name="Name">Atmosphere</string>
+				<float name="Density">0.35</float>
+				<float name="Offset">0.25</float>
+				<float name="Glare">0.2</float>
+				<float name="Haze">1.4</float>
+				<Color3 name="Color"><R>0.8</R><G>0.78</G><B>0.75</B></Color3>
+				<Color3 name="Decay"><R>0.42</R><G>0.44</G><B>0.49</B></Color3>
+			</Properties>
+		</Item>
+		<Item class="BloomEffect" referent="RBX11">
+			<Properties>
+				<string name="Name">Bloom</string>
+				<bool name="Enabled">true</bool>
+				<float name="Intensity">0.35</float>
+				<float name="Size">24</float>
+				<float name="Threshold">1.1</float>
+			</Properties>
+		</Item>
+		<Item class="ColorCorrectionEffect" referent="RBX12">
+			<Properties>
+				<string name="Name">ColorCorrection</string>
+				<bool name="Enabled">true</bool>
+				<float name="Brightness">0.02</float>
+				<float name="Contrast">0.05</float>
+				<float name="Saturation">0.03</float>
+				<Color3 name="TintColor"><R>1</R><G>0.976</G><B>0.945</B></Color3>
+			</Properties>
+		</Item>
+	</Item>
 	<Item class="ReplicatedStorage" referent="RBX6">
 		<Properties>
 			<string name="Name">ReplicatedStorage</string>
@@ -114,7 +158,6 @@ return ShopData
 local M = 2 -- Meter -&gt; Studs
 
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 
 -- Alte Version entfernen (bei Re-Run in Studio)
 local old = Workspace:FindFirstChild("Airport")
@@ -125,11 +168,8 @@ airport.Name = "Airport"
 airport.Parent = Workspace
 
 -- Atmosphaere / Fog
-Lighting.ClockTime = 13
-Lighting.FogColor = Color3.fromRGB(168, 207, 232)
-Lighting.FogStart = 1400 * M
-Lighting.FogEnd = 2800 * M
-Lighting.Brightness = 2
+-- Lighting (Technology=Future, TimeOfDay 15:00, Atmosphere/Bloom/ColorCorrection)
+-- kommt als Item direkt aus der .rbxlx — hier nichts mehr ueberschreiben (Phase 5).
 
 local function part(props)
 	local p = Instance.new("Part")
@@ -287,7 +327,7 @@ papi("PAPI09", -450, -RWY_W / 2 - 8) -- Anflug von Westen
 papi("PAPI27", 450, RWY_W / 2 + 8)   -- Anflug von Osten
 
 ---------------------------------------------------------------- Taxiway + Vorfeld
-tiled(airport, "Taxiway", RWY_L + 40, 0.35, 16, 0, 0.02, 80, COL.taxi)
+tiled(airport, "Taxiway", RWY_L + 40, 0.35, 16, 0, 0.02, 80, COL.taxi, { Material = Enum.Material.Asphalt })
 for x = -750, 740, 30 do
 	mpart(airport, "TL", 15, 0.1, 0.5, x + 7, 0.3, 80, COL.yellow, { CanCollide = false })
 end
@@ -494,11 +534,23 @@ local marshalJet = makeNarrowbody("MarshalJet", Color3.fromRGB(138, 143, 153), 0
 ---------------------------------------------------------------- Terminal (x -70..75, z 232..302)
 local T = { x1 = -70, x2 = 75, z1 = 232, z2 = 302, h = 11 }
 local term = Instance.new("Model"); term.Name = "Terminal"; term.Parent = airport
-mpart(term, "Floor", T.x2 - T.x1, 0.5, T.z2 - T.z1, (T.x1 + T.x2) / 2, 0.15, (T.z1 + T.z2) / 2, Color3.fromRGB(185, 190, 199))
+-- Zwei-Ton-Kachelboden (Marble/Granite) im Schachbrett (Phase 5)
+do
+	local tileCols = { Color3.fromRGB(206, 208, 212), Color3.fromRGB(178, 182, 190) }
+	local tileMats = { Enum.Material.Marble, Enum.Material.Granite }
+	local nx, nz = 15, 7
+	local tw, td = (T.x2 - T.x1) / nx, (T.z2 - T.z1) / nz
+	for ix = 0, nx - 1 do
+		for iz = 0, nz - 1 do
+			local k = (ix + iz) % 2 + 1
+			mpart(term, "Floor", tw, 0.5, td, T.x1 + tw * (ix + 0.5), 0.15, T.z1 + td * (iz + 0.5), tileCols[k], { Material = tileMats[k] })
+		end
+	end
+end
 mpart(term, "Roof", T.x2 - T.x1 + 4, 0.7, T.z2 - T.z1 + 4, (T.x1 + T.x2) / 2, T.h, (T.z1 + T.z2) / 2, Color3.fromRGB(138, 146, 158))
 local function wallSeg(nm, x1, x2, z, color, transp)
 	mpart(term, nm, x2 - x1, T.h, 0.6, (x1 + x2) / 2, T.h / 2, z, color,
-		transp and { Transparency = 0.6, Material = Enum.Material.Glass } or nil)
+		transp and { Transparency = 0.6, Material = Enum.Material.Glass } or { Material = Enum.Material.Concrete })
 end
 -- Glasfront Nord (zum Vorfeld), Tuer bei x 28..36
 wallSeg("GlassW", T.x1, 28, T.z1, COL.glass, true)
@@ -506,8 +558,12 @@ wallSeg("GlassE", 36, T.x2, T.z1, COL.glass, true)
 -- Suedwand mit Eingang bei x -8..0
 wallSeg("BackW", T.x1, -8, T.z2, COL.wall)
 wallSeg("BackE", 0, T.x2, T.z2, COL.wall)
-mpart(term, "SideW", 0.6, T.h, T.z2 - T.z1, T.x1, T.h / 2, (T.z1 + T.z2) / 2, COL.wall)
-mpart(term, "SideE", 0.6, T.h, T.z2 - T.z1, T.x2, T.h / 2, (T.z1 + T.z2) / 2, COL.wall)
+mpart(term, "SideW", 0.6, T.h, T.z2 - T.z1, T.x1, T.h / 2, (T.z1 + T.z2) / 2, COL.wall, { Material = Enum.Material.Concrete })
+mpart(term, "SideE", 0.6, T.h, T.z2 - T.z1, T.x2, T.h / 2, (T.z1 + T.z2) / 2, COL.wall, { Material = Enum.Material.Concrete })
+-- Metall-Akzentleisten an den Innenwaenden (Phase 5)
+mpart(term, "LeisteN", T.x2 - T.x1, 0.14, 0.08, (T.x1 + T.x2) / 2, 2.3, T.z2 - 0.42, Color3.fromRGB(196, 202, 210), { Material = Enum.Material.Metal, CanCollide = false })
+mpart(term, "LeisteW", 0.08, 0.14, T.z2 - T.z1, T.x1 + 0.42, 2.3, (T.z1 + T.z2) / 2, Color3.fromRGB(196, 202, 210), { Material = Enum.Material.Metal, CanCollide = false })
+mpart(term, "LeisteE", 0.08, 0.14, T.z2 - T.z1, T.x2 - 0.42, 2.3, (T.z1 + T.z2) / 2, Color3.fromRGB(196, 202, 210), { Material = Enum.Material.Metal, CanCollide = false })
 for x = T.x1 + 15, T.x2 - 5, 22 do
 	local c = mpart(term, "Pillar", 1, T.h, 1, x, T.h / 2, (T.z1 + T.z2) / 2, Color3.fromRGB(170, 178, 188))
 	c.Shape = Enum.PartType.Cylinder
@@ -524,10 +580,21 @@ for i = 0, 2 do
 		{ Material = i == 0 and Enum.Material.Neon or Enum.Material.SmoothPlastic, CanCollide = false })
 end
 mpart(term, "Waage", 2, 0.4, 2, -39.5, 0.2, 255.5, Color3.fromRGB(119, 127, 137))
--- Gate-Sitzreihen
+-- Lichtleisten-Raster unter der Decke (~8 m) mit PointLights (Phase 5)
+for x = T.x1 + 8, T.x2 - 4, 8 do
+	for _, lz in ipairs({ 250, 285 }) do
+		local strip = mpart(term, "LichtLeiste", 1.2, 0.08, 6, x, T.h - 0.55, lz, Color3.fromRGB(255, 250, 236), { Material = Enum.Material.Neon, CanCollide = false })
+		local lpl = Instance.new("PointLight")
+		lpl.Brightness = 0.55; lpl.Range = 30; lpl.Color = Color3.fromRGB(255, 244, 219); lpl.Parent = strip
+	end
+end
+-- Teppichzonen vor den Gates + Westhalle (Phase 5)
+mpart(term, "GateTeppich", 36, 0.06, 19, 34, 0.43, 251.5, Color3.fromRGB(42, 60, 86), { Material = Enum.Material.Fabric, CanCollide = false })
+mpart(term, "WestTeppich", 28, 0.06, 13, -55, 0.43, 272.5, Color3.fromRGB(42, 60, 86), { Material = Enum.Material.Fabric, CanCollide = false })
+-- Gate-Sitzreihen (einheitliche Akzentfarbe, Stoff)
 for r = 0, 3 do
 	for c = 0, 9 do
-		mpart(term, "Seat", 1.6, 0.9, 1.4, 18 + c * 3.2, 0.45, 244 + r * 4.5, Color3.fromRGB(61, 90, 128))
+		mpart(term, "Seat", 1.6, 0.9, 1.4, 18 + c * 3.2, 0.45, 244 + r * 4.5, Color3.fromRGB(42, 109, 181), { Material = Enum.Material.Fabric })
 	end
 end
 mpart(term, "GateSign", 5, 1.4, 0.2, 34, 4.5, 234, Color3.fromRGB(42, 157, 92), { Material = Enum.Material.Neon, CanCollide = false })
@@ -586,7 +653,7 @@ local croot = mpart(cart, "Root", 1, 1, 1, 0, 0, 0, COL.dark, { Transparency = 1
 cart.PrimaryPart = croot
 mpart(cart, "Chassis", 2.4, 0.5, 5.2, 0, 0.65, 0, Color3.fromRGB(42, 109, 181))
 mpart(cart, "Cab", 2.2, 1.5, 1.6, 0, 1.6, 1.6, Color3.fromRGB(42, 109, 181))
-mpart(cart, "Windshield", 2, 0.7, 0.15, 0, 2.0, 0.85, COL.glass, { Transparency = 0.5, CanCollide = false })
+mpart(cart, "Windshield", 2, 0.7, 0.15, 0, 2.0, 0.85, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass, CanCollide = false })
 mpart(cart, "Bed", 2.3, 0.15, 3.2, 0, 0.95, -1.4, Color3.fromRGB(139, 149, 161))
 for _, w in ipairs({ { -1.1, -1.8 }, { 1.1, -1.8 }, { -1.1, 1.8 }, { 1.1, 1.8 } }) do
 	-- Zylinderachse = X = Radachse (links/rechts): keine Zusatzrotation noetig
@@ -608,8 +675,8 @@ pp("Cowl", 1.1, 1.1, 1.2, 0, 1.32, -2.35, COL.cream)
 pp("CowlInlet", 1.04, 0.34, 1.2, 0, 0.86, -2.3, COL.dark, { CanCollide = false })
 pp("Nose", 1.25, 1.25, 0.9, 0, 1.35, -1.3, COL.red)
 pp("Fus", 1.15, 1.25, 2.5, 0, 1.55, 0.1, COL.cream)
-pp("GlassBand", 1.17, 0.5, 1.7, 0, 1.95, -0.15, COL.glass, { Transparency = 0.45, CanCollide = false })
-pp("Windshield", 1.1, 0.62, 0.12, 0, 1.95, -1.15, COL.glass, { Transparency = 0.45, CanCollide = false })
+pp("GlassBand", 1.17, 0.5, 1.7, 0, 1.95, -0.15, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass, CanCollide = false })
+pp("Windshield", 1.1, 0.62, 0.12, 0, 1.95, -1.15, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass, CanCollide = false })
 pp("Dash", 1.0, 0.3, 0.35, 0, 1.68, -1.0, COL.dark, { CanCollide = false })
 pp("Tailcone", 0.55, 0.7, 3.4, 0, 1.55, 3.0, COL.cream, { CanCollide = false })
 -- Propeller + Spinner + Blur-Scheibe
@@ -659,7 +726,7 @@ shaft.Shape = Enum.PartType.Cylinder
 shaft.CFrame = CFrame.new(-130 * M, 13 * M, 250 * M) * CFrame.Angles(0, 0, math.rad(90))
 shaft.Size = Vector3.new(26 * M, 6 * M, 6 * M)
 mpart(tower, "Cab", 10, 4.5, 10, -130, 28, 250, Color3.fromRGB(36, 55, 74))
-mpart(tower, "CabGlass", 9.4, 2.4, 9.4, -130, 28.4, 250, COL.glass, { Transparency = 0.5, CanCollide = false })
+mpart(tower, "CabGlass", 9.4, 2.4, 9.4, -130, 28.4, 250, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass, CanCollide = false })
 mpart(tower, "Beacon", 0.8, 0.8, 0.8, -130, 32.5, 250, Color3.fromRGB(255, 136, 0), { Material = Enum.Material.Neon, CanCollide = false })
 
 local hangar = Instance.new("Model"); hangar.Name = "Hangar"; hangar.Parent = airport
@@ -910,7 +977,7 @@ for _, z in ipairs({ 250, 253 }) do
 	end
 	mpart(deco2, "QBand", 28, 0.1, 0.08, -38, 0.95, z, Color3.fromRGB(176, 48, 48), { CanCollide = false })
 end
-for _, p in ipairs({ { -62, 240 }, { -62, 290 }, { 8, 238 }, { 70, 250 }, { 12, 296 } }) do
+for _, p in ipairs({ { -62, 240 }, { -62, 290 }, { 8, 238 }, { 70, 250 }, { 12, 296 }, { -36, 266 }, { 55.5, 247 }, { -10, 236 } }) do
 	mpart(deco2, "Pot", 1.0, 0.8, 1.0, p[1], 0.4, p[2], Color3.fromRGB(119, 80, 60))
 	local bush = mpart(deco2, "Bush", 1.5, 1.5, 1.5, p[1], 1.35, p[2], Color3.fromRGB(47, 122, 58), { CanCollide = false })
 	bush.Shape = Enum.PartType.Ball
@@ -1024,7 +1091,7 @@ end)
 local mega = Instance.new("Folder"); mega.Name = "Mega"; mega.Parent = airport
 local function pier(x1, x2, letter)
 	tiled(mega, "PierApron", x2 - x1 + 60, 0.3, 100, (x1 + x2) / 2, 0.0, 178, COL.apron, { Material = Enum.Material.Concrete })
-	mpart(mega, "Pier", x2 - x1, 5.5, 16, (x1 + x2) / 2, 5.7, 196, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass })
+	mpart(mega, "Pier", x2 - x1, 5.5, 16, (x1 + x2) / 2, 5.7, 196, COL.glass, { Transparency = 0.4, Material = Enum.Material.Glass5, Material = Enum.Material.Glass })
 	mpart(mega, "PierRoof", x2 - x1 + 2, 0.6, 18, (x1 + x2) / 2, 8.6, 196, Color3.fromRGB(138, 146, 158))
 	mpart(mega, "PierFloor", x2 - x1 + 2, 0.5, 18, (x1 + x2) / 2, 3.0, 196, Color3.fromRGB(119, 128, 140))
 	local gnum = 1
@@ -1135,7 +1202,7 @@ local function shop(sd)
 	-- Front: Sockel + Schaufenster beidseitig, Tuerrahmen in Akzentfarbe — Oeffnung bleibt frei
 	for _, sx in ipairs({ -1, 1 }) do
 		mpart(m, "FrontSockel", 4.7, 0.9, 0.25, sx * 4.15, 0.45, 1.4, dk)
-		mpart(m, "Schaufenster", 4.7, 2.3, 0.18, sx * 4.15, 2.05, 1.4, COL.glass, { Transparency = 0.55 })
+		mpart(m, "Schaufenster", 4.7, 2.3, 0.18, sx * 4.15, 2.05, 1.4, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass })
 		mpart(m, "TuerRahmen", 0.3, 3.2, 0.3, sx * 1.95, 1.6, 1.4, col)
 	end
 	mpart(m, "TuerSturz", 3.6, 0.5, 0.25, 0, 2.96, 1.4, col, { CanCollide = false })
@@ -1150,7 +1217,7 @@ local function shop(sd)
 	local FOOD = { burger = true, pizza = true, cafe = true, sushi = true, taco = true, eiscafe = true }
 	if FOOD[sd.id] then
 		-- Vitrine auf der Theke + Regal an der Rueckwand
-		mpart(m, "Vitrine", 2.6, 0.7, 0.95, -3.2, 1.5, -0.8, COL.glass, { Transparency = 0.5, CanCollide = false })
+		mpart(m, "Vitrine", 2.6, 0.7, 0.95, -3.2, 1.5, -0.8, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass, CanCollide = false })
 		for k = 0, 2 do
 			mpart(m, "Ware", 0.5, 0.32, 0.5, -4.05 + k * 0.85, 1.32, -0.8, col, { CanCollide = false })
 		end
@@ -1187,7 +1254,12 @@ local function shop(sd)
 	end
 	-- Aussen: Neon-Band + beleuchtetes Schild
 	mpart(m, "Band", 13, 0.9, 0.2, 0, 3.5, 1.55, col, { Material = Enum.Material.Neon, CanCollide = false })
-	local sign = mpart(m, "Schild", 9, 1.35, 0.15, 0, 4.4, 1.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	-- Schild: breiter und beleuchtet; im EG flacher, damit es nicht in den Galerie-Boden ragt
+	local sw, sh, sy = 11, 1.5, 4.45
+	if sd.ebene == 1 then sh, sy = 0.72, 4.0 end
+	local sign = mpart(m, "Schild", sw, sh, 0.15, 0, sy, 1.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local spl = Instance.new("PointLight")
+	spl.Brightness = 0.8; spl.Range = 12; spl.Color = col; spl.Parent = sign
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(560, 84); sg.Parent = sign
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = sd.name; tl.Parent = sg
@@ -1222,7 +1294,7 @@ sysInit("Gebaeude-Upgrade", function()
 	end
 	mpart(mega, "XrayBelt2", 1.6, 1.0, 5, -1.5, 0.5, 249, COL.dark)
 	mpart(mega, "XrayTunnel2", 2.0, 1.6, 1.8, -1.5, 0.8, 249, Color3.fromRGB(138, 146, 158))
-	local scan = mpart(mega, "BodyScan", 2.6, 2.2, 2.2, 6, 1.3, 252, COL.glass, { Transparency = 0.55, CanCollide = false })
+	local scan = mpart(mega, "BodyScan", 2.6, 2.2, 2.2, 6, 1.3, 252, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass, CanCollide = false })
 	scan.Shape = Enum.PartType.Cylinder
 	scan.CFrame = CFrame.new(6 * M, 1.3 * M, 252 * M) * CFrame.Angles(0, 0, math.rad(90))
 	for i = 0, 3 do
@@ -1355,8 +1427,8 @@ sysInit("Inneneinrichtung", function()
 	end
 	-- Business Lounge West: Teppich, Glaswand, Sofa, Lampe
 	carpet(-61, 243.5, 13, 9.5, Color3.fromRGB(58, 50, 68))
-	mpart(mega, "LoungeGlass", 0.12, 2.2, 9.5, -54.5, 1.1, 243.5, COL.glass, { Transparency = 0.55 })
-	mpart(mega, "LoungeGlass2", 13, 2.2, 0.12, -61, 1.1, 248.2, COL.glass, { Transparency = 0.55 })
+	mpart(mega, "LoungeGlass", 0.12, 2.2, 9.5, -54.5, 1.1, 243.5, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass })
+	mpart(mega, "LoungeGlass2", 13, 2.2, 0.12, -61, 1.1, 248.2, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass })
 	sofa(-61, 246.8, math.pi, Color3.fromRGB(106, 74, 90), 2.4)
 	ltable(-61, 242, 0.7)
 	floorLamp(-67, 246.5); planter(-56, 246.5)
@@ -1411,9 +1483,9 @@ sysInit("Ebenen &amp; Tunnel", function()
 	local grey = Color3.fromRGB(170, 178, 188)
 	-- Galerie-Boden + Gelaender (Luecke an der Rolltreppen-Rampe x 50..57)
 	mpart(mega, "GalleryFloor", 74, 0.4, 37.5, 35, 4.58, 281.75, Color3.fromRGB(226, 230, 235))
-	mpart(mega, "GalRailS1", 52.8, 1.1, 0.1, 24.4, 5.35, 263, COL.glass, { Transparency = 0.5 })
-	mpart(mega, "GalRailS2", 15, 1.1, 0.1, 64.5, 5.35, 263, COL.glass, { Transparency = 0.5 })
-	mpart(mega, "GalRailW", 0.1, 1.1, 37.5, -2, 5.35, 281.75, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "GalRailS1", 52.8, 1.1, 0.1, 24.4, 5.35, 263, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
+	mpart(mega, "GalRailS2", 15, 1.1, 0.1, 64.5, 5.35, 263, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
+	mpart(mega, "GalRailW", 0.1, 1.1, 37.5, -2, 5.35, 281.75, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
 	for _, cx in ipairs({ 8, 28, 48, 68 }) do
 		mpart(mega, "GalCol", 0.7, 4.6, 0.7, cx, 2.3, 263.8, grey)
 	end
@@ -1431,8 +1503,8 @@ sysInit("Ebenen &amp; Tunnel", function()
 	for _, ox in ipairs({ 1.2, 3.8 }) do
 		mpart(mega, "LiftFrame", 0.36, 9.6, 2.6, ox, 4.8, 298.4, grey)
 	end
-	mpart(mega, "LiftGlass", 2.8, 9.6, 0.2, 2.5, 4.8, 297.1, COL.glass, { Transparency = 0.5 })
-	mpart(mega, "LiftGlass2", 2.8, 9.6, 0.2, 2.5, 4.8, 299.7, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "LiftGlass", 2.8, 9.6, 0.2, 2.5, 4.8, 297.1, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
+	mpart(mega, "LiftGlass2", 2.8, 9.6, 0.2, 2.5, 4.8, 299.7, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
 	mpart(mega, "LiftTop", 2.8, 0.3, 2.8, 2.5, 9.7, 298.4, grey, { CanCollide = false })
 	-- Food-Court-Laeden: begehbare Raeume wie im EG (shop() setzt die Galerie-Hoehe selbst)
 	for _, sd in ipairs(ShopData) do
@@ -1491,10 +1563,10 @@ sysInit("Ebenen &amp; Tunnel", function()
 	tunAd(-75, "☕ CAFÉ · EBENE 2", Color3.fromRGB(255, 215, 94))
 	-- Treppenhaeuschen am Parkdeck + Treppenabgang im Terminal (Optik, Client teleportiert)
 	for _, ox in ipairs({ -2.1, 2.1 }) do
-		mpart(mega, "TunHutWall", 0.2, 3.0, 4.4, -120 + ox, 1.5, 303, COL.glass, { Transparency = 0.5 })
+		mpart(mega, "TunHutWall", 0.2, 3.0, 4.4, -120 + ox, 1.5, 303, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
 	end
-	mpart(mega, "TunHutBack", 4.4, 3.0, 0.2, -120, 1.5, 300.9, COL.glass, { Transparency = 0.5 })
-	mpart(mega, "TunHutRoof", 4.4, 0.25, 4.4, -120, 3.0, 303, COL.glass, { Transparency = 0.45, CanCollide = false })
+	mpart(mega, "TunHutBack", 4.4, 3.0, 0.2, -120, 1.5, 300.9, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
+	mpart(mega, "TunHutRoof", 4.4, 0.25, 4.4, -120, 3.0, 303, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass, CanCollide = false })
 	local hs = mpart(mega, "TunHutSign", 6, 1.0, 0.14, -120, 3.9, 305.2, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	do
 		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 70); sg.Parent = hs
@@ -1503,7 +1575,7 @@ sysInit("Ebenen &amp; Tunnel", function()
 		tl.Text = "⬇ TUNNEL · TERMINAL 1"; tl.Parent = sg
 	end
 	for _, ox in ipairs({ -1.9, 1.9 }) do
-		mpart(mega, "TunStairRail", 0.16, 1.05, 4.2, -66 + ox, 0.55, 284.5, COL.glass, { Transparency = 0.5 })
+		mpart(mega, "TunStairRail", 0.16, 1.05, 4.2, -66 + ox, 0.55, 284.5, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
 	end
 	local ts = mpart(mega, "TunStairSign", 6.5, 1.0, 0.14, -66, 2.6, 281.9, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	do
@@ -1593,7 +1665,7 @@ sysInit("Gepaeckkeller", function()
 	kSign("⬆ GEPÄCKAUSGABE 1", -44, -1.5, 262.4, 5.5, Color3.fromRGB(159, 212, 232))
 	-- Personal-Treppe im EG (Optik; Client teleportiert)
 	for _, ox in ipairs({ -1.7, 1.7 }) do
-		mpart(mega, "KStairRail", 0.16, 1.05, 3.8, -52 + ox, 0.55, 236.5, COL.glass, { Transparency = 0.5 })
+		mpart(mega, "KStairRail", 0.16, 1.05, 3.8, -52 + ox, 0.55, 236.5, COL.glass, { Transparency = 0.5, Material = Enum.Material.Glass })
 	end
 	kSign("⬇ GEPÄCKKELLER · PERSONAL", -52, 2.4, 234.2, 6.5, Color3.fromRGB(255, 215, 94))
 end)
