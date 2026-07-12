@@ -178,6 +178,12 @@ local COL = {
 -- Eine Wahrheit fuer alle Shops (Geometrie hier, Prompts/Panels im Client)
 local ShopData = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
 
+-- Fehler-Haertung (Phase 4): ein fehlgeschlagener Map-Abschnitt reisst nicht den Rest mit
+local function sysInit(name, fn)
+	local ok, err = pcall(fn)
+	if not ok then warn("[AirportServer] Abschnitt '" .. name .. "' fehlgeschlagen: " .. tostring(err)) end
+end
+
 ---------------------------------------------------------------- Boden
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -&gt; grosse Flaechen kacheln!
 -- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
@@ -747,7 +753,7 @@ end
 
 ---------------------------------------------------------------- Parkdeck (3 Ebenen, echt begehbar ueber Rampen)
 local pd = Instance.new("Model"); pd.Name = "Parkdeck"; pd.Parent = airport
-do
+sysInit("Parkdeck", function()
 	local X1, X2, Z1, Z2 = -166, -84, 308, 352
 	local cx, cz, w, d = (X1 + X2) / 2, (Z1 + Z2) / 2, X2 - X1, Z2 - Z1
 	mpart(pd, "PD0", w, 0.3, d, cx, 0.05, cz, Color3.fromRGB(88, 91, 98), { Material = Enum.Material.Concrete })
@@ -789,7 +795,7 @@ do
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(120, 120); sg.Parent = ps
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBlack; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "P"; tl.Parent = sg
-end
+end)
 
 ---------------------------------------------------------------- Realismus-Ausstattung
 local deco2 = Instance.new("Folder"); deco2.Name = "Dressing"; deco2.Parent = airport
@@ -936,7 +942,7 @@ end
 
 ---------------------------------------------------------------- A380-Kabine (Jet A, begehbar; Welt-Koordinaten)
 local cabin = Instance.new("Model"); cabin.Name = "A380Cabin"; cabin.Parent = airport
-do
+sysInit("A380-Kabine", function()
 	local JX, JZ = -40, 165
 	local wallC = Color3.fromRGB(221, 226, 232)
 	local carpet = Color3.fromRGB(58, 69, 82)
@@ -1012,7 +1018,7 @@ do
 		cp("PilotSeatB", 0.62, 0.7, 0.14, sx * 1.1, 2.45, -13.0, Color3.fromRGB(48, 54, 62), { CanCollide = false })
 		cp("Sidestick", 0.1, 0.35, 0.1, sx * 1.85, 2.15, -13.4, Color3.fromRGB(20, 22, 26), { CanCollide = false })
 	end
-end
+end)
 
 ---------------------------------------------------------------- Mega-Airport: Piers, Terminal 2+3, Runway 2, Cargo, Feuerwache
 local mega = Instance.new("Folder"); mega.Name = "Mega"; mega.Parent = airport
@@ -1193,7 +1199,7 @@ for _, sd in ipairs(ShopData) do
 end
 
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
-do
+sysInit("Gebaeude-Upgrade", function()
 	local function exitDoor(x, z, dir) -- dir = +1: Tuer zeigt nach Osten (+X), -1: nach Westen
 		mpart(mega, "ExitDoor", 0.16, 3.0, 2.2, x, 1.5, z, Color3.fromRGB(61, 143, 79), { CanCollide = false })
 		mpart(mega, "ExitBar", 0.1, 0.14, 1.7, x + dir * 0.12, 1.15, z, Color3.fromRGB(232, 238, 247), { CanCollide = false })
@@ -1267,10 +1273,10 @@ do
 		bin.CFrame = CFrame.new(l[1] * M, 0.43 * M, l[2] * M) * CFrame.Angles(0, 0, math.rad(90))
 		bin.Size = Vector3.new(0.85 * M, 0.64 * M, 0.64 * M)
 	end
-end
+end)
 
 -- Moderne Inneneinrichtung: Sky Lounge, Ruhezone, Ladesaeulen, Screens, Brunnen
-do
+sysInit("Inneneinrichtung", function()
 	local function carpet(x, z, w, d, col)
 		mpart(mega, "Carpet", w, 0.06, d, x, 0.28, z, col, { CanCollide = false, Material = Enum.Material.Fabric })
 	end
@@ -1398,10 +1404,10 @@ do
 	for _, p in ipairs({ { 256, Color3.fromRGB(42, 143, 143) }, { 261, Color3.fromRGB(224, 120, 32) }, { 266, Color3.fromRGB(201, 164, 79) } }) do
 		mpart(mega, "WallArt", 0.1, 2.6, 2.0, -69.45, 4.2, p[1], p[2], { CanCollide = false })
 	end
-end
+end)
 
 -- Zwei neue Ebenen: Food-Court-Galerie (Ebene 2, begehbar ueber Rampe) + UG-Tunnel
-do
+sysInit("Ebenen &amp; Tunnel", function()
 	local grey = Color3.fromRGB(170, 178, 188)
 	-- Galerie-Boden + Gelaender (Luecke an der Rolltreppen-Rampe x 50..57)
 	mpart(mega, "GalleryFloor", 74, 0.4, 37.5, 35, 4.58, 281.75, Color3.fromRGB(226, 230, 235))
@@ -1506,10 +1512,10 @@ do
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(159, 212, 232)
 		tl.Text = "⬇ TUNNEL ZUM PARKDECK"; tl.Parent = sg
 	end
-end
+end)
 
 -- Gepaeck-Sortierkeller unter dem Terminal (Baender, Buchten, Wagen; Client animiert Koffer)
-do
+sysInit("Gepaeckkeller", function()
 	local KX1, KX2, KZ1, KZ2 = -50, -5, 237, 266
 	local kcx, kcz = (KX1 + KX2) / 2, (KZ1 + KZ2) / 2
 	local wallC = Color3.fromRGB(185, 191, 199)
@@ -1590,12 +1596,12 @@ do
 		mpart(mega, "KStairRail", 0.16, 1.05, 3.8, -52 + ox, 0.55, 236.5, COL.glass, { Transparency = 0.5 })
 	end
 	kSign("⬇ GEPÄCKKELLER · PERSONAL", -52, 2.4, 234.2, 6.5, Color3.fromRGB(255, 215, 94))
-end
+end)
 
 ---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
 local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport
 -- Gewoelbtes Terminaldach (Halbellipse aus 10 Segmenten)
-do
+sysInit("Bogendach", function()
 	local cz, a, b, N = (T.z1 + T.z2) / 2, 36, 13, 10
 	local w = T.x2 - T.x1 + 8
 	for i = 0, N - 1 do
@@ -1607,9 +1613,9 @@ do
 			Color3.fromRGB(190, 199, 209), { CanCollide = false })
 		seg.CFrame = seg.CFrame * CFrame.Angles(-math.atan2(sy2 - sy1, sz2 - sz1), 0, 0)
 	end
-end
+end)
 -- Flughafen-Totem an der Vorfahrt
-do
+sysInit("Totem", function()
 	mpart(design, "TotemPylon", 3.0, 15, 1.2, 22, 7.5, 344, Color3.fromRGB(36, 55, 74))
 	mpart(design, "TotemBand", 3.2, 0.6, 1.3, 22, 12.2, 344, Color3.fromRGB(255, 215, 94), { Material = Enum.Material.Neon, CanCollide = false })
 	local bar = mpart(design, "TotemBar", 19, 3.0, 1.0, 22, 16.5, 344, Color3.fromRGB(21, 32, 47))
@@ -1619,7 +1625,7 @@ do
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(232, 238, 247)
 		tl.Text = "FLUGHAFEN INTERNATIONAL"; tl.Parent = sg
 	end
-end
+end)
 -- Flutlichtmasten am Vorfeld
 for _, fx in ipairs({ -85, 0, 85, 165, 240 }) do
 	mpart(design, "FloodPole", 0.7, 19, 0.7, fx, 9.5, 146, Color3.fromRGB(138, 146, 158))
@@ -1629,7 +1635,7 @@ for _, fx in ipairs({ -85, 0, 85, 165, 240 }) do
 	end
 end
 -- Umzaeunung des Flugfelds (mit Tor-Luecke an der Zufahrt)
-do
+sysInit("Zaun", function()
 	local FX1, FX2, FZ1, FZ2, STEP = -1150, 1150, -640, 386, 30
 	local pc = Color3.fromRGB(122, 130, 140)
 	for x = FX1, FX2, STEP do
@@ -1650,15 +1656,15 @@ do
 		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX1, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
 		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX2, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
 	end
-end
+end)
 -- Drehendes Rundsicht-Radar auf dem Tower (Client animiert)
-do
+sysInit("Radar", function()
 	local radar = Instance.new("Model"); radar.Name = "Radar"; radar.Parent = design
 	local ped = mpart(radar, "Ped", 0.7, 1.4, 0.7, -127.2, 31.0, 250, Color3.fromRGB(138, 146, 158), { CanCollide = false })
 	radar.PrimaryPart = ped
 	local dish = mpart(radar, "Dish", 4.6, 1.0, 0.14, -127.2, 32.2, 250, Color3.fromRGB(232, 236, 240), { CanCollide = false })
 	dish.CFrame = dish.CFrame * CFrame.Angles(-0.35, 0, 0)
-end
+end)
 -- Gemalte Stand-Nummern auf dem Vorfeld
 for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	local sp = mpart(design, "StandNum", 4.6, 0.12, 4.6, px, 0.32, 190, Color3.fromRGB(58, 63, 70), { CanCollide = false })
@@ -1667,7 +1673,7 @@ for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = tostring(i); tl.Parent = sg
 end
 -- ILS: Localizer-Antennenreihen hinter der Anflugbefeuerung + Gleitpfad-Mast
-do
+sysInit("ILS", function()
 	local rcol = Color3.fromRGB(194, 59, 46)
 	for _, ax in ipairs({ -980, 980 }) do
 		for k = 0, 14 do
@@ -1678,7 +1684,7 @@ do
 	mpart(design, "GPmast", 0.4, 12, 0.4, -560, 6, 36, rcol)
 	mpart(design, "GPant", 2.6, 0.5, 0.3, -559, 8.6, 36, COL.white, { CanCollide = false })
 	mpart(design, "GPant2", 2.6, 0.5, 0.3, -559, 5.4, 36, COL.white, { CanCollide = false })
-end
+end)
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")
@@ -1883,6 +1889,21 @@ local earnEv = ecoRS:WaitForChild("EarnCredits")
 local buyEv = ecoRS:WaitForChild("BuyItem")
 local syncEv = ecoRS:WaitForChild("SyncState")
 local achEv = ecoRS:WaitForChild("UnlockAch")
+
+-- Fehler-Haertung (Phase 4): Systeme starten und laufen isoliert;
+-- ein Fehler in einem System legt nicht HUD + Interaktion still.
+local function sysInit(name, fn)
+	local ok, err = pcall(fn)
+	if not ok then warn("[Airport] System '" .. name .. "' konnte nicht starten: " .. tostring(err)) end
+end
+local sysWarned = {}
+local function safeStep(name, fn, a, b)
+	local ok, err = pcall(fn, a, b)
+	if not ok and not sysWarned[name] then
+		sysWarned[name] = true
+		warn("[Airport] System '" .. name .. "' Laufzeitfehler (Rest läuft weiter): " .. tostring(err))
+	end
+end
 
 local function hrp() return character and character:FindFirstChild("HumanoidRootPart") end
 local function humanoid() return character and character:FindFirstChildOfClass("Humanoid") end
@@ -2209,7 +2230,7 @@ player.CharacterAdded:Connect(function(ch)
 end)
 ---------------------------------------------------------------- Game-Feel: Splash · Popups · Level-Up · Erfolge · Minimap
 local TweenService = game:GetService("TweenService")
-do
+sysInit("Game-Feel", function()
 	-- Titelscreen
 	local splash = Instance.new("Frame")
 	splash.Size = UDim2.fromScale(1, 1)
@@ -2230,7 +2251,7 @@ do
 		splash:Destroy()
 	end)
 	b.ZIndex = 52; b.TextSize = 24
-end
+end)
 -- Credit-Popups
 function creditPop(n)
 	local l = Instance.new("TextLabel")
@@ -2334,7 +2355,7 @@ function showAchievements()
 end
 -- Minimap (statisches Layout + Spieler-Punkt)
 local miniDot
-do
+sysInit("Minimap", function()
 	local mm = frame(gui, UDim2.new(1, -234, 1, -180), UDim2.new(0, 220, 0, 160))
 	local X1, X2, Z1, Z2 = -950, 980, -640, 400
 	local function r(x1, z1, x2, z2, col)
@@ -2363,7 +2384,7 @@ do
 	miniDot.Parent = mm
 	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = miniDot
 	minimapFrame = mm -- global fuer M-Toggle &amp; Update
-end
+end)
 function updateMinimap(pos)
 	local X1, X2, Z1, Z2 = -950, 980, -640, 400
 	miniDot.Position = UDim2.new((pos.X - X1) / (X2 - X1), -3, (pos.Z - Z1) / (Z2 - Z1), -3)
@@ -2889,11 +2910,11 @@ end
 
 -- Tankwagen (zweites kinematisches Fahrzeug)
 local fuelTruck
-do
+sysInit("Tankwagen", function()
 	local ftModel = airport:WaitForChild("FuelTruck")
 	ftModel:WaitForChild("Root")
 	fuelTruck = { model = ftModel, pos = ftModel:GetPivot().Position / M, yaw = 2.0, vel = Vector3.new(), load = {} }
-end
+end)
 cart.model = cartModel
 local fuelJob = { active = false, fueled = { false, false }, fueling = nil, progress = 0, timer = 0 }
 local endFuelJob -- forward
@@ -3257,7 +3278,7 @@ end
 
 -- Flug-HUD-Elemente (in Tabelle FH, haelt die Anzahl Top-Level-Locals klein)
 local FH = {}
-do
+sysInit("Flug-HUD", function()
 	local fhud = Instance.new("Frame")
 	fhud.BackgroundTransparency = 1
 	fhud.Size = UDim2.fromScale(1, 1)
@@ -3287,7 +3308,7 @@ do
 	FH.windV = label(fBot, "WIND --", UDim2.new(0, 375, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
 	FH.warn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
 	FH.warn.Font = Enum.Font.GothamBlack
-end
+end)
 
 local function setFlightHUD(on)
 	FH.root.Visible = on
@@ -3784,14 +3805,14 @@ local marshal = {
 }
 marshal.len = 648
 -- grosse Zeichen-Anzeige (im marshal-Table, spart Top-Level-Locals)
-do
+sysInit("Marshaller-Anzeige", function()
 	local f = frame(gui, UDim2.new(0.5, -160, 0.26, 0), UDim2.new(0, 320, 0, 96))
 	marshal.gui = f
 	marshal.keyL = label(f, "W", UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 50), GOLD, 44, Enum.TextXAlignment.Center)
 	marshal.keyL.Font = Enum.Font.GothamBlack
 	marshal.whatL = label(f, "", UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 30), TXT, 15, Enum.TextXAlignment.Center)
 	f.Visible = false
-end
+end)
 
 local function marshalPathPos(s)
 	local pts = marshal.pts
@@ -3888,12 +3909,12 @@ end
 
 ---------------------------------------------------------------- Keller-Koffer laufen auf den Bändern
 local kellerBags = {}
-do
+sysInit("Keller-Koffer", function()
 	local kb = airport:FindFirstChild("KellerBags", true) -- liegt im Mega-Ordner
 	if kb then
 		for _, p in ipairs(kb:GetChildren()) do table.insert(kellerBags, p) end
 	end
-end
+end)
 local function updateKellerBags(t)
 	if #kellerBags == 0 then return end
 	-- Pfad: Sammelband -&gt; Querband -&gt; Steigband (Meter)
@@ -3914,7 +3935,7 @@ end
 
 ---------------------------------------------------------------- Windräder drehen
 local turbines = {}
-do
+sysInit("Windraeder &amp; Radar", function()
 	local landF = airport:FindFirstChild("Landscape")
 	if landF then
 		for _, m in ipairs(landF:GetChildren()) do
@@ -3938,7 +3959,7 @@ do
 		local dish = radarM:WaitForChild("Dish")
 		table.insert(turbines, { hub = ped, blades = { { p = dish, off = ped.CFrame:ToObjectSpace(dish.CFrame) } }, ang = 0, yAxis = true })
 	end
-end
+end)
 local function updateTurbines(dt)
 	for _, t in ipairs(turbines) do
 		t.ang = t.ang + dt * 1.1
@@ -4106,7 +4127,7 @@ addInteract({
 })
 
 ---------------------------------------------------------------- Ebenen-Teleports + funktionierende Laeden + Kosmetik
-do
+sysInit("Ebenen &amp; Shops", function()
 	local function py()
 		local r = hrp()
 		return r and (r.Position.Y / M) or 0
@@ -4246,7 +4267,7 @@ do
 			action = function() openShopPanel(si) end,
 		})
 	end
-end
+end)
 
 ---------------------------------------------------------------- Hauptschleife
 updateHUD()
@@ -4257,49 +4278,69 @@ task.defer(function()
 		"Karriereleiter: 500 Ramp · 750 Security · 1000 Tankwagen · 1500 Marshaller · 2000 Captain.\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen · H Legende\n· Schau dir den begehbaren A380 an Gate 1 und das Parkdeck an!")
 end)
 
-RunService.RenderStepped:Connect(function(dt)
-	dt = math.min(dt, 0.05)
+-- Loop-Schritte je System (Phase 4): jeder Schritt laeuft in pcall,
+-- ein Laufzeitfehler in einem System legt die anderen nicht still.
+local function stepTasten()
 	if edge(Enum.KeyCode.H) then legend.Visible = not legend.Visible end
 	if edge(Enum.KeyCode.J) and S.mode ~= "fly" and not panelOpen then showAchievements() end
 	if edge(Enum.KeyCode.M) then minimapFrame.Visible = not minimapFrame.Visible end
-	do
-		local mp = S.mode == "fly" and plane.pos or playerPosM()
-		updateMinimap(mp)
-		local r0 = hrp()
-		if r0 and S.mode == "walk" then
-			local wy = r0.Position.Y
-			if mp.X &gt; -42.4 and mp.X &lt; -37.6 and mp.Z &gt; 151 and mp.Z &lt; 180 and wy &gt; 5 then unlock("a380_board") end
-			if mp.X &gt; -166 and mp.X &lt; -84 and mp.Z &gt; 308 and mp.Z &lt; 352 and wy &gt; 12 then unlock("pd_roof") end
+end
+local function stepMinimap()
+	local mp = S.mode == "fly" and plane.pos or playerPosM()
+	updateMinimap(mp)
+	local r0 = hrp()
+	if r0 and S.mode == "walk" then
+		local wy = r0.Position.Y
+		if mp.X &gt; -42.4 and mp.X &lt; -37.6 and mp.Z &gt; 151 and mp.Z &lt; 180 and wy &gt; 5 then unlock("a380_board") end
+		if mp.X &gt; -166 and mp.X &lt; -84 and mp.Z &gt; 308 and mp.Z &lt; 352 and wy &gt; 12 then unlock("pd_roof") end
+	end
+end
+local function stepFlug(dt)
+	updateFlightPhysics(dt)
+	updateMission(dt)
+	updateFlightHUD()
+	updateFlightCamera(dt)
+end
+local function stepJobs(dt)
+	updateCheckin(dt)
+	updateRamp(dt)
+	updateFuelJob(dt)
+	updateMarshal(dt)
+end
+local function stepFahrzeuge(dt)
+	updateVehicle(cart, dt)
+	updateVehicle(fuelTruck, dt)
+end
+local function stepKoffer()
+	if ramp.carrying then
+		local r = hrp()
+		if r then
+			ramp.carrying.obj.CFrame = r.CFrame * CFrame.new(0, -0.3, -2.4)
 		end
 	end
-	if not panelOpen then
-		if S.mode == "fly" then
-			updateFlightPhysics(dt)
-			updateMission(dt)
-			updateFlightHUD()
-			updateFlightCamera(dt)
-		else
-			updateCheckin(dt)
-			updateRamp(dt)
-			updateVehicle(cart, dt)
-			updateVehicle(fuelTruck, dt)
-			updateFuelJob(dt)
-			updateMarshal(dt)
-			updateInteract()
-			-- getragener Koffer folgt dem Charakter
-			if ramp.carrying then
-				local r = hrp()
-				if r then
-					ramp.carrying.obj.CFrame = r.CFrame * CFrame.new(0, -0.3, -2.4)
-				end
-			end
-		end
-	end
+end
+local function stepAmbiente(dt)
 	updateAmbient(dt)
 	updateTraffic(dt)
 	updateWindsock()
 	updateTurbines(dt)
 	updateKellerBags(os.clock())
+end
+RunService.RenderStepped:Connect(function(dt)
+	dt = math.min(dt, 0.05)
+	safeStep("Tasten", stepTasten)
+	safeStep("Minimap", stepMinimap)
+	if not panelOpen then
+		if S.mode == "fly" then
+			safeStep("Flug", stepFlug, dt)
+		else
+			safeStep("Jobs", stepJobs, dt)
+			safeStep("Fahrzeuge", stepFahrzeuge, dt)
+			safeStep("Interaktion", updateInteract)
+			safeStep("Koffer", stepKoffer)
+		end
+	end
+	safeStep("Ambiente", stepAmbiente, dt)
 	keyEdge = {}
 end)
 

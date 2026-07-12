@@ -75,6 +75,12 @@ local COL = {
 -- Eine Wahrheit fuer alle Shops (Geometrie hier, Prompts/Panels im Client)
 local ShopData = require(game:GetService("ReplicatedStorage"):WaitForChild("ShopData"))
 
+-- Fehler-Haertung (Phase 4): ein fehlgeschlagener Map-Abschnitt reisst nicht den Rest mit
+local function sysInit(name, fn)
+	local ok, err = pcall(fn)
+	if not ok then warn("[AirportServer] Abschnitt '" .. name .. "' fehlgeschlagen: " .. tostring(err)) end
+end
+
 ---------------------------------------------------------------- Boden
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -> grosse Flaechen kacheln!
 -- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
@@ -644,7 +650,7 @@ end
 
 ---------------------------------------------------------------- Parkdeck (3 Ebenen, echt begehbar ueber Rampen)
 local pd = Instance.new("Model"); pd.Name = "Parkdeck"; pd.Parent = airport
-do
+sysInit("Parkdeck", function()
 	local X1, X2, Z1, Z2 = -166, -84, 308, 352
 	local cx, cz, w, d = (X1 + X2) / 2, (Z1 + Z2) / 2, X2 - X1, Z2 - Z1
 	mpart(pd, "PD0", w, 0.3, d, cx, 0.05, cz, Color3.fromRGB(88, 91, 98), { Material = Enum.Material.Concrete })
@@ -686,7 +692,7 @@ do
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(120, 120); sg.Parent = ps
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBlack; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "P"; tl.Parent = sg
-end
+end)
 
 ---------------------------------------------------------------- Realismus-Ausstattung
 local deco2 = Instance.new("Folder"); deco2.Name = "Dressing"; deco2.Parent = airport
@@ -833,7 +839,7 @@ end
 
 ---------------------------------------------------------------- A380-Kabine (Jet A, begehbar; Welt-Koordinaten)
 local cabin = Instance.new("Model"); cabin.Name = "A380Cabin"; cabin.Parent = airport
-do
+sysInit("A380-Kabine", function()
 	local JX, JZ = -40, 165
 	local wallC = Color3.fromRGB(221, 226, 232)
 	local carpet = Color3.fromRGB(58, 69, 82)
@@ -909,7 +915,7 @@ do
 		cp("PilotSeatB", 0.62, 0.7, 0.14, sx * 1.1, 2.45, -13.0, Color3.fromRGB(48, 54, 62), { CanCollide = false })
 		cp("Sidestick", 0.1, 0.35, 0.1, sx * 1.85, 2.15, -13.4, Color3.fromRGB(20, 22, 26), { CanCollide = false })
 	end
-end
+end)
 
 ---------------------------------------------------------------- Mega-Airport: Piers, Terminal 2+3, Runway 2, Cargo, Feuerwache
 local mega = Instance.new("Folder"); mega.Name = "Mega"; mega.Parent = airport
@@ -1090,7 +1096,7 @@ for _, sd in ipairs(ShopData) do
 end
 
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
-do
+sysInit("Gebaeude-Upgrade", function()
 	local function exitDoor(x, z, dir) -- dir = +1: Tuer zeigt nach Osten (+X), -1: nach Westen
 		mpart(mega, "ExitDoor", 0.16, 3.0, 2.2, x, 1.5, z, Color3.fromRGB(61, 143, 79), { CanCollide = false })
 		mpart(mega, "ExitBar", 0.1, 0.14, 1.7, x + dir * 0.12, 1.15, z, Color3.fromRGB(232, 238, 247), { CanCollide = false })
@@ -1164,10 +1170,10 @@ do
 		bin.CFrame = CFrame.new(l[1] * M, 0.43 * M, l[2] * M) * CFrame.Angles(0, 0, math.rad(90))
 		bin.Size = Vector3.new(0.85 * M, 0.64 * M, 0.64 * M)
 	end
-end
+end)
 
 -- Moderne Inneneinrichtung: Sky Lounge, Ruhezone, Ladesaeulen, Screens, Brunnen
-do
+sysInit("Inneneinrichtung", function()
 	local function carpet(x, z, w, d, col)
 		mpart(mega, "Carpet", w, 0.06, d, x, 0.28, z, col, { CanCollide = false, Material = Enum.Material.Fabric })
 	end
@@ -1295,10 +1301,10 @@ do
 	for _, p in ipairs({ { 256, Color3.fromRGB(42, 143, 143) }, { 261, Color3.fromRGB(224, 120, 32) }, { 266, Color3.fromRGB(201, 164, 79) } }) do
 		mpart(mega, "WallArt", 0.1, 2.6, 2.0, -69.45, 4.2, p[1], p[2], { CanCollide = false })
 	end
-end
+end)
 
 -- Zwei neue Ebenen: Food-Court-Galerie (Ebene 2, begehbar ueber Rampe) + UG-Tunnel
-do
+sysInit("Ebenen & Tunnel", function()
 	local grey = Color3.fromRGB(170, 178, 188)
 	-- Galerie-Boden + Gelaender (Luecke an der Rolltreppen-Rampe x 50..57)
 	mpart(mega, "GalleryFloor", 74, 0.4, 37.5, 35, 4.58, 281.75, Color3.fromRGB(226, 230, 235))
@@ -1403,10 +1409,10 @@ do
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(159, 212, 232)
 		tl.Text = "⬇ TUNNEL ZUM PARKDECK"; tl.Parent = sg
 	end
-end
+end)
 
 -- Gepaeck-Sortierkeller unter dem Terminal (Baender, Buchten, Wagen; Client animiert Koffer)
-do
+sysInit("Gepaeckkeller", function()
 	local KX1, KX2, KZ1, KZ2 = -50, -5, 237, 266
 	local kcx, kcz = (KX1 + KX2) / 2, (KZ1 + KZ2) / 2
 	local wallC = Color3.fromRGB(185, 191, 199)
@@ -1487,12 +1493,12 @@ do
 		mpart(mega, "KStairRail", 0.16, 1.05, 3.8, -52 + ox, 0.55, 236.5, COL.glass, { Transparency = 0.5 })
 	end
 	kSign("⬇ GEPÄCKKELLER · PERSONAL", -52, 2.4, 234.2, 6.5, Color3.fromRGB(255, 215, 94))
-end
+end)
 
 ---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
 local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport
 -- Gewoelbtes Terminaldach (Halbellipse aus 10 Segmenten)
-do
+sysInit("Bogendach", function()
 	local cz, a, b, N = (T.z1 + T.z2) / 2, 36, 13, 10
 	local w = T.x2 - T.x1 + 8
 	for i = 0, N - 1 do
@@ -1504,9 +1510,9 @@ do
 			Color3.fromRGB(190, 199, 209), { CanCollide = false })
 		seg.CFrame = seg.CFrame * CFrame.Angles(-math.atan2(sy2 - sy1, sz2 - sz1), 0, 0)
 	end
-end
+end)
 -- Flughafen-Totem an der Vorfahrt
-do
+sysInit("Totem", function()
 	mpart(design, "TotemPylon", 3.0, 15, 1.2, 22, 7.5, 344, Color3.fromRGB(36, 55, 74))
 	mpart(design, "TotemBand", 3.2, 0.6, 1.3, 22, 12.2, 344, Color3.fromRGB(255, 215, 94), { Material = Enum.Material.Neon, CanCollide = false })
 	local bar = mpart(design, "TotemBar", 19, 3.0, 1.0, 22, 16.5, 344, Color3.fromRGB(21, 32, 47))
@@ -1516,7 +1522,7 @@ do
 		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(232, 238, 247)
 		tl.Text = "FLUGHAFEN INTERNATIONAL"; tl.Parent = sg
 	end
-end
+end)
 -- Flutlichtmasten am Vorfeld
 for _, fx in ipairs({ -85, 0, 85, 165, 240 }) do
 	mpart(design, "FloodPole", 0.7, 19, 0.7, fx, 9.5, 146, Color3.fromRGB(138, 146, 158))
@@ -1526,7 +1532,7 @@ for _, fx in ipairs({ -85, 0, 85, 165, 240 }) do
 	end
 end
 -- Umzaeunung des Flugfelds (mit Tor-Luecke an der Zufahrt)
-do
+sysInit("Zaun", function()
 	local FX1, FX2, FZ1, FZ2, STEP = -1150, 1150, -640, 386, 30
 	local pc = Color3.fromRGB(122, 130, 140)
 	for x = FX1, FX2, STEP do
@@ -1547,15 +1553,15 @@ do
 		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX1, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
 		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX2, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
 	end
-end
+end)
 -- Drehendes Rundsicht-Radar auf dem Tower (Client animiert)
-do
+sysInit("Radar", function()
 	local radar = Instance.new("Model"); radar.Name = "Radar"; radar.Parent = design
 	local ped = mpart(radar, "Ped", 0.7, 1.4, 0.7, -127.2, 31.0, 250, Color3.fromRGB(138, 146, 158), { CanCollide = false })
 	radar.PrimaryPart = ped
 	local dish = mpart(radar, "Dish", 4.6, 1.0, 0.14, -127.2, 32.2, 250, Color3.fromRGB(232, 236, 240), { CanCollide = false })
 	dish.CFrame = dish.CFrame * CFrame.Angles(-0.35, 0, 0)
-end
+end)
 -- Gemalte Stand-Nummern auf dem Vorfeld
 for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	local sp = mpart(design, "StandNum", 4.6, 0.12, 4.6, px, 0.32, 190, Color3.fromRGB(58, 63, 70), { CanCollide = false })
@@ -1564,7 +1570,7 @@ for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = tostring(i); tl.Parent = sg
 end
 -- ILS: Localizer-Antennenreihen hinter der Anflugbefeuerung + Gleitpfad-Mast
-do
+sysInit("ILS", function()
 	local rcol = Color3.fromRGB(194, 59, 46)
 	for _, ax in ipairs({ -980, 980 }) do
 		for k = 0, 14 do
@@ -1575,7 +1581,7 @@ do
 	mpart(design, "GPmast", 0.4, 12, 0.4, -560, 6, 36, rcol)
 	mpart(design, "GPant", 2.6, 0.5, 0.3, -559, 8.6, 36, COL.white, { CanCollide = false })
 	mpart(design, "GPant2", 2.6, 0.5, 0.3, -559, 5.4, 36, COL.white, { CanCollide = false })
-end
+end)
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")

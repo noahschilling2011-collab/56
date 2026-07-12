@@ -38,6 +38,21 @@ local buyEv = ecoRS:WaitForChild("BuyItem")
 local syncEv = ecoRS:WaitForChild("SyncState")
 local achEv = ecoRS:WaitForChild("UnlockAch")
 
+-- Fehler-Haertung (Phase 4): Systeme starten und laufen isoliert;
+-- ein Fehler in einem System legt nicht HUD + Interaktion still.
+local function sysInit(name, fn)
+	local ok, err = pcall(fn)
+	if not ok then warn("[Airport] System '" .. name .. "' konnte nicht starten: " .. tostring(err)) end
+end
+local sysWarned = {}
+local function safeStep(name, fn, a, b)
+	local ok, err = pcall(fn, a, b)
+	if not ok and not sysWarned[name] then
+		sysWarned[name] = true
+		warn("[Airport] System '" .. name .. "' Laufzeitfehler (Rest läuft weiter): " .. tostring(err))
+	end
+end
+
 local function hrp() return character and character:FindFirstChild("HumanoidRootPart") end
 local function humanoid() return character and character:FindFirstChildOfClass("Humanoid") end
 -- Spielerposition in METERN
@@ -363,7 +378,7 @@ player.CharacterAdded:Connect(function(ch)
 end)
 ---------------------------------------------------------------- Game-Feel: Splash · Popups · Level-Up · Erfolge · Minimap
 local TweenService = game:GetService("TweenService")
-do
+sysInit("Game-Feel", function()
 	-- Titelscreen
 	local splash = Instance.new("Frame")
 	splash.Size = UDim2.fromScale(1, 1)
@@ -384,7 +399,7 @@ do
 		splash:Destroy()
 	end)
 	b.ZIndex = 52; b.TextSize = 24
-end
+end)
 -- Credit-Popups
 function creditPop(n)
 	local l = Instance.new("TextLabel")
@@ -488,7 +503,7 @@ function showAchievements()
 end
 -- Minimap (statisches Layout + Spieler-Punkt)
 local miniDot
-do
+sysInit("Minimap", function()
 	local mm = frame(gui, UDim2.new(1, -234, 1, -180), UDim2.new(0, 220, 0, 160))
 	local X1, X2, Z1, Z2 = -950, 980, -640, 400
 	local function r(x1, z1, x2, z2, col)
@@ -517,7 +532,7 @@ do
 	miniDot.Parent = mm
 	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = miniDot
 	minimapFrame = mm -- global fuer M-Toggle & Update
-end
+end)
 function updateMinimap(pos)
 	local X1, X2, Z1, Z2 = -950, 980, -640, 400
 	miniDot.Position = UDim2.new((pos.X - X1) / (X2 - X1), -3, (pos.Z - Z1) / (Z2 - Z1), -3)
@@ -1043,11 +1058,11 @@ end
 
 -- Tankwagen (zweites kinematisches Fahrzeug)
 local fuelTruck
-do
+sysInit("Tankwagen", function()
 	local ftModel = airport:WaitForChild("FuelTruck")
 	ftModel:WaitForChild("Root")
 	fuelTruck = { model = ftModel, pos = ftModel:GetPivot().Position / M, yaw = 2.0, vel = Vector3.new(), load = {} }
-end
+end)
 cart.model = cartModel
 local fuelJob = { active = false, fueled = { false, false }, fueling = nil, progress = 0, timer = 0 }
 local endFuelJob -- forward
@@ -1411,7 +1426,7 @@ end
 
 -- Flug-HUD-Elemente (in Tabelle FH, haelt die Anzahl Top-Level-Locals klein)
 local FH = {}
-do
+sysInit("Flug-HUD", function()
 	local fhud = Instance.new("Frame")
 	fhud.BackgroundTransparency = 1
 	fhud.Size = UDim2.fromScale(1, 1)
@@ -1441,7 +1456,7 @@ do
 	FH.windV = label(fBot, "WIND --", UDim2.new(0, 375, 0, 0), UDim2.new(0, 110, 1, 0), TXT, 14)
 	FH.warn = label(fhud, "", UDim2.new(0.5, -200, 0.24, 0), UDim2.new(0, 400, 0, 70), REDC, 30, Enum.TextXAlignment.Center)
 	FH.warn.Font = Enum.Font.GothamBlack
-end
+end)
 
 local function setFlightHUD(on)
 	FH.root.Visible = on
@@ -1938,14 +1953,14 @@ local marshal = {
 }
 marshal.len = 648
 -- grosse Zeichen-Anzeige (im marshal-Table, spart Top-Level-Locals)
-do
+sysInit("Marshaller-Anzeige", function()
 	local f = frame(gui, UDim2.new(0.5, -160, 0.26, 0), UDim2.new(0, 320, 0, 96))
 	marshal.gui = f
 	marshal.keyL = label(f, "W", UDim2.new(0, 0, 0, 6), UDim2.new(1, 0, 0, 50), GOLD, 44, Enum.TextXAlignment.Center)
 	marshal.keyL.Font = Enum.Font.GothamBlack
 	marshal.whatL = label(f, "", UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 30), TXT, 15, Enum.TextXAlignment.Center)
 	f.Visible = false
-end
+end)
 
 local function marshalPathPos(s)
 	local pts = marshal.pts
@@ -2042,12 +2057,12 @@ end
 
 ---------------------------------------------------------------- Keller-Koffer laufen auf den Bändern
 local kellerBags = {}
-do
+sysInit("Keller-Koffer", function()
 	local kb = airport:FindFirstChild("KellerBags", true) -- liegt im Mega-Ordner
 	if kb then
 		for _, p in ipairs(kb:GetChildren()) do table.insert(kellerBags, p) end
 	end
-end
+end)
 local function updateKellerBags(t)
 	if #kellerBags == 0 then return end
 	-- Pfad: Sammelband -> Querband -> Steigband (Meter)
@@ -2068,7 +2083,7 @@ end
 
 ---------------------------------------------------------------- Windräder drehen
 local turbines = {}
-do
+sysInit("Windraeder & Radar", function()
 	local landF = airport:FindFirstChild("Landscape")
 	if landF then
 		for _, m in ipairs(landF:GetChildren()) do
@@ -2092,7 +2107,7 @@ do
 		local dish = radarM:WaitForChild("Dish")
 		table.insert(turbines, { hub = ped, blades = { { p = dish, off = ped.CFrame:ToObjectSpace(dish.CFrame) } }, ang = 0, yAxis = true })
 	end
-end
+end)
 local function updateTurbines(dt)
 	for _, t in ipairs(turbines) do
 		t.ang = t.ang + dt * 1.1
@@ -2260,7 +2275,7 @@ addInteract({
 })
 
 ---------------------------------------------------------------- Ebenen-Teleports + funktionierende Laeden + Kosmetik
-do
+sysInit("Ebenen & Shops", function()
 	local function py()
 		local r = hrp()
 		return r and (r.Position.Y / M) or 0
@@ -2400,7 +2415,7 @@ do
 			action = function() openShopPanel(si) end,
 		})
 	end
-end
+end)
 
 ---------------------------------------------------------------- Hauptschleife
 updateHUD()
@@ -2411,49 +2426,69 @@ task.defer(function()
 		"Karriereleiter: 500 Ramp · 750 Security · 1000 Tankwagen · 1500 Marshaller · 2000 Captain.\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen · H Legende\n· Schau dir den begehbaren A380 an Gate 1 und das Parkdeck an!")
 end)
 
-RunService.RenderStepped:Connect(function(dt)
-	dt = math.min(dt, 0.05)
+-- Loop-Schritte je System (Phase 4): jeder Schritt laeuft in pcall,
+-- ein Laufzeitfehler in einem System legt die anderen nicht still.
+local function stepTasten()
 	if edge(Enum.KeyCode.H) then legend.Visible = not legend.Visible end
 	if edge(Enum.KeyCode.J) and S.mode ~= "fly" and not panelOpen then showAchievements() end
 	if edge(Enum.KeyCode.M) then minimapFrame.Visible = not minimapFrame.Visible end
-	do
-		local mp = S.mode == "fly" and plane.pos or playerPosM()
-		updateMinimap(mp)
-		local r0 = hrp()
-		if r0 and S.mode == "walk" then
-			local wy = r0.Position.Y
-			if mp.X > -42.4 and mp.X < -37.6 and mp.Z > 151 and mp.Z < 180 and wy > 5 then unlock("a380_board") end
-			if mp.X > -166 and mp.X < -84 and mp.Z > 308 and mp.Z < 352 and wy > 12 then unlock("pd_roof") end
+end
+local function stepMinimap()
+	local mp = S.mode == "fly" and plane.pos or playerPosM()
+	updateMinimap(mp)
+	local r0 = hrp()
+	if r0 and S.mode == "walk" then
+		local wy = r0.Position.Y
+		if mp.X > -42.4 and mp.X < -37.6 and mp.Z > 151 and mp.Z < 180 and wy > 5 then unlock("a380_board") end
+		if mp.X > -166 and mp.X < -84 and mp.Z > 308 and mp.Z < 352 and wy > 12 then unlock("pd_roof") end
+	end
+end
+local function stepFlug(dt)
+	updateFlightPhysics(dt)
+	updateMission(dt)
+	updateFlightHUD()
+	updateFlightCamera(dt)
+end
+local function stepJobs(dt)
+	updateCheckin(dt)
+	updateRamp(dt)
+	updateFuelJob(dt)
+	updateMarshal(dt)
+end
+local function stepFahrzeuge(dt)
+	updateVehicle(cart, dt)
+	updateVehicle(fuelTruck, dt)
+end
+local function stepKoffer()
+	if ramp.carrying then
+		local r = hrp()
+		if r then
+			ramp.carrying.obj.CFrame = r.CFrame * CFrame.new(0, -0.3, -2.4)
 		end
 	end
-	if not panelOpen then
-		if S.mode == "fly" then
-			updateFlightPhysics(dt)
-			updateMission(dt)
-			updateFlightHUD()
-			updateFlightCamera(dt)
-		else
-			updateCheckin(dt)
-			updateRamp(dt)
-			updateVehicle(cart, dt)
-			updateVehicle(fuelTruck, dt)
-			updateFuelJob(dt)
-			updateMarshal(dt)
-			updateInteract()
-			-- getragener Koffer folgt dem Charakter
-			if ramp.carrying then
-				local r = hrp()
-				if r then
-					ramp.carrying.obj.CFrame = r.CFrame * CFrame.new(0, -0.3, -2.4)
-				end
-			end
-		end
-	end
+end
+local function stepAmbiente(dt)
 	updateAmbient(dt)
 	updateTraffic(dt)
 	updateWindsock()
 	updateTurbines(dt)
 	updateKellerBags(os.clock())
+end
+RunService.RenderStepped:Connect(function(dt)
+	dt = math.min(dt, 0.05)
+	safeStep("Tasten", stepTasten)
+	safeStep("Minimap", stepMinimap)
+	if not panelOpen then
+		if S.mode == "fly" then
+			safeStep("Flug", stepFlug, dt)
+		else
+			safeStep("Jobs", stepJobs, dt)
+			safeStep("Fahrzeuge", stepFahrzeuge, dt)
+			safeStep("Interaktion", updateInteract)
+			safeStep("Koffer", stepKoffer)
+		end
+	end
+	safeStep("Ambiente", stepAmbiente, dt)
 	keyEdge = {}
 end)
 
