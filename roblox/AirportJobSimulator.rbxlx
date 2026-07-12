@@ -1051,6 +1051,85 @@ shop(14, 297.8, math.pi, "👗 MODE BOUTIQUE", Color3.fromRGB(201, 95, 160))
 shop(30, 297.8, math.pi, "📱 ELEKTRONIK", Color3.fromRGB(42, 109, 181))
 shop(72.6, 250, -math.pi / 2, "📚 BUCHLADEN", Color3.fromRGB(138, 106, 58))
 shop(72.6, 266, -math.pi / 2, "🎁 SOUVENIRS", Color3.fromRGB(201, 164, 79))
+shop(48, 297.8, math.pi, "➕ APOTHEKE", Color3.fromRGB(42, 157, 92))
+shop(64, 297.8, math.pi, "📰 PRESSE &amp; TABAK", Color3.fromRGB(138, 146, 158))
+
+-- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
+do
+	local function exitDoor(x, z, dir) -- dir = +1: Tuer zeigt nach Osten (+X), -1: nach Westen
+		mpart(mega, "ExitDoor", 0.16, 3.0, 2.2, x, 1.5, z, Color3.fromRGB(61, 143, 79), { CanCollide = false })
+		mpart(mega, "ExitBar", 0.1, 0.14, 1.7, x + dir * 0.12, 1.15, z, Color3.fromRGB(232, 238, 247), { CanCollide = false })
+		local sign = mpart(mega, "ExitSign", 0.14, 0.62, 2.6, x + dir * 0.1, 3.7, z, Color3.fromRGB(29, 122, 58), { CanCollide = false, Material = Enum.Material.Neon })
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = dir &gt; 0 and Enum.NormalId.Right or Enum.NormalId.Left
+		sg.CanvasSize = Vector2.new(420, 100); sg.Parent = sign
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(234, 255, 240)
+		tl.Text = "🏃 NOTAUSGANG"; tl.Parent = sg
+	end
+	exitDoor(-69.5, 246, 1); exitDoor(-69.5, 288, 1)  -- Westwand
+	exitDoor(74.5, 238, -1); exitDoor(74.5, 286, -1)  -- Ostwand
+	-- Sicherheitskontrolle Spur 2 + Koerperscanner + Wannen + Warteschlange
+	for _, az in ipairs({ 246, 252 }) do
+		mpart(mega, "SecArchL2", 0.35, 2.3, 0.5, 2 - 1.05, 1.15, az, Color3.fromRGB(138, 146, 158))
+		mpart(mega, "SecArchR2", 0.35, 2.3, 0.5, 2 + 1.05, 1.15, az, Color3.fromRGB(138, 146, 158))
+		mpart(mega, "SecArchT2", 2.45, 0.35, 0.5, 2, 2.45, az, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		mpart(mega, "SecLamp", 0.3, 0.18, 0.18, 2, 2.7, az, Color3.fromRGB(84, 208, 106), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+	mpart(mega, "XrayBelt2", 1.6, 1.0, 5, -1.5, 0.5, 249, COL.dark)
+	mpart(mega, "XrayTunnel2", 2.0, 1.6, 1.8, -1.5, 0.8, 249, Color3.fromRGB(138, 146, 158))
+	local scan = mpart(mega, "BodyScan", 2.6, 2.2, 2.2, 6, 1.3, 252, COL.glass, { Transparency = 0.55, CanCollide = false })
+	scan.Shape = Enum.PartType.Cylinder
+	scan.CFrame = CFrame.new(6 * M, 1.3 * M, 252 * M) * CFrame.Angles(0, 0, math.rad(90))
+	for i = 0, 3 do
+		mpart(mega, "Tray", 0.9, 0.12, 0.6, 13.5, 1.06 + i * 0.14, 245.4, Color3.fromRGB(127, 140, 154), { CanCollide = false })
+		mpart(mega, "Tray", 0.9, 0.12, 0.6, -1.5, 1.06 + i * 0.14, 245.4, Color3.fromRGB(127, 140, 154), { CanCollide = false })
+	end
+	for _, b in ipairs({ 242, 239 }) do
+		for bx = 0, 12, 4 do
+			mpart(mega, "QPole", 0.14, 1.0, 0.14, bx, 0.5, b, Color3.fromRGB(138, 146, 158))
+		end
+		mpart(mega, "QBand", 12, 0.06, 0.1, 6, 0.95, b, Color3.fromRGB(194, 59, 46), { CanCollide = false })
+	end
+	-- Sicherheitspersonal (2 Posten)
+	for _, o in ipairs({ { 13.5, 253.5 }, { 0.5, 245 } }) do
+		mpart(mega, "OffiTorso", 0.62, 0.85, 0.4, o[1], 1.08, o[2], Color3.fromRGB(36, 55, 74), { CanCollide = false })
+		mpart(mega, "OffiLegs", 0.5, 0.68, 0.42, o[1], 0.34, o[2], Color3.fromRGB(44, 51, 60), { CanCollide = false })
+		local hd = mpart(mega, "OffiHead", 0.42, 0.42, 0.42, o[1], 1.68, o[2], Color3.fromRGB(217, 180, 143), { CanCollide = false })
+		hd.Shape = Enum.PartType.Ball
+		mpart(mega, "OffiWeste", 0.7, 0.1, 0.42, o[1], 1.42, o[2], Color3.fromRGB(255, 215, 94), { CanCollide = false })
+	end
+	-- WC-Ecke Nordwest
+	mpart(mega, "WCWall", 0.25, 3.2, 10, -63.5, 1.6, 296, COL.wall)
+	mpart(mega, "WCWall2", 6.5, 3.2, 0.25, -66.5, 1.6, 291, COL.wall)
+	local wc = mpart(mega, "WCSign", 3.6, 0.8, 0.14, -65, 3.9, 291.2, Color3.fromRGB(26, 58, 122), { CanCollide = false })
+	local wsg = Instance.new("SurfaceGui"); wsg.Face = Enum.NormalId.Front; wsg.CanvasSize = Vector2.new(300, 66); wsg.Parent = wc
+	local wtl = Instance.new("TextLabel"); wtl.Size = UDim2.fromScale(1, 1); wtl.BackgroundTransparency = 1
+	wtl.Font = Enum.Font.GothamBold; wtl.TextScaled = true; wtl.TextColor3 = Color3.new(1, 1, 1); wtl.Text = "🚻 WC"; wtl.Parent = wsg
+	-- Geldautomaten
+	for _, ax in ipairs({ -2, 0.2 }) do
+		mpart(mega, "ATM", 0.8, 1.7, 0.7, ax, 0.85, 285.6, Color3.fromRGB(53, 80, 110))
+		mpart(mega, "ATMScreen", 0.55, 0.4, 0.06, ax, 1.35, 285.2, Color3.fromRGB(84, 208, 106), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+	-- Feuerloescher + Alarmknoepfe an den Stuetzen, Erste-Hilfe-Kasten
+	for _, fxp in ipairs({ -55, -11, 33 }) do
+		mpart(mega, "Extinguisher", 0.24, 0.55, 0.24, fxp + 0.55, 1.2, 267, Color3.fromRGB(194, 59, 46), { CanCollide = false })
+		mpart(mega, "AlarmBtn", 0.16, 0.16, 0.06, fxp + 0.55, 1.9, 266.9, Color3.fromRGB(194, 59, 46), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+	mpart(mega, "FirstAid", 0.5, 0.5, 0.14, 11.55, 1.9, 267, Color3.fromRGB(42, 157, 92), { CanCollide = false })
+	mpart(mega, "FirstAidH", 0.36, 0.1, 0.06, 11.55, 1.9, 266.9, Color3.new(1, 1, 1), { CanCollide = false })
+	mpart(mega, "FirstAidV", 0.1, 0.36, 0.06, 11.55, 1.9, 266.9, Color3.new(1, 1, 1), { CanCollide = false })
+	-- PA-Lautsprecher + Muelleimer
+	for _, l in ipairs({ { -40, 250 }, { -40, 285 }, { 20, 250 }, { 20, 285 }, { 55, 267 } }) do
+		mpart(mega, "PASpeaker", 0.5, 0.4, 0.5, l[1], 10.1, l[2], Color3.fromRGB(44, 51, 60), { CanCollide = false })
+	end
+	for _, l in ipairs({ { -30, 254 }, { 15, 256 }, { -10, 280 }, { 50, 262 }, { -60, 280 } }) do
+		local bin = mpart(mega, "Bin", 0.64, 0.85, 0.64, l[1], 0.43, l[2], Color3.fromRGB(96, 103, 116))
+		bin.Shape = Enum.PartType.Cylinder
+		bin.CFrame = CFrame.new(l[1] * M, 0.43 * M, l[2] * M) * CFrame.Angles(0, 0, math.rad(90))
+		bin.Size = Vector3.new(0.85 * M, 0.64 * M, 0.64 * M)
+	end
+end
 
 ---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
 local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport

@@ -17,10 +17,15 @@ Fortschritt lebt **nur im Speicher** — kein localStorage, kein DataStore.
 
 ## Der Mega-Airport
 
-Drei verbundene Terminals: das begehbare **Terminal 1** (Check-in-Halle, Sicherheits-
-kontrolle, Passkontrolle, Duty-Free, Einkaufs-Arkade mit Mode/Elektronik/Buchladen/
-Souvenirs, Burger- und Pizza-Restaurant, Café, Business-Lounge, Gepäckausgabe-
-Karussell, Self-Check-in-Automaten, Infoschalter, Kinderecke) plus **Terminal 2 und 3**
+Drei verbundene Terminals: das begehbare **Terminal 1** (Check-in-Halle, **zweispurige
+Sicherheitskontrolle mit Metalldetektoren, Körperscanner, Röntgenbändern, Wannen,
+Zickzack-Warteschlange und Sicherheitspersonal**, Passkontrolle, Duty-Free,
+Einkaufs-Arkade mit Mode/Elektronik/Buchladen/Souvenirs/**Apotheke/Presse & Tabak**,
+Burger- und Pizza-Restaurant, Café, Business-Lounge, Gepäckausgabe-Karussell,
+Self-Check-in-Automaten, Infoschalter, Kinderecke, **WC, Geldautomaten**) plus
+**4 Notausgänge** mit grünen Leuchtschildern, hängenden Fluchtweg-Wegweisern,
+Feuerlöschern, Alarmknöpfen und Erste-Hilfe-Kasten an den Stützen, PA-Deckenlaut-
+sprechern und Mülleimern — dazu **Terminal 2 und 3**
 mit langen Gate-Piers (B1–B7, C1–C7) samt Fluggastbrücken und geparkten Jets.
 **Zwei Runways** (09/27 und 07/25) mit eigenem Deko-Verkehr, Cargo-Center mit
 Frachter und LD-Containern, Flughafenfeuerwehr mit Löschfahrzeugen (Blaulicht!),
