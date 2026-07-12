@@ -2032,11 +2032,19 @@ do
 			end
 		end
 	end
+	-- Tower-Radar mitdrehen (gleicher Animator, aber um die Y-Achse)
+	local designF = airport:FindFirstChild("RealDesign")
+	local radarM = designF and designF:FindFirstChild("Radar")
+	if radarM then
+		local ped = radarM:WaitForChild("Ped")
+		local dish = radarM:WaitForChild("Dish")
+		table.insert(turbines, { hub = ped, blades = { { p = dish, off = ped.CFrame:ToObjectSpace(dish.CFrame) } }, ang = 0, yAxis = true })
+	end
 end
 local function updateTurbines(dt)
 	for _, t in ipairs(turbines) do
 		t.ang = t.ang + dt * 1.1
-		local rot = t.hub.CFrame * CFrame.Angles(0, 0, t.ang)
+		local rot = t.yAxis and (t.hub.CFrame * CFrame.Angles(0, t.ang, 0)) or (t.hub.CFrame * CFrame.Angles(0, 0, t.ang))
 		for _, b in ipairs(t.blades) do
 			b.p.CFrame = rot * b.off
 		end

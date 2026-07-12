@@ -665,11 +665,60 @@ function updatePapis(px, py, pz){
   }
 })();
 
+/* ---------- Airliner-Details: echte Fensterreihen, Titel, Logos ---------- */
+const winMat = mat(0x1c2733);
+function windowRow(g, x, y, z0, z1, step, h){
+  const n = Math.max(1, Math.floor((z1 - z0) / step));
+  const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.07, h || 0.42, 0.3), winMat, n);
+  const m4 = new THREE.Matrix4();
+  for(let i=0;i<n;i++){
+    m4.setPosition(x, y, z0 + i*step + step/2);
+    im.setMatrixAt(i, m4);
+  }
+  g.add(im);
+}
+const AIRLINES = ['SKYJET', 'LUFTAIR', 'NORDWIND', 'SUNLINE', 'PACIFIC AIR'];
+const titleTexCache = {};
+function titleDecal(g, name, x, y, z, w){
+  if(!titleTexCache[name]){
+    titleTexCache[name] = canvasTex(512, 80, (c)=>{
+      c.fillStyle = '#1c2733'; c.font = 'bold 52px Arial'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(name, 256, 42);
+    }, 1, 1);
+    titleTexCache[name].anisotropy = 8;
+  }
+  for(const sx of [-1, 1]){
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.156),
+      new THREE.MeshBasicMaterial({ map: titleTexCache[name], transparent:true, polygonOffset:true, polygonOffsetFactor:-1 }));
+    d.position.set(sx*x, y, z);
+    d.rotation.y = sx*Math.PI/2;
+    g.add(d);
+  }
+}
+function finLogo(g, color, x, y, z, r){
+  r = r || 1.0;
+  for(const sx of [-1, 1]){
+    const ring = new THREE.Mesh(new THREE.CircleGeometry(r, 18), new THREE.MeshBasicMaterial({ color:0xffffff }));
+    ring.position.set(sx*x, y, z); ring.rotation.y = sx*Math.PI/2;
+    g.add(ring);
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(r*0.65, 5), new THREE.MeshBasicMaterial({ color }));
+    inner.position.set(sx*(x+0.01), y, z); inner.rotation.y = sx*Math.PI/2;
+    g.add(inner);
+  }
+}
+function engineDetail(g, x, y, z, r){
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(r*0.98, r*0.13, 8, 18), mat(0xd8dde2));
+  lip.position.set(x, y, z); g.add(lip);
+  const spin = new THREE.Mesh(new THREE.ConeGeometry(r*0.22, r*0.5, 8), mat(0xe8e8e8));
+  spin.rotation.x = -Math.PI/2; spin.position.set(x, y, z+0.05); g.add(spin);
+}
+
 /* Jet-Bauer: Airbus A380 (Doppeldecker, 4 Triebwerke, ~60 % Maßstab) */
 const ENGINE_POS = [[7.2, 4.6],[13.5, 8.4]]; // [|x|, z] unter dem gepfeilten Flügel
 function makeJet(color){
   const g = new THREE.Group();
   const white = mat(0xf4f4f6), dk = mat(0x2a3644);
+  const airline = pick(AIRLINES);
   // Doppeldecker-Rumpf: Haupttube + Oberdeck-Wulst
   const tube = cyl(2.3, 2.3, 34, 14, white, 0, 3.0, 0);
   tube.rotation.x = Math.PI/2; tube.castShadow = true; g.add(tube);
@@ -684,15 +733,16 @@ function makeJet(color){
   // Heckkonus (beide Decks laufen zusammen)
   const tc = cyl(0.35, 2.3, 8, 12, white, 0, 3.6, 21); tc.rotation.x = Math.PI/2 + 0.09; g.add(tc);
   const tcUp = cyl(0.3, 1.7, 7, 10, white, 0, 6.0, 18.2); tcUp.rotation.x = Math.PI/2 + 0.18; g.add(tcUp);
-  // Fensterbänder auf beiden Decks + Türen
+  // Echte Fensterreihen auf beiden Decks + Türen
   for(const sx of [-1,1]){
-    g.add(box(0.06, 0.35, 30, dk, sx*2.28, 3.7, 0));
-    g.add(box(0.06, 0.35, 26, dk, sx*1.72, 6.2, -1));
+    windowRow(g, sx*2.28, 3.7, -14, 15, 1.0);
+    windowRow(g, sx*1.72, 6.2, -13, 11, 1.0);
     for(const dz of [-13.5, -7.5, 0, 8, 14.5]) g.add(box(0.06, 1.9, 1.0, mat(0x9aa4b0), sx*2.29, 3.0, dz));
   }
-  // Gürtelstreifen in Airline-Farbe
-  g.add(box(0.02, 0.5, 33, mat(color), -2.31, 4.45, 0));
-  g.add(box(0.02, 0.5, 33, mat(color), 2.31, 4.45, 0));
+  // Gürtelstreifen in Airline-Farbe (achtern) + Airline-Schriftzug vorn
+  g.add(box(0.02, 0.5, 22, mat(color), -2.31, 4.45, 5.5));
+  g.add(box(0.02, 0.5, 22, mat(color), 2.31, 4.45, 5.5));
+  titleDecal(g, airline, 2.33, 4.45, -10, 8);
   // Gepfeilte Flügel mit leichter V-Form + 4 Triebwerke
   for(const sx of [-1,1]){
     const wing = new THREE.Mesh(new THREE.BoxGeometry(25, 0.45, 7), white.clone());
@@ -707,12 +757,14 @@ function makeJet(color){
       eng.rotation.x = Math.PI/2; eng.castShadow = true; g.add(eng);
       const fan = cyl(0.92, 0.92, 0.18, 10, mat(0x22262c), sx*ex, 1.55, ez-1.95);
       fan.rotation.x = Math.PI/2; g.add(fan);
+      engineDetail(g, sx*ex, 1.55, ez-1.98, 1.15);
       g.add(box(0.4, 1.5, 2.6, white, sx*ex, 2.8, ez+1.2)); // Pylon
     }
   }
   // Leitwerk: hohe gepfeilte Flosse + Höhenleitwerk
   const fin = box(0.5, 9.5, 5.5, mat(color), 0, 9.0, 19.8);
   fin.rotation.x = -0.32; fin.castShadow = true; g.add(fin);
+  finLogo(g, color, 0.28, 10.0, 20.2, 1.25);
   for(const sx of [-1,1]){
     const hs = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.3, 3.4), white.clone());
     hs.geometry.translate(4.25, 0, 1.1);
@@ -743,9 +795,12 @@ function makeNarrowbody(color){ // A320-Klasse
   nose.position.set(0, 2.6, -12.6); nose.scale.z = 1.5; g.add(nose);
   g.add(box(1.9, 0.45, 0.5, mat(0x10151c), 0, 3.4, -13.2));
   const tc = cyl(0.25, 1.65, 7, 10, white, 0, 3.1, 15); tc.rotation.x = Math.PI/2 + 0.1; g.add(tc);
+  const airline = pick(AIRLINES);
+  titleDecal(g, airline, 1.67, 3.62, -7.5, 5.5);
   for(const sx of [-1,1]){
-    g.add(box(0.05, 0.3, 21, dk, sx*1.63, 3.1, 0));
+    windowRow(g, sx*1.63, 3.1, -10.5, 10.5, 0.85, 0.34);
     g.add(box(0.04, 0.4, 24, mat(color), sx*1.66, 2.2, 0));
+    for(const dz of [-9.5, 8.5]) g.add(box(0.05, 1.5, 0.8, mat(0x9aa4b0), sx*1.64, 2.6, dz));
     const wing = new THREE.Mesh(new THREE.BoxGeometry(15, 0.32, 4.4), white.clone());
     wing.geometry.translate(7.5, 0, 1.1);
     wing.position.set(sx*1.4, 1.9, 0.6);
@@ -755,6 +810,7 @@ function makeNarrowbody(color){ // A320-Klasse
     const wl = box(0.15, 1.6, 1.2, mat(color), sx*14.4, 3.0, 6.8); g.add(wl); // Winglet!
     const eng = cyl(0.95, 0.95, 2.8, 10, mat(0xaab0b8), sx*4.6, 1.35, 2.2);
     eng.rotation.x = Math.PI/2; g.add(eng);
+    engineDetail(g, sx*4.6, 1.35, 0.78, 0.95);
     const hs = new THREE.Mesh(new THREE.BoxGeometry(6, 0.25, 2.6), white.clone());
     hs.geometry.translate(3, 0, 0.8);
     hs.position.set(sx*0.3, 3.3, 14.6);
@@ -762,6 +818,7 @@ function makeNarrowbody(color){ // A320-Klasse
     g.add(hs);
   }
   const fin = box(0.35, 6, 3.6, mat(color), 0, 6.2, 14.6); fin.rotation.x = -0.3; fin.castShadow = true; g.add(fin);
+  finLogo(g, color, 0.2, 6.9, 15.1, 0.85);
   g.add(cyl(0.16,0.16,1.7,6, mat(0x3a3d44), 0, 0.95, -9.5));
   for(const [gx,gz] of [[-1.9,1.4],[1.9,1.4],[0,-9.5]]){
     const wh = cyl(0.42,0.42,0.7,8, mat(0x14161a), gx, 0.42, gz); wh.rotation.z = Math.PI/2; g.add(wh);
@@ -783,9 +840,13 @@ function makeJumbo(color){ // B747-Klasse: Buckel nur vorn, 4 Triebwerke
   noseUp.position.set(0, 4.9, -13); noseUp.scale.z = 1.4; g.add(noseUp);
   g.add(box(2.2, 0.45, 0.5, mat(0x10151c), 0, 4.15, -14.6));
   const tc = cyl(0.3, 2.05, 8, 10, white, 0, 3.5, 20); tc.rotation.x = Math.PI/2 + 0.1; g.add(tc);
+  const airline = pick(AIRLINES);
+  titleDecal(g, airline, 2.08, 4.35, -7, 6.5);
   for(const sx of [-1,1]){
-    g.add(box(0.06, 0.32, 27, dk, sx*2.03, 3.4, 1));
-    g.add(box(0.05, 0.45, 29, mat(color), sx*2.06, 4.0, 1));
+    windowRow(g, sx*2.03, 3.4, -11.5, 14, 0.95, 0.36);
+    windowRow(g, sx*1.33, 5.15, -12.8, -4.6, 0.95, 0.32); // Oberdeck-Buckel
+    g.add(box(0.05, 0.45, 18, mat(color), sx*2.06, 4.0, 7));
+    for(const dz of [-11, 5, 12.5]) g.add(box(0.06, 1.7, 0.9, mat(0x9aa4b0), sx*2.04, 2.9, dz));
     const wing = new THREE.Mesh(new THREE.BoxGeometry(21, 0.4, 6), white.clone());
     wing.geometry.translate(10.5, 0, 1.4);
     wing.position.set(sx*1.7, 2.4, 1.8);
@@ -795,6 +856,7 @@ function makeJumbo(color){ // B747-Klasse: Buckel nur vorn, 4 Triebwerke
     for(const [ex, ez] of [[6.2, 4.6],[11.5, 7.9]]){
       const eng = cyl(1.0, 1.0, 3.2, 10, mat(0xaab0b8), sx*ex, 1.35, ez);
       eng.rotation.x = Math.PI/2; g.add(eng);
+      engineDetail(g, sx*ex, 1.35, ez-1.63, 1.0);
     }
     const hs = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.28, 3), white.clone());
     hs.geometry.translate(3.75, 0, 1);
@@ -803,6 +865,7 @@ function makeJumbo(color){ // B747-Klasse: Buckel nur vorn, 4 Triebwerke
     g.add(hs);
   }
   const fin = box(0.4, 8, 4.6, mat(color), 0, 7.6, 18.8); fin.rotation.x = -0.3; fin.castShadow = true; g.add(fin);
+  finLogo(g, color, 0.23, 8.5, 19.4, 1.05);
   for(const [gx,gz] of [[0,-11],[-2.2,2.5],[2.2,2.5],[-1.2,4.2],[1.2,4.2]]){
     g.add(cyl(0.2,0.2,1.9,6, mat(0x3a3d44), gx, 1.2, gz));
     const wh = cyl(0.48,0.48,0.8,8, mat(0x14161a), gx, 0.48, gz); wh.rotation.z = Math.PI/2; g.add(wh);
@@ -825,9 +888,11 @@ function makeTurboprop(color){ // ATR-Klasse: Hochdecker, T-Leitwerk, 2 Props
     const disc = new THREE.Mesh(new THREE.CircleGeometry(1.7, 18),
       new THREE.MeshBasicMaterial({ color:0x30343a, transparent:true, opacity:0.3, side:THREE.DoubleSide }));
     disc.position.set(sx*3.6, 3.1, -2.9); g.add(disc);
-    g.add(box(0.05, 0.28, 14, mat(0x2a3644), sx*1.23, 2.5, 0));
+    windowRow(g, sx*1.23, 2.5, -6.5, 6.5, 0.8, 0.3);
   }
+  titleDecal(g, pick(AIRLINES), 1.27, 2.95, -4.5, 4.2);
   const fin = box(0.3, 4.2, 2.6, mat(color), 0, 5.2, 12.6); fin.rotation.x = -0.25; fin.castShadow = true; g.add(fin);
+  finLogo(g, color, 0.17, 5.6, 13.0, 0.7);
   g.add(box(7, 0.22, 2.0, white, 0, 7.15, 13.4)); // T-Leitwerk oben
   for(const [gx,gz] of [[0,-6.5],[-1.0,0.8],[1.0,0.8]]){
     g.add(cyl(0.12,0.12,1.1,6, mat(0x3a3d44), gx, 0.6, gz));
@@ -853,7 +918,8 @@ function makeBizjet(color){ // Businessjet: T-Leitwerk, Hecktriebwerke
     g.add(wing);
     const eng = cyl(0.5, 0.5, 1.9, 8, mat(0x9aa0a8), sx*1.35, 2.3, 4.9);
     eng.rotation.x = Math.PI/2; g.add(eng);
-    g.add(box(0.05, 0.25, 8, mat(0x2a3644), sx*0.84, 1.95, -0.5));
+    engineDetail(g, sx*1.35, 2.3, 3.92, 0.5);
+    windowRow(g, sx*0.84, 1.95, -4, 3, 0.7, 0.26);
     g.add(box(0.04, 0.3, 10, mat(color), sx*0.86, 1.35, 0));
   }
   const fin = box(0.22, 2.8, 2.0, mat(color), 0, 3.6, 7.6); fin.rotation.x = -0.3; g.add(fin);
@@ -1394,6 +1460,134 @@ const envAnims = []; // Update-Funktionen (t in s, dt)
         if(cg.position.z < -3000) cg.position.z = 3000;
       });
     }
+  })();
+})();
+
+/* ============================================================
+   DESIGN-UPGRADE · Bogendach, Totem, Flutlicht, Zaun, Radar,
+   Stand-Nummern, ILS — der "echte Flughafen"-Look
+   ============================================================ */
+(function buildRealDesign(){
+  const T = TERM;
+
+  /* --- Gewölbtes Terminaldach (Bogenhalle) mit Rippen + Glas-Giebeln --- */
+  const vault = new THREE.Mesh(
+    new THREE.CylinderGeometry(36, 36, T.x2-T.x1+8, 26, 1, true, 0, Math.PI),
+    new THREE.MeshLambertMaterial({ color:0xb9c3ce, side:THREE.DoubleSide }));
+  vault.rotation.z = Math.PI/2;
+  vault.scale.x = 0.36; // lokale X == Welt-Y nach der Drehung -> flacher Bogen
+  vault.position.set((T.x1+T.x2)/2, T.h, (T.z1+T.z2)/2);
+  vault.castShadow = true;
+  scene.add(vault);
+  for(let x=T.x1+2; x<=T.x2; x+=16){
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(36.4, 0.3, 6, 20, Math.PI), mat(0xe8ecf0));
+    rib.rotation.y = Math.PI/2;
+    rib.scale.y = 0.36;
+    rib.position.set(x, T.h, (T.z1+T.z2)/2);
+    scene.add(rib);
+  }
+  for(const [gx, rot] of [[T.x1-3.6, Math.PI/2],[T.x2+3.6, -Math.PI/2]]){
+    const gable = new THREE.Mesh(new THREE.CircleGeometry(35.5, 26, 0, Math.PI),
+      new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.4, side:THREE.DoubleSide }));
+    gable.rotation.y = rot;
+    gable.scale.y = 0.36;
+    gable.position.set(gx, T.h, (T.z1+T.z2)/2);
+    scene.add(gable);
+  }
+
+  /* --- Flughafen-Totem an der Vorfahrt --- */
+  (function(){
+    const g = new THREE.Group();
+    const py = box(3.0, 15, 1.2, mat(0x24374a), 0, 7.5, 0); py.castShadow = true; g.add(py);
+    g.add(box(3.2, 0.6, 1.3, emat(0xffd75e, 0.8), 0, 12.2, 0));
+    const bar = box(19, 3.0, 1.0, mat(0x15202f), 0, 16.5, 0); bar.castShadow = true; g.add(bar);
+    const tx = textSignTex('✈ FLUGHAFEN INTERNATIONAL', '#15202f', '#e8eef7', 1024, 128, 62);
+    for(const sz of [-1, 1]){
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(18.2, 2.6), new THREE.MeshBasicMaterial({ map: tx }));
+      s.position.set(0, 16.5, sz*0.56);
+      if(sz < 0) s.rotation.y = Math.PI;
+      g.add(s);
+    }
+    g.position.set(22, 0, 344);
+    scene.add(g);
+    addCollider(20, 343, 24, 345);
+  })();
+
+  /* --- Flutlichtmasten am Vorfeld --- */
+  for(const mx of [-85, 0, 85, 165, 240]){
+    const g = new THREE.Group();
+    const pole = cyl(0.28, 0.42, 19, 8, mat(0x8a929e), 0, 9.5, 0); pole.castShadow = true; g.add(pole);
+    g.add(box(4.2, 0.5, 0.4, mat(0x666e78), 0, 18.6, 0));
+    for(let i=0;i<4;i++) g.add(box(0.8, 0.55, 0.25, emat(0xfff2cc, 0.95), -1.5 + i, 18.2, 0.35));
+    g.position.set(mx, 0, 146);
+    scene.add(g);
+    addCollider(mx-0.6, 145.4, mx+0.6, 146.6);
+  }
+
+  /* --- Umzäunung des Flugfelds (instanziert, folgt dem Gelände) --- */
+  (function(){
+    const F = { x1:-1150, x2:1150, z1:-640, z2:386 }, STEP = 18;
+    const posts = []; // [x, z, yaw]
+    for(let x=F.x1; x<=F.x2; x+=STEP){
+      posts.push([x, F.z1, 0]);
+      if(Math.abs(x) > 16) posts.push([x, F.z2, 0]); // Tor-Lücke an der Zufahrt
+    }
+    for(let z=F.z1+STEP; z<F.z2; z+=STEP){ posts.push([F.x1, z, Math.PI/2]); posts.push([F.x2, z, Math.PI/2]); }
+    const postIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 2.3, 0.14), mat(0x7a828c), posts.length);
+    const railIM = new THREE.InstancedMesh(new THREE.BoxGeometry(STEP, 0.07, 0.05), mat(0x9aa3ad), posts.length*2);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), eul = new THREE.Euler(), one = new THREE.Vector3(1,1,1), v = new THREE.Vector3();
+    posts.forEach((p, i)=>{
+      const gy = Math.max(terrainH(p[0], p[1]), -0.3);
+      m4.compose(v.set(p[0], gy+1.05, p[1]), q.setFromEuler(eul.set(0, p[2], 0)), one);
+      postIM.setMatrixAt(i, m4);
+      const dx = p[2]===0 ? STEP/2 : 0, dz = p[2]===0 ? 0 : STEP/2;
+      const gy2 = Math.max(terrainH(p[0]+dx*2, p[1]+dz*2), -0.3);
+      for(const [k, ry] of [[0, 0.95],[1, 1.85]]){
+        m4.compose(v.set(p[0]+dx, (gy+gy2)/2 + ry, p[1]+dz), q.setFromEuler(eul.set(0, p[2]===0?0:Math.PI/2, 0)), one);
+        railIM.setMatrixAt(i*2+k, m4);
+      }
+    });
+    scene.add(postIM, railIM);
+  })();
+
+  /* --- Drehendes Rundsicht-Radar auf dem Tower --- */
+  (function(){
+    const rg = new THREE.Group();
+    rg.add(cyl(0.28, 0.4, 1.4, 6, mat(0x8a929e), 0, 0.7, 0));
+    const dish = box(4.6, 1.0, 0.14, mat(0xe8ecf0), 0, 1.9, 0);
+    dish.rotation.x = -0.35;
+    rg.add(dish);
+    rg.add(box(0.5, 0.4, 0.4, mat(0x666e78), 0, 1.45, 0));
+    rg.position.set(-127.2, 30.3, 250);
+    scene.add(rg);
+    envAnims.push((t)=>{ rg.rotation.y = t*1.1; });
+  })();
+
+  /* --- Gemalte Stand-Nummern auf dem Vorfeld --- */
+  [-130, -40, 40, 130, 200].forEach((px, i)=>{
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6),
+      new THREE.MeshBasicMaterial({ map: textSignTex(String(i+1), '#3a3f46', '#ffd75e', 128, 128, 92) }));
+    d.rotation.x = -Math.PI/2;
+    d.position.set(px, 0.27, 190);
+    scene.add(d);
+  });
+
+  /* --- ILS: Localizer-Antennenreihen hinter beiden Schwellen + Gleitpfad-Mast --- */
+  (function(){
+    const elIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.14, 2.4, 0.14), mat(0xc23b2e), 30);
+    const m4 = new THREE.Matrix4(); let n = 0;
+    for(const ax of [RWY_X1-230, RWY_X2+230]){ // hinter der Anflugbefeuerung
+      for(let k=0;k<15;k++){ m4.setPosition(ax, 1.2, -15.4 + k*2.2); elIM.setMatrixAt(n++, m4); }
+      scene.add(box(0.18, 0.14, 33, mat(0xe8e8e8), ax, 2.35, 0));
+    }
+    scene.add(elIM);
+    // Gleitpfad-Mast neben der Aufsetzzone RWY 09
+    const gp = new THREE.Group();
+    gp.add(cyl(0.18, 0.26, 12, 6, mat(0xc23b2e), 0, 6, 0));
+    gp.add(box(2.6, 0.5, 0.3, mat(0xe8e8e8), 1.0, 8.6, 0));
+    gp.add(box(2.6, 0.5, 0.3, mat(0xe8e8e8), 1.0, 5.4, 0));
+    gp.position.set(-560, 0, 36);
+    scene.add(gp);
   })();
 })();
 

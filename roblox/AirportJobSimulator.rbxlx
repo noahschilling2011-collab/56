@@ -209,6 +209,27 @@ for _, px in ipairs({ -130, -40, 40, 130, 200 }) do
 end
 
 ---------------------------------------------------------------- Deko-Jets: Airbus A380 (Doppeldecker, 4 Triebwerke)
+local AIRLINE_NAMES = { "SKYJET", "LUFTAIR", "NORDWIND", "SUNLINE", "PACIFIC AIR" }
+local function airlineTitle(m, x, y, z, w, h)
+	-- Schriftzug beidseitig am Rumpf (SurfaceGui auf duennem Part)
+	local title = AIRLINE_NAMES[math.random(#AIRLINE_NAMES)]
+	for _, sx in ipairs({ -1, 1 }) do
+		local tp = mpart(m, "Title", 0.04, h, w, sx * x, y, z, COL.cream, { CanCollide = false })
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = sx &gt; 0 and Enum.NormalId.Right or Enum.NormalId.Left
+		sg.CanvasSize = Vector2.new(w * 50, h * 50); sg.Parent = tp
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true
+		tl.TextColor3 = Color3.fromRGB(28, 39, 51); tl.Text = title; tl.Parent = sg
+	end
+end
+local function finLogo(m, color, thick, y, z, d)
+	-- Logo-Scheiben durch die Flosse (Zylinderachse X = beidseitig sichtbar)
+	local ring = mpart(m, "LogoRing", thick + 0.2, d, d, 0, y, z, Color3.fromRGB(255, 255, 255), { CanCollide = false })
+	ring.Shape = Enum.PartType.Cylinder
+	local inner = mpart(m, "LogoInner", thick + 0.26, d * 0.65, d * 0.65, 0, y, z, color, { CanCollide = false })
+	inner.Shape = Enum.PartType.Cylinder
+end
 local ENGINE_POS = { { 7.2, 4.6 }, { 13.5, 8.4 } } -- {|x|, z} unter dem gepfeilten Fluegel
 local function makeJet(name, color, x, z, yawDeg)
 	local m = Instance.new("Model"); m.Name = name
@@ -250,12 +271,16 @@ local function makeJet(name, color, x, z, yawDeg)
 			eng.Shape = Enum.PartType.Cylinder
 			eng.CFrame = CFrame.new(sx * e[1] * M, 1.55 * M, e[2] * M) * CFrame.Angles(0, math.rad(90), 0)
 			mpart(m, "Fan", 0.3, 1.85, 1.85, sx * e[1], 1.55, e[2] - 1.95, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+			local sp = mpart(m, "Spin", 0.55, 0.55, 0.55, sx * e[1], 1.55, e[2] - 2.05, Color3.fromRGB(226, 226, 226), { CanCollide = false })
+			sp.Shape = Enum.PartType.Ball
 			mpart(m, "Pylon", 0.4, 1.5, 2.6, sx * e[1], 2.8, e[2] + 1.2, COL.cream, { CanCollide = false })
 		end
 	end
+	airlineTitle(m, 2.34, 4.45, -10, 8, 1.0)
 	-- Leitwerk
 	local fin = mpart(m, "Fin", 0.5, 9.5, 5.5, 0, 9.0, 19.8, color, { CanCollide = false })
 	fin.CFrame = CFrame.new(0, 9.0 * M, 19.8 * M) * CFrame.Angles(-0.32, 0, 0)
+	finLogo(m, color, 0.5, 10.0, 20.1, 2.5)
 	for _, sx in ipairs({ -1, 1 }) do
 		local hs = mpart(m, "HStab", 8.5, 0.3, 3.4, 0, 0, 0, COL.cream, { CanCollide = false })
 		hs.CFrame = CFrame.new(sx * 0.4 * M, 4.7 * M, 20 * M)
@@ -299,6 +324,8 @@ local function makeNarrowbody(name, color, x, z, yawDeg)
 		local eng = mpart(m, "Eng", 2.8, 1.9, 1.9, sx * 4.6, 1.35, 2.2, Color3.fromRGB(170, 176, 184))
 		eng.Shape = Enum.PartType.Cylinder
 		eng.CFrame = CFrame.new(sx * 4.6 * M, 1.35 * M, 2.2 * M) * CFrame.Angles(0, math.rad(90), 0)
+		local sp = mpart(m, "Spin", 0.45, 0.45, 0.45, sx * 4.6, 1.35, 0.85, Color3.fromRGB(226, 226, 226), { CanCollide = false })
+		sp.Shape = Enum.PartType.Ball
 		local hs = mpart(m, "HStab", 6, 0.25, 2.6, 0, 0, 0, COL.cream, { CanCollide = false })
 		hs.CFrame = CFrame.new(sx * 0.3 * M, 3.3 * M, 14.6 * M)
 			* CFrame.Angles(0, sx &gt; 0 and -0.5 or (math.pi + 0.5), 0)
@@ -306,6 +333,8 @@ local function makeNarrowbody(name, color, x, z, yawDeg)
 	end
 	local fin = mpart(m, "Fin", 0.35, 6, 3.6, 0, 6.2, 14.6, color, { CanCollide = false })
 	fin.CFrame = CFrame.new(0, 6.2 * M, 14.6 * M) * CFrame.Angles(-0.3, 0, 0)
+	finLogo(m, color, 0.35, 6.8, 15.0, 1.7)
+	airlineTitle(m, 1.69, 3.6, -7, 6, 0.85)
 	for _, g in ipairs({ { 0, -9.5 }, { -1.9, 1.4 }, { 1.9, 1.4 } }) do
 		mpart(m, "Whl", 0.7, 0.84, 0.84, g[1], 0.42, g[2], Color3.fromRGB(20, 22, 26))
 	end
@@ -1022,6 +1051,94 @@ shop(14, 297.8, math.pi, "👗 MODE BOUTIQUE", Color3.fromRGB(201, 95, 160))
 shop(30, 297.8, math.pi, "📱 ELEKTRONIK", Color3.fromRGB(42, 109, 181))
 shop(72.6, 250, -math.pi / 2, "📚 BUCHLADEN", Color3.fromRGB(138, 106, 58))
 shop(72.6, 266, -math.pi / 2, "🎁 SOUVENIRS", Color3.fromRGB(201, 164, 79))
+
+---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
+local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport
+-- Gewoelbtes Terminaldach (Halbellipse aus 10 Segmenten)
+do
+	local cz, a, b, N = (T.z1 + T.z2) / 2, 36, 13, 10
+	local w = T.x2 - T.x1 + 8
+	for i = 0, N - 1 do
+		local t1, t2 = math.pi * i / N, math.pi * (i + 1) / N
+		local sz1, sy1 = cz - a * math.cos(t1), T.h + b * math.sin(t1)
+		local sz2, sy2 = cz - a * math.cos(t2), T.h + b * math.sin(t2)
+		local len = math.sqrt((sz2 - sz1) ^ 2 + (sy2 - sy1) ^ 2)
+		local seg = mpart(design, "Vault", w, 0.35, len + 0.4, (T.x1 + T.x2) / 2, (sy1 + sy2) / 2, (sz1 + sz2) / 2,
+			Color3.fromRGB(190, 199, 209), { CanCollide = false })
+		seg.CFrame = seg.CFrame * CFrame.Angles(-math.atan2(sy2 - sy1, sz2 - sz1), 0, 0)
+	end
+end
+-- Flughafen-Totem an der Vorfahrt
+do
+	mpart(design, "TotemPylon", 3.0, 15, 1.2, 22, 7.5, 344, Color3.fromRGB(36, 55, 74))
+	mpart(design, "TotemBand", 3.2, 0.6, 1.3, 22, 12.2, 344, Color3.fromRGB(255, 215, 94), { Material = Enum.Material.Neon, CanCollide = false })
+	local bar = mpart(design, "TotemBar", 19, 3.0, 1.0, 22, 16.5, 344, Color3.fromRGB(21, 32, 47))
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local sg = Instance.new("SurfaceGui"); sg.Face = face; sg.CanvasSize = Vector2.new(950, 150); sg.Parent = bar
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(232, 238, 247)
+		tl.Text = "FLUGHAFEN INTERNATIONAL"; tl.Parent = sg
+	end
+end
+-- Flutlichtmasten am Vorfeld
+for _, fx in ipairs({ -85, 0, 85, 165, 240 }) do
+	mpart(design, "FloodPole", 0.7, 19, 0.7, fx, 9.5, 146, Color3.fromRGB(138, 146, 158))
+	mpart(design, "FloodBar", 4.2, 0.5, 0.4, fx, 18.6, 146, Color3.fromRGB(102, 110, 120), { CanCollide = false })
+	for i = 0, 3 do
+		mpart(design, "FloodLamp", 0.8, 0.55, 0.25, fx - 1.5 + i, 18.2, 146.4, Color3.fromRGB(255, 242, 204), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+end
+-- Umzaeunung des Flugfelds (mit Tor-Luecke an der Zufahrt)
+do
+	local FX1, FX2, FZ1, FZ2, STEP = -1150, 1150, -640, 386, 30
+	local pc = Color3.fromRGB(122, 130, 140)
+	for x = FX1, FX2, STEP do
+		mpart(design, "FencePost", 0.14, 2.3, 0.14, x, 1.15, FZ1, pc, { CanCollide = false })
+		if math.abs(x) &gt; 16 then
+			mpart(design, "FencePost", 0.14, 2.3, 0.14, x, 1.15, FZ2, pc, { CanCollide = false })
+		end
+	end
+	for z = FZ1 + STEP, FZ2 - 1, STEP do
+		mpart(design, "FencePost", 0.14, 2.3, 0.14, FX1, 1.15, z, pc, { CanCollide = false })
+		mpart(design, "FencePost", 0.14, 2.3, 0.14, FX2, 1.15, z, pc, { CanCollide = false })
+	end
+	local rc = Color3.fromRGB(154, 163, 173)
+	for _, ry in ipairs({ 0.95, 1.85 }) do
+		tiled(design, "FenceRail", FX2 - FX1, 0.07, 0.06, 0, ry, FZ1, rc, { CanCollide = false })
+		tiled(design, "FenceRail", (-16) - FX1, 0.07, 0.06, (FX1 - 16) / 2, ry, FZ2, rc, { CanCollide = false })
+		tiled(design, "FenceRail", FX2 - 16, 0.07, 0.06, (FX2 + 16) / 2, ry, FZ2, rc, { CanCollide = false })
+		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX1, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
+		tiled(design, "FenceRail", 0.06, 0.07, FZ2 - FZ1, FX2, ry, (FZ1 + FZ2) / 2, rc, { CanCollide = false })
+	end
+end
+-- Drehendes Rundsicht-Radar auf dem Tower (Client animiert)
+do
+	local radar = Instance.new("Model"); radar.Name = "Radar"; radar.Parent = design
+	local ped = mpart(radar, "Ped", 0.7, 1.4, 0.7, -127.2, 31.0, 250, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+	radar.PrimaryPart = ped
+	local dish = mpart(radar, "Dish", 4.6, 1.0, 0.14, -127.2, 32.2, 250, Color3.fromRGB(232, 236, 240), { CanCollide = false })
+	dish.CFrame = dish.CFrame * CFrame.Angles(-0.35, 0, 0)
+end
+-- Gemalte Stand-Nummern auf dem Vorfeld
+for i, px in ipairs({ -130, -40, 40, 130, 200 }) do
+	local sp = mpart(design, "StandNum", 4.6, 0.12, 4.6, px, 0.32, 190, Color3.fromRGB(58, 63, 70), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Top; sg.CanvasSize = Vector2.new(200, 200); sg.Parent = sp
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = tostring(i); tl.Parent = sg
+end
+-- ILS: Localizer-Antennenreihen hinter der Anflugbefeuerung + Gleitpfad-Mast
+do
+	local rcol = Color3.fromRGB(194, 59, 46)
+	for _, ax in ipairs({ -980, 980 }) do
+		for k = 0, 14 do
+			mpart(design, "ILSel", 0.14, 2.4, 0.14, ax, 1.2, -15.4 + k * 2.2, rcol, { CanCollide = false })
+		end
+		mpart(design, "ILSbeam", 0.18, 0.14, 33, ax, 2.35, 0, COL.white, { CanCollide = false })
+	end
+	mpart(design, "GPmast", 0.4, 12, 0.4, -560, 6, 36, rcol)
+	mpart(design, "GPant", 2.6, 0.5, 0.3, -559, 8.6, 36, COL.white, { CanCollide = false })
+	mpart(design, "GPant2", 2.6, 0.5, 0.3, -559, 5.4, 36, COL.white, { CanCollide = false })
+end
 
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")
@@ -3083,11 +3200,19 @@ do
 			end
 		end
 	end
+	-- Tower-Radar mitdrehen (gleicher Animator, aber um die Y-Achse)
+	local designF = airport:FindFirstChild("RealDesign")
+	local radarM = designF and designF:FindFirstChild("Radar")
+	if radarM then
+		local ped = radarM:WaitForChild("Ped")
+		local dish = radarM:WaitForChild("Dish")
+		table.insert(turbines, { hub = ped, blades = { { p = dish, off = ped.CFrame:ToObjectSpace(dish.CFrame) } }, ang = 0, yAxis = true })
+	end
 end
 local function updateTurbines(dt)
 	for _, t in ipairs(turbines) do
 		t.ang = t.ang + dt * 1.1
-		local rot = t.hub.CFrame * CFrame.Angles(0, 0, t.ang)
+		local rot = t.yAxis and (t.hub.CFrame * CFrame.Angles(0, t.ang, 0)) or (t.hub.CFrame * CFrame.Angles(0, 0, t.ang))
 		for _, b in ipairs(t.blades) do
 			b.p.CFrame = rot * b.off
 		end

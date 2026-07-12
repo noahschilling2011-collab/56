@@ -64,7 +64,10 @@ Motorsound (Browser-Version, Tonhöhe folgt dem Schub).
 
 ### Die A380 an den Gates — begehbar!
 Die beiden Deko-Jets (und der Deko-Verkehr) sind **Airbus A380**: Doppeldecker-Rumpf,
-vier Triebwerke, gepfeilte Flügel, Fahrwerks-Bogies, Fensterbänder auf beiden Decks.
+vier Triebwerke, gepfeilte Flügel, Fahrwerks-Bogies — und seit dem Design-Upgrade
+**einzelne Kabinenfenster auf beiden Decks, Airline-Schriftzüge (SKYJET, LUFTAIR,
+NORDWIND, SUNLINE, PACIFIC AIR), Logos auf dem Leitwerk und Triebwerks-Spinner
+mit Einlauflippe** — genau wie A320, 747, ATR und Bizjet.
 Der A380 an **Gate 1** ist von innen begehbar: über die Gangway-Treppe (E) hinein,
 durch die Economy-Kabine (2-3-2) mit sitzenden Passagieren, vorbei an der Galley
 ins **Cockpit** (Panel mit Displays, Pedestal, Sidesticks) oder die Treppe hoch
@@ -72,6 +75,11 @@ aufs **Oberdeck** mit Premium-Bestuhlung (1-2-1). In Roblox läuft man dank echt
 Physik einfach die Rampe hinauf; im Browser übernimmt E-Interaktion den Einstieg.
 
 ### Der Flughafen
+**Gewölbtes Bogendach über Terminal 1** (mit Rippen und Glas-Giebeln) ·
+Flughafen-Totem „FLUGHAFEN INTERNATIONAL" an der Vorfahrt · **Flutlichtmasten**
+am Vorfeld · gemalte **Stand-Nummern** an den Gates · **drehendes Radar** auf dem
+Tower · Umzäunung des gesamten Flugfelds mit Tor an der Zufahrt · **ILS**
+(Localizer-Antennenreihen hinter beiden Schwellen + Gleitpfad-Mast) ·
 Anflugbefeuerung mit Lauflicht-Strobes an beiden Schwellen · blaue Taxiway-Rand-
 befeuerung · Hold-Short-Markierungen mit Runway-Schildern · Gummiabrieb in den
 Aufsetzzonen · rote Vorfeld-Sicherheitslinie, Gate-Schilder & Pylonen · Tankwagen,
