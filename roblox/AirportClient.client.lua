@@ -431,6 +431,7 @@ local ACHIEVEMENTS = {
 	{ id = "first_mission", name = "Captain im Dienst", desc = "Schließe eine Flugmission ab." },
 	{ id = "butter", name = "🧈 Butterweich", desc = "Lande mit unter 200 ft/min." },
 	{ id = "alt_1000", name = "Über den Wolken", desc = "Erreiche 1.000 ft Flughöhe." },
+	{ id = "shopper", name = "Shopping-Tour", desc = "Kaufe etwas in einem Laden im Terminal." },
 }
 local achieved = {}
 function unlock(id)
@@ -503,7 +504,9 @@ end
 RunService.RenderStepped:Connect(function()
 	local h = humanoid()
 	if h and S.mode == "walk" then
-		h.WalkSpeed = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 24 or 16
+		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 24 or 16
+		if S.boostUntil and os.clock() < S.boostUntil then ws = ws * 1.35 end -- ☕ Kaffee-Boost
+		h.WalkSpeed = ws
 	end
 end)
 
@@ -2206,6 +2209,146 @@ addInteract({
 			openMissionSelect)
 	end,
 })
+
+---------------------------------------------------------------- Ebenen-Teleports + funktionierende Laeden + Kosmetik
+do
+	local function py()
+		local r = hrp()
+		return r and (r.Position.Y / M) or 0
+	end
+	local function tp(x, ym, z)
+		if character then character:PivotTo(CFrame.new(x * M, ym * M + 3, z * M)) end
+	end
+	-- Tunnel Parkdeck <-> Terminal (Treppen sind Teleports, Tunnel selbst ist begehbar)
+	addInteract({ x = function() return -120 end, z = function() return 305 end, r = 3.2,
+		cond = function() return S.mode == "walk" and py() > -1 end,
+		label = function() return "⬇ Tunnel zum Terminal (UG)" end,
+		action = function() tp(-118, -3.8, 290) end })
+	addInteract({ x = function() return -118 end, z = function() return 290 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() < -2 end,
+		label = function() return "⬆ Treppe: Parkdeck" end,
+		action = function() tp(-120, 0, 305.5) end })
+	addInteract({ x = function() return -66 end, z = function() return 284.5 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() > -1 and py() < 2 end,
+		label = function() return "⬇ Tunnel zum Parkdeck (UG)" end,
+		action = function() tp(-63, -3.8, 290) end })
+	addInteract({ x = function() return -63 end, z = function() return 290 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() < -2 end,
+		label = function() return "⬆ Treppe: Terminal" end,
+		action = function() tp(-66, 0, 281.8) end })
+	-- Glas-Aufzug EG <-> Food-Court-Galerie (Rampe geht auch zu Fuss)
+	addInteract({ x = function() return 2.5 end, z = function() return 295.6 end, r = 2.8,
+		cond = function() return S.mode == "walk" and py() < 2.5 and py() > -1 end,
+		label = function() return "🛗 Aufzug: Ebene 2" end,
+		action = function() tp(2.5, 4.78, 295) end })
+	addInteract({ x = function() return 2.5 end, z = function() return 295 end, r = 2.8,
+		cond = function() return S.mode == "walk" and py() > 3.5 end,
+		label = function() return "🛗 Aufzug: Erdgeschoss" end,
+		action = function() tp(2.5, 0, 295.6) end })
+
+	-- Kaufbare Kosmetik: Sonnenbrille / Kopfhoerer (an den Kopf geschweisst)
+	local worn = {}
+	local function wear(kind)
+		local c = character
+		local head = c and c:FindFirstChild("Head")
+		if not head or worn[kind] then return end
+		local parts = {}
+		if kind == "glasses" then
+			parts[1] = { Vector3.new(1.1, 0.25, 0.16), CFrame.new(0, 0.18, -0.62), Color3.fromRGB(20, 22, 26) }
+		else
+			parts[1] = { Vector3.new(0.24, 0.5, 0.42), CFrame.new(-0.72, 0, 0), Color3.fromRGB(194, 59, 46) }
+			parts[2] = { Vector3.new(0.24, 0.5, 0.42), CFrame.new(0.72, 0, 0), Color3.fromRGB(194, 59, 46) }
+			parts[3] = { Vector3.new(1.5, 0.18, 0.3), CFrame.new(0, 0.68, 0), Color3.fromRGB(20, 22, 26) }
+		end
+		local made = {}
+		for _, d in ipairs(parts) do
+			local p = Instance.new("Part")
+			p.Size = d[1]; p.Color = d[3]; p.CanCollide = false; p.Massless = true; p.Anchored = false
+			p.CFrame = head.CFrame * d[2]
+			local w = Instance.new("WeldConstraint"); w.Part0 = head; w.Part1 = p; w.Parent = p
+			p.Parent = c
+			table.insert(made, p)
+		end
+		worn[kind] = made
+	end
+
+	-- Laeden: Sortiment, Kauf-Panel, Effekte
+	local SHOPS = {
+		{ x = -62, z = 293.2, name = "🍔 Burger Palace", items = { { "🍔 Burger", 12, "xp6" }, { "🍟 Menü Groß", 20, "xp12" }, { "🥤 Cola", 5, "xp3" } } },
+		{ x = -46, z = 293.2, name = "🍕 Pizza Milano", items = { { "🍕 Pizza Margherita", 15, "xp8" }, { "🥟 Calzone", 18, "xp10" }, { "☕ Espresso", 6, "boost" } } },
+		{ x = 14, z = 293.2, name = "👗 Mode Boutique", items = { { "🕶 Sonnenbrille", 45, "glasses" }, { "🧢 Basecap", 25, "xp5" }, { "🧣 Schal", 18, "xp5" } } },
+		{ x = 30, z = 293.2, name = "📱 Elektronik", items = { { "🎧 Kopfhörer", 60, "phones" }, { "🔋 Powerbank", 25, "xp5" }, { "🔌 Reiseadapter", 15, "xp5" } } },
+		{ x = 48, z = 293.2, name = "➕ Apotheke", items = { { "💊 Vitamin-Booster", 15, "boost" }, { "🩹 Pflaster", 6, "xp3" }, { "💊 Reisetabletten", 10, "xp5" } } },
+		{ x = 64, z = 293.2, name = "📰 Presse & Tabak", items = { { "📖 Magazin", 8, "xp6" }, { "🗺 Reiseführer", 14, "xp10" }, { "🍬 Kaugummi", 3, "xp2" } } },
+		{ x = 68.5, z = 250, name = "📚 Buchladen", items = { { "📕 Roman", 12, "xp10" }, { "🔎 Krimi", 15, "xp12" }, { "🧸 Kinderbuch", 9, "xp6" } } },
+		{ x = 68.5, z = 266, name = "🎁 Souvenirs", items = { { "✈ Mini-A380", 30, "souvenir" }, { "🔑 Schlüsselanhänger", 10, "xp5" }, { "❄ Schneekugel", 16, "xp8" } } },
+		{ x = 50, z = 284.8, name = "✨ Duty Free", items = { { "🌸 Parfüm", 40, "xp15" }, { "🍫 Schokolade XXL", 18, "xp10" }, { "🧴 Sonnencreme", 12, "xp5" } } },
+		{ x = 62, z = 278.6, name = "☕ Café am Gate", items = { { "☕ Kaffee", 6, "boost" }, { "☕ Cappuccino", 8, "boost" }, { "🥐 Croissant", 7, "xp5" } } },
+		{ x = 14, z = 294, y2 = true, name = "🍣 Sushi Bar", items = { { "🍣 Sushi-Box", 22, "xp15" }, { "🍜 Miso-Suppe", 9, "xp6" }, { "🍵 Grüner Tee", 5, "boost" } } },
+		{ x = 32, z = 294, y2 = true, name = "🌮 Taco Loco", items = { { "🌮 Taco-Teller", 16, "xp10" }, { "🌯 Burrito", 18, "xp12" }, { "🍋 Limonade", 5, "xp3" } } },
+		{ x = 52, z = 294, y2 = true, name = "🍦 Eiscafé Venezia", items = { { "🍨 Eisbecher", 10, "xp8" }, { "🧇 Waffel", 8, "xp6" }, { "🥤 Milchshake", 9, "boost" } } },
+	}
+	local function applyEffect(eff, nm)
+		if eff == "boost" then
+			S.boostUntil = os.clock() + 60
+			toast("⚡ " .. nm .. ": 60 s schneller unterwegs!", "good")
+		elseif eff == "glasses" or eff == "phones" then
+			wear(eff)
+			toast(eff == "glasses" and "🕶 Sonnenbrille aufgesetzt — stylisch!" or "🎧 Kopfhörer aufgesetzt!", "good")
+		elseif eff == "souvenir" then
+			addXP(15)
+			toast("✈ Mini-A380 eingepackt — ein Stück Flughafen für zu Hause!", "good")
+		else
+			local n = tonumber(eff:sub(3)) or 5
+			addXP(n)
+			toast("😋 " .. nm .. " — +" .. n .. " XP", "good")
+		end
+	end
+	local openShopPanel
+	local function buyItem(si, ii)
+		local s = SHOPS[si]
+		local it = s.items[ii]
+		if S.credits < it[2] then
+			toast("Zu wenig Credits für " .. it[1] .. "!", "bad")
+			return
+		end
+		S.credits = S.credits - it[2]
+		updateHUD()
+		unlock("shopper")
+		applyEffect(it[3], it[1])
+		openShopPanel(si)
+	end
+	openShopPanel = function(si)
+		local s = SHOPS[si]
+		showPanel(function(p)
+			local t = label(p, s.name, UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), GOLD, 20)
+			t.Font = Enum.Font.GothamBold
+			label(p, "Guthaben: " .. S.credits .. " Credits", UDim2.new(0, 20, 0, 46), UDim2.new(1, -40, 0, 20), TXT, 14)
+			for i, it in ipairs(s.items) do
+				local yy = 60 + i * 56
+				label(p, it[1], UDim2.new(0, 20, 0, yy + 8), UDim2.new(0, 280, 0, 24), TXT, 16)
+				local can = S.credits >= it[2]
+				button(p, it[2] .. " Cr", UDim2.new(1, -140, 0, yy), UDim2.new(0, 116, 0, 40),
+					can and Color3.fromRGB(40, 110, 60) or Color3.fromRGB(70, 74, 82), function()
+						if can then buyItem(si, i) end
+					end)
+			end
+			button(p, "Schließen", UDim2.new(0, 20, 1, -56), UDim2.new(0, 140, 0, 40), Color3.fromRGB(70, 74, 82), hidePanel)
+		end)
+	end
+	for si, s in ipairs(SHOPS) do
+		addInteract({
+			x = function() return s.x end, z = function() return s.z end, r = 3.4,
+			cond = function()
+				if S.mode ~= "walk" then return false end
+				local onG = py() > 3.5
+				return (s.y2 and onG) or (not s.y2 and not onG)
+			end,
+			label = function() return s.name .. " — einkaufen" end,
+			action = function() openShopPanel(si) end,
+		})
+	end
+end
 
 ---------------------------------------------------------------- Hauptschleife
 updateHUD()

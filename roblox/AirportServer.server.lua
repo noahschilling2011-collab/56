@@ -1120,6 +1120,14 @@ do
 	local function carpet(x, z, w, d, col)
 		mpart(mega, "Carpet", w, 0.06, d, x, 0.28, z, col, { CanCollide = false, Material = Enum.Material.Fabric })
 	end
+	local function sitSpot(mdl, ox, oy, oz, w)
+		-- unsichtbarer, funktionierender Sitzplatz (Roblox-Seat)
+		local st = Instance.new("Seat")
+		st.Anchored = true; st.CanCollide = false; st.Transparency = 1
+		st.Size = Vector3.new((w or 1.2) * M, 0.3, 1.0 * M)
+		st.CFrame = CFrame.new(ox * M, oy * M, oz * M) * CFrame.Angles(0, math.pi, 0)
+		st.Parent = mdl
+	end
 	local function sofa(x, z, ry, col, len)
 		local mdl = Instance.new("Model"); mdl.Name = "Sofa"; mdl.Parent = mega
 		mpart(mdl, "Seat", len, 0.42, 1.05, 0, 0.44, 0, col, { CanCollide = false })
@@ -1127,6 +1135,7 @@ do
 		mpart(mdl, "ArmL", 0.28, 0.5, 1.05, -len / 2 + 0.14, 0.78, 0, col, { CanCollide = false })
 		mpart(mdl, "ArmR", 0.28, 0.5, 1.05, len / 2 - 0.14, 0.78, 0, col, { CanCollide = false })
 		mpart(mdl, "Rail", len - 0.4, 0.1, 0.75, 0, 0.15, 0, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		sitSpot(mdl, 0, 0.75, 0.05, len - 0.7)
 		mdl:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, ry, 0))
 	end
 	local function ltable(x, z, r)
@@ -1160,6 +1169,7 @@ do
 		local back = mpart(mdl, "Back", 0.8, 0.12, 1.15, 0, 0.78, -1.02, Color3.fromRGB(74, 106, 85), { CanCollide = false })
 		back.CFrame = back.CFrame * CFrame.Angles(0.65, 0, 0)
 		mpart(mdl, "Base", 0.7, 0.12, 0.5, 0, 0.12, 0.2, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		sitSpot(mdl, 0, 0.62, 0.3, 0.7)
 		mdl:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, ry, 0))
 	end
 	local function textOn(part, face, txt, fg, w, h)
@@ -1233,6 +1243,123 @@ do
 	pendant(-45, 252); pendant(-15, 262); pendant(10, 276); pendant(-40, 286); pendant(55, 276)
 	for _, p in ipairs({ { 256, Color3.fromRGB(42, 143, 143) }, { 261, Color3.fromRGB(224, 120, 32) }, { 266, Color3.fromRGB(201, 164, 79) } }) do
 		mpart(mega, "WallArt", 0.1, 2.6, 2.0, -69.45, 4.2, p[1], p[2], { CanCollide = false })
+	end
+end
+
+-- Zwei neue Ebenen: Food-Court-Galerie (Ebene 2, begehbar ueber Rampe) + UG-Tunnel
+do
+	local grey = Color3.fromRGB(170, 178, 188)
+	-- Galerie-Boden + Gelaender (Luecke an der Rolltreppen-Rampe x 50..57)
+	mpart(mega, "GalleryFloor", 74, 0.4, 37.5, 35, 4.58, 281.75, Color3.fromRGB(226, 230, 235))
+	mpart(mega, "GalRailS1", 52.8, 1.1, 0.1, 24.4, 5.35, 263, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "GalRailS2", 15, 1.1, 0.1, 64.5, 5.35, 263, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "GalRailW", 0.1, 1.1, 37.5, -2, 5.35, 281.75, COL.glass, { Transparency = 0.5 })
+	for _, cx in ipairs({ 8, 28, 48, 68 }) do
+		mpart(mega, "GalCol", 0.7, 4.6, 0.7, cx, 2.3, 263.8, grey)
+	end
+	-- begehbare Rolltreppen-Rampe EG -> Galerie (Anstieg entlang +Z wie Parkdeck)
+	local esc = mpart(mega, "GalRamp", 6.4, 4.78, 13.6, 53.5, 2.39, 256.2, Color3.fromRGB(96, 100, 106))
+	esc.Shape = Enum.PartType.Wedge
+	local escSign = mpart(mega, "GalSign", 7, 1.1, 0.14, 53.5, 3.3, 248.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	do
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(480, 76); sg.Parent = escSign
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(143, 232, 159)
+		tl.Text = "⬆ EBENE 2 · FOOD COURT"; tl.Parent = sg
+	end
+	-- Aufzug-Optik an der Nordwand (Teleport uebernimmt der Client)
+	for _, ox in ipairs({ 1.2, 3.8 }) do
+		mpart(mega, "LiftFrame", 0.36, 9.6, 2.6, ox, 4.8, 298.4, grey)
+	end
+	mpart(mega, "LiftGlass", 2.8, 9.6, 0.2, 2.5, 4.8, 297.1, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "LiftGlass2", 2.8, 9.6, 0.2, 2.5, 4.8, 299.7, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "LiftTop", 2.8, 0.3, 2.8, 2.5, 9.7, 298.4, grey, { CanCollide = false })
+	-- Food-Court-Laeden (Front nach Sueden)
+	local function gshop(x, name, col)
+		mpart(mega, "GShopBody", 12, 3.4, 4, x, 4.78 + 1.7, 297.5, Color3.fromRGB(44, 51, 60))
+		mpart(mega, "GShopBand", 12, 0.8, 0.2, x, 4.78 + 3.0, 295.4, col, { Material = Enum.Material.Neon, CanCollide = false })
+		mpart(mega, "GShopTheke", 8, 1.05, 1.4, x, 4.78 + 0.52, 295.9, Color3.fromRGB(74, 58, 46))
+		local s = mpart(mega, "GShopSign", 8.5, 1.25, 0.14, x, 4.78 + 3.95, 295.35, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(560, 82); sg.Parent = s
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
+	end
+	gshop(14, "🍣 SUSHI BAR", Color3.fromRGB(42, 143, 143))
+	gshop(32, "🌮 TACO LOCO", Color3.fromRGB(224, 120, 32))
+	gshop(52, "🍦 EISCAFÉ VENEZIA", Color3.fromRGB(201, 95, 160))
+	-- Food-Court-Tische mit Hockern (2 davon echte Sitzplaetze)
+	for _, t in ipairs({ { 10, 276 }, { 22, 279 }, { 34, 274 }, { 46, 280 }, { 58, 274 }, { 64, 285 } }) do
+		local top = mpart(mega, "FCTable", 0.07, 1.5, 1.5, t[1], 4.78 + 0.78, t[2], Color3.fromRGB(217, 210, 196), { CanCollide = false })
+		top.Shape = Enum.PartType.Cylinder
+		top.CFrame = CFrame.new(t[1] * M, (4.78 + 0.78) * M, t[2] * M) * CFrame.Angles(0, 0, math.rad(90))
+		mpart(mega, "FCLeg", 0.14, 0.78, 0.14, t[1], 4.78 + 0.39, t[2], Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		for _, o in ipairs({ { -1.1, 0 }, { 1.1, 0 }, { 0, -1.1 }, { 0, 1.1 } }) do
+			mpart(mega, "FCStool", 0.6, 0.55, 0.6, t[1] + o[1], 4.78 + 0.28, t[2] + o[2], Color3.fromRGB(53, 80, 110), { CanCollide = false })
+		end
+		if t[1] == 22 or t[1] == 46 then
+			local st = Instance.new("Seat")
+			st.Anchored = true; st.CanCollide = false; st.Transparency = 1
+			st.Size = Vector3.new(1.1 * M, 0.3, 1.0 * M)
+			st.CFrame = CFrame.new((t[1] - 1.1) * M, (4.78 + 0.62) * M, t[2] * M) * CFrame.Angles(0, math.rad(90), 0)
+			st.Parent = mega
+		end
+	end
+	-- Sitzbaenke im Gate-Bereich: echte Sitzplaetze auf drei Baenken
+	for _, s in ipairs({ { 24, 245.5, 0 }, { 37, 254.5, 0 }, { -55, 272.5, 180 } }) do
+		local st = Instance.new("Seat")
+		st.Anchored = true; st.CanCollide = false; st.Transparency = 1
+		st.Size = Vector3.new(1.3 * M, 0.3, 1.2 * M)
+		st.CFrame = CFrame.new(s[1] * M, 0.95 * M, s[2] * M) * CFrame.Angles(0, math.rad(s[3]), 0)
+		st.Parent = mega
+	end
+	-- UG-Tunnel Parkdeck <-> Terminal (Boden bei -3.8 m, Decke = Unterseite des Bodens)
+	mpart(mega, "TunFloor", 69, 0.3, 8, -90.5, -3.95, 290, Color3.fromRGB(58, 63, 70))
+	mpart(mega, "TunWallN", 69, 3.2, 0.3, -90.5, -2.4, 293.7, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunWallS", 69, 3.2, 0.3, -90.5, -2.4, 286.3, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunEndW", 0.3, 3.2, 8, -122.8, -2.4, 290, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunEndE", 0.3, 3.2, 8, -58.2, -2.4, 290, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunCeil", 69, 0.25, 8, -90.5, -1.05, 290, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+	for _, zz in ipairs({ 286.5, 293.5 }) do
+		mpart(mega, "TunStripe", 69, 0.5, 0.08, -90.5, -3.3, zz, Color3.fromRGB(42, 143, 143), { CanCollide = false })
+	end
+	for lx = -118, -62, 8 do
+		mpart(mega, "TunLight", 1.8, 0.06, 1.0, lx, -1.2, 290, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+	mpart(mega, "TunWalk", 44, 0.08, 1.9, -90.5, -3.74, 288.4, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	for _, hz in ipairs({ 287.4, 289.4 }) do
+		mpart(mega, "TunRail", 44, 0.1, 0.12, -90.5, -2.85, hz, Color3.fromRGB(22, 24, 28), { CanCollide = false })
+	end
+	local function tunAd(x, txt, fg)
+		local s = mpart(mega, "TunAd", 6, 1.0, 0.1, x, -2.3, 293.5, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 70); sg.Parent = s
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = fg; tl.Text = txt; tl.Parent = sg
+	end
+	tunAd(-105, "SKYJET ✈ JETZT BUCHEN", Color3.fromRGB(159, 212, 232))
+	tunAd(-90, "✨ DUTY FREE SALE ✨", Color3.fromRGB(255, 215, 94))
+	tunAd(-75, "☕ CAFÉ · EBENE 2", Color3.fromRGB(255, 215, 94))
+	-- Treppenhaeuschen am Parkdeck + Treppenabgang im Terminal (Optik, Client teleportiert)
+	for _, ox in ipairs({ -2.1, 2.1 }) do
+		mpart(mega, "TunHutWall", 0.2, 3.0, 4.4, -120 + ox, 1.5, 303, COL.glass, { Transparency = 0.5 })
+	end
+	mpart(mega, "TunHutBack", 4.4, 3.0, 0.2, -120, 1.5, 300.9, COL.glass, { Transparency = 0.5 })
+	mpart(mega, "TunHutRoof", 4.4, 0.25, 4.4, -120, 3.0, 303, COL.glass, { Transparency = 0.45, CanCollide = false })
+	local hs = mpart(mega, "TunHutSign", 6, 1.0, 0.14, -120, 3.9, 305.2, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	do
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(420, 70); sg.Parent = hs
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(143, 232, 159)
+		tl.Text = "⬇ TUNNEL · TERMINAL 1"; tl.Parent = sg
+	end
+	for _, ox in ipairs({ -1.9, 1.9 }) do
+		mpart(mega, "TunStairRail", 0.16, 1.05, 4.2, -66 + ox, 0.55, 284.5, COL.glass, { Transparency = 0.5 })
+	end
+	local ts = mpart(mega, "TunStairSign", 6.5, 1.0, 0.14, -66, 2.6, 281.9, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	do
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(460, 70); sg.Parent = ts
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(159, 212, 232)
+		tl.Text = "⬇ TUNNEL ZUM PARKDECK"; tl.Parent = sg
 	end
 end
 

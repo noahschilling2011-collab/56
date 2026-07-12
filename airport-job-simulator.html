@@ -1600,6 +1600,8 @@ const CABIN = {
   upper: { x1:-41.2, x2:-38.8, z1:156.2, z2:171.8, y:4.05, ceil:6.1 },
   p2:    { x1:-166, x2:-84, z1:308, z2:352, y:3.45, ceil:6.2 },  // Parkdeck Ebene 2
   p3:    { x1:-166, x2:-84, z1:308, z2:352, y:6.85 },            // Parkdeck Ebene 3 (offen)
+  t2:    { x1:0.5, x2:71, z1:263.5, z2:299.5, y:4.78, ceil:9.8 },        // Terminal Ebene 2 (Food Court)
+  tunnel:{ x1:-121, x2:-60, z1:287, z2:293, y:-3.8, ceil:-1.3 },         // UG-Tunnel Parkdeck <-> Terminal
 };
 (function buildA380Interior(){
   const JX = -40, JZ = 165;
@@ -2251,6 +2253,144 @@ const CABIN = {
   }
 })();
 
+/* ============================================================
+   ZWEI NEUE EBENEN · Ebene 2 (Food-Court-Galerie) über der Halle
+   + Untergeschoss-Tunnel vom Parkdeck ins Terminal
+   ============================================================ */
+(function buildLevels(){
+  const T = TERM;
+  const glassR = new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.4 });
+  function sign(txt, x, y, z, w, bg, fg, ry){
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.16),
+      new THREE.MeshBasicMaterial({ map: textSignTex(txt, bg||'#15202f', fg||'#e8eef7', 512, 82, 46) }));
+    s.position.set(x, y, z); if(ry) s.rotation.y = ry;
+    scene.add(s);
+  }
+
+  /* --- EBENE 2: Galerie-Boden mit Glasgeländer und Stützen --- */
+  const slab = box(74, 0.4, 37.5, new THREE.MeshLambertMaterial({ color:0xffffff, map:tileTex }), 35, 4.58, 281.75);
+  slab.castShadow = true; slab.receiveShadow = true; scene.add(slab);
+  scene.add(box(74, 0.35, 37.5, mat(0xaab2bc), 35, 4.35, 281.75)); // Unterseite/Blende
+  // Glasgeländer Süd + West mit Handlauf (Lücke an der Rolltreppe x 50..57)
+  scene.add(box(52.8, 1.1, 0.08, glassR, 24.4, 5.35, 263));
+  scene.add(box(15, 1.1, 0.08, glassR, 64.5, 5.35, 263));
+  scene.add(box(52.8, 0.09, 0.14, mat(0x8a929e), 24.4, 5.95, 263));
+  scene.add(box(15, 0.09, 0.14, mat(0x8a929e), 64.5, 5.95, 263));
+  scene.add(box(0.08, 1.1, 37.5, glassR, -2, 5.35, 281.75));
+  scene.add(box(0.14, 0.09, 37.5, mat(0x8a929e), -2, 5.95, 281.75));
+  for(const cx of [8, 28, 48, 68]) scene.add(cyl(0.35, 0.35, 4.6, 8, mat(0xaab2bc), cx, 2.3, 263.8));
+  sign('🍴 FOOD COURT · EBENE 2', 35, 7.2, 262.7, 12, '#15202f', '#ffd75e', Math.PI);
+
+  /* --- Rolltreppen-Paar EG <-> Ebene 2 --- */
+  for(const ex of [51.8, 55.2]){
+    const ramp = box(2.6, 0.22, 13.6, mat(0x3a3f46), ex, 2.35, 256.4);
+    ramp.rotation.x = -0.365; scene.add(ramp);
+    for(const sx of [-1.32, 1.32]){
+      const bal = box(0.12, 1.0, 13.6, glassR, ex+sx, 3.0, 256.4);
+      bal.rotation.x = -0.365; scene.add(bal);
+      const hr = box(0.14, 0.1, 13.6, mat(0x22262c), ex+sx, 3.55, 256.4);
+      hr.rotation.x = -0.365; scene.add(hr);
+    }
+    scene.add(box(2.6, 0.16, 1.6, mat(0x606774), ex, 0.1, 249.6));  // Einstiegsplatte
+    scene.add(box(2.6, 0.16, 1.6, mat(0x606774), ex, 4.72, 263.2)); // Ausstiegsplatte
+  }
+  addCollider(50.3, 250, 56.7, 262.2); // Rolltreppenkörper blockiert im EG
+  sign('⬆ EBENE 2 · FOOD COURT', 53.5, 3.3, 248.6, 7, '#15202f', '#8fe89f');
+
+  /* --- Glas-Aufzug an der Nordwand (EG <-> Ebene 2) --- */
+  (function(){
+    const g = new THREE.Group();
+    for(const [ox, oz] of [[-1.3, 0],[1.3, 0]]) g.add(box(0.18, 9.6, 2.6, mat(0x8a929e), ox, 4.8, oz));
+    g.add(box(2.8, 9.6, 0.18, glassR, 0, 4.8, -1.3));
+    g.add(box(2.8, 9.6, 0.18, glassR, 0, 4.8, 1.3));
+    g.add(box(2.8, 0.3, 2.8, mat(0x8a929e), 0, 9.7, 0));
+    g.add(box(2.4, 2.6, 0.14, mat(0xb9c3ce), 0, 1.4, -1.32));  // Kabinentür EG
+    g.add(box(2.4, 2.6, 0.14, mat(0xb9c3ce), 0, 6.2, -1.32));  // Kabinentür Ebene 2
+    g.position.set(2.5, 0, 298.4);
+    scene.add(g);
+    addCollider(0.9, 296.9, 4.1, 299.9);
+    sign('🛗 AUFZUG', 2.5, 3.6, 296.7, 3.4, '#15202f', '#9fd4e8');
+  })();
+
+  /* --- Food Court auf Ebene 2: 3 Läden, Tische, Sofas --- */
+  const BASE = 4.78;
+  function foodShop(x, name, colHex){
+    const g = new THREE.Group(); // Front zeigt nach Süden in den Food Court
+    g.add(box(12, 3.4, 4, mat(0x2c333c), 0, 1.7, 1));
+    g.add(box(12, 0.8, 0.2, emat(colHex, 0.55), 0, 3.0, -1.05));
+    g.add(box(8, 1.05, 1.4, mat(0x4a3a2e), 0, 0.52, -0.6)); // Theke
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 1.25),
+      new THREE.MeshBasicMaterial({ map: textSignTex(name, '#15202f', '#ffffff', 512, 78, 44) }));
+    s.position.set(0, 3.95, -1.08); s.rotation.y = Math.PI; g.add(s);
+    g.position.set(x, BASE, 296.5);
+    scene.add(g);
+  }
+  foodShop(14, '🍣 SUSHI BAR', 0x2a8f8f);
+  foodShop(32, '🌮 TACO LOCO', 0xe07820);
+  foodShop(52, '🍦 EISCAFÉ VENEZIA', 0xc95fa0);
+  for(const [tx, tz] of [[10, 276],[22, 279],[34, 274],[46, 280],[58, 274],[64, 285]]){
+    scene.add(cyl(0.75, 0.75, 0.07, 10, mat(0xd9d2c4), tx, BASE+0.78, tz));
+    scene.add(cyl(0.07, 0.07, 0.78, 6, mat(0x8a929e), tx, BASE+0.39, tz));
+    for(const [ox, oz] of [[-1.1,0],[1.1,0],[0,-1.1],[0,1.1]]){
+      scene.add(cyl(0.3, 0.26, 0.55, 8, mat(0x35506e), tx+ox, BASE+0.28, tz+oz));
+    }
+  }
+  // Sofagruppe + Bartresen mit Blick über die Halle
+  scene.add(box(16, 0.9, 0.6, mat(0x4a3a2e), 22, BASE+0.45, 265.2)); // Tresen am Geländer
+  for(let bx=15; bx<=29; bx+=2.6) scene.add(cyl(0.3, 0.26, 0.72, 8, mat(0x35506e), bx, BASE+0.36, 266.4));
+  const gm = new THREE.Mesh(new THREE.PlaneGeometry(9, 1.44),
+    new THREE.MeshBasicMaterial({ map: textSignTex('☕ GALERIE-BAR', '#3a2a1e', '#ffd75e', 512, 82, 46) }));
+  gm.position.set(22, BASE+3.1, 265.6); scene.add(gm);
+
+  /* --- UNTERGESCHOSS: Tunnel Parkdeck <-> Terminal --- */
+  const TU = { x1:-121, x2:-60, z1:287, z2:293 };
+  const tcx = (TU.x1+TU.x2)/2, tlen = TU.x2-TU.x1;
+  scene.add(box(tlen+4, 0.3, 8, mat(0x3a3f46), tcx, -3.97, 290));               // Boden
+  scene.add(box(tlen+4, 3.2, 0.3, mat(0xd8dde4), tcx, -2.4, 286.3));            // Wände
+  scene.add(box(tlen+4, 3.2, 0.3, mat(0xd8dde4), tcx, -2.4, 293.7));
+  scene.add(box(tlen+4, 0.25, 8, mat(0x8a929e), tcx, -0.85, 290));              // Decke
+  scene.add(box(0.3, 3.2, 8, mat(0xd8dde4), TU.x1-1.8, -2.4, 290));             // Stirnwände
+  scene.add(box(0.3, 3.2, 8, mat(0xd8dde4), TU.x2+1.8, -2.4, 290));
+  for(const zz of [286.5, 293.5]) scene.add(box(tlen+4, 0.5, 0.06, mat(0x2a8f8f), tcx, -3.3, zz)); // Akzentstreifen
+  for(let lx=TU.x1; lx<=TU.x2; lx+=8) scene.add(box(1.8, 0.06, 1.0, emat(0xffffff, 0.9), lx, -1.02, 290));
+  // Fahrsteig (Laufband-Optik) mit Handläufen
+  scene.add(box(44, 0.08, 1.9, mat(0x22262c), tcx, -3.76, 288.4));
+  for(const hz of [287.4, 289.4]){
+    scene.add(box(44, 0.1, 0.12, mat(0x16181c), tcx, -2.85, hz));
+    for(let px=TU.x1+10; px<=TU.x2-10; px+=11) scene.add(box(0.1, 0.85, 0.1, mat(0x606774), px, -3.32, hz));
+  }
+  // Werbung an der Nordwand + Wegweiser an beiden Enden
+  sign('SKYJET ✈ JETZT BUCHEN', -105, -2.3, 293.5, 6, '#122a44', '#9fd4e8', Math.PI);
+  sign('✨ DUTY FREE SALE ✨', -90, -2.3, 293.5, 6, '#2a1f38', '#ffd75e', Math.PI);
+  sign('☕ CAFÉ · EBENE 2', -75, -2.3, 293.5, 6, '#3a2a1e', '#ffd75e', Math.PI);
+  sign('✈ TERMINAL 1 ⟶', -66, -1.6, 290, 5, '#15202f', '#8fe89f', -Math.PI/2);
+  sign('⟵ 🅿 PARKDECK P1–P3', -115, -1.6, 290, 5, '#15202f', '#9fd4e8', Math.PI/2);
+
+  /* --- Tunnel-Zugänge: Treppenhäuschen am Parkdeck + Treppe im Terminal --- */
+  (function(){
+    const g = new THREE.Group(); // Häuschen südlich des Parkdecks
+    g.add(box(4.4, 0.25, 4.4, glassR, 0, 3.0, 0));
+    for(const [ox, oz] of [[-2.1, 0],[2.1, 0]]) g.add(box(0.2, 3.0, 4.4, glassR, ox, 1.5, oz));
+    g.add(box(4.4, 3.0, 0.2, glassR, 0, 1.5, -2.1));
+    const st = box(2.6, 0.18, 4.4, mat(0x606774), 0, 1.15, 0.4); st.rotation.x = 0.5; g.add(st); // Treppenlauf
+    g.position.set(-120, 0, 303);
+    scene.add(g);
+    addCollider(-122.3, 300.7, -117.7, 303.2);
+    sign('⬇ TUNNEL · TERMINAL 1', -120, 3.9, 305.4, 6, '#15202f', '#8fe89f');
+  })();
+  (function(){ // Treppenabgang im Terminal (Westhalle)
+    const g = new THREE.Group();
+    for(const [ox] of [[-1.9],[1.9]]) g.add(box(0.16, 1.05, 4.2, glassR, ox, 0.55, 0));
+    for(const [ox] of [[-1.9],[1.9]]) g.add(box(0.2, 0.09, 4.2, mat(0x8a929e), ox, 1.12, 0));
+    g.add(box(3.6, 0.16, 4.0, mat(0x2c333c), 0, 0.06, 0.1));
+    const st = box(3.4, 0.14, 4.6, mat(0x606774), 0, -0.75, 0.2); st.rotation.x = 0.36; g.add(st);
+    g.position.set(-66, 0, 284.5);
+    scene.add(g);
+    addCollider(-68.2, 282.2, -63.8, 286.8);
+    sign('⬇ TUNNEL ZUM PARKDECK', -66, 2.6, 281.9, 6.5, '#15202f', '#9fd4e8');
+  })();
+})();
+
 /* ---------------- Motorsound (WebAudio, startet mit erster Nutzer-Geste) ---------------- */
 const engineSound = (function(){
   let ctx = null, osc1, osc2, gain;
@@ -2410,6 +2550,7 @@ const ACHIEVEMENTS = [
   { id:'first_mission', name:'Captain im Dienst', desc:'Schließe eine Flugmission ab.' },
   { id:'butter', name:'🧈 Butterweich', desc:'Lande mit unter 200 ft/min.' },
   { id:'alt_1000', name:'Über den Wolken', desc:'Erreiche 1.000 ft Flughöhe.' },
+  { id:'shopper', name:'Shopping-Tour', desc:'Kaufe etwas in einem Laden im Terminal.' },
 ];
 const achieved = {};
 function unlock(id){
@@ -2654,8 +2795,21 @@ function collide2D(pos, r){
 }
 function updatePlayer(dt){
   if(S.mode !== 'walk') return;
+  if(player.seated){
+    // Sitzpose — Aufstehen mit WASD
+    player.group.position.copy(player.pos).add(new THREE.Vector3(0, -0.42, 0));
+    player.group.rotation.y = player.yaw;
+    player.legL.rotation.x = player.legR.rotation.x = -1.35;
+    player.armL.rotation.x = player.armR.rotation.x = -0.35;
+    if(keys['KeyW']||keys['KeyA']||keys['KeyS']||keys['KeyD']){
+      player.seated = false;
+      player.legL.rotation.x = player.legR.rotation.x = 0;
+      player.armL.rotation.x = player.armR.rotation.x = 0;
+    }
+    return;
+  }
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const spd = sprint ? 8.5 : 4.2;
+  const spd = (sprint ? 8.5 : 4.2) * (performance.now() < boostUntil ? 1.35 : 1);
   let mx = 0, mz = 0;
   if(keys['KeyW']) mz -= 1;
   if(keys['KeyS']) mz += 1;
@@ -3726,6 +3880,155 @@ addInteract({
     player.deck = 'main';
     player.pos.set(-41.2, CABIN.main.y, 155.5);
   },
+});
+
+/* ============================================================
+   EBENEN-ZUGÄNGE · Rolltreppe, Aufzug, Tunnel-Treppen
+   ============================================================ */
+function goDeck(deck, x, y, z){
+  player.deck = deck;
+  player.seated = false;
+  player.pos.set(x, y, z);
+  sfx.click();
+}
+addInteract({ x:()=>53.5, z:()=>250.5, r:3.2,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> '⬆ Rolltreppe: Ebene 2 (Food Court)',
+  action: ()=> goDeck('t2', 53.5, CABIN.t2.y, 264.5) });
+addInteract({ x:()=>53.5, z:()=>264.5, r:3.0,
+  cond: ()=> S.mode==='walk' && player.deck==='t2',
+  label: ()=> '⬇ Rolltreppe: Erdgeschoss',
+  action: ()=> goDeck(null, 53.5, 0, 249) });
+addInteract({ x:()=>2.5, z:()=>295.6, r:2.6,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> '🛗 Aufzug: Ebene 2',
+  action: ()=> goDeck('t2', 2.5, CABIN.t2.y, 295) });
+addInteract({ x:()=>2.5, z:()=>295, r:2.6,
+  cond: ()=> S.mode==='walk' && player.deck==='t2',
+  label: ()=> '🛗 Aufzug: Erdgeschoss',
+  action: ()=> goDeck(null, 2.5, 0, 295.6) });
+addInteract({ x:()=>-120, z:()=>305.3, r:2.8,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> '⬇ Tunnel zum Terminal (UG)',
+  action: ()=> goDeck('tunnel', -118, CABIN.tunnel.y, 290) });
+addInteract({ x:()=>-118, z:()=>290, r:2.8,
+  cond: ()=> S.mode==='walk' && player.deck==='tunnel',
+  label: ()=> '⬆ Treppe: Parkdeck',
+  action: ()=> goDeck(null, -120, 0, 305.5) });
+addInteract({ x:()=>-66, z:()=>284.5, r:2.8,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> '⬇ Tunnel zum Parkdeck (UG)',
+  action: ()=> goDeck('tunnel', -63, CABIN.tunnel.y, 290) });
+addInteract({ x:()=>-63, z:()=>290, r:2.8,
+  cond: ()=> S.mode==='walk' && player.deck==='tunnel',
+  label: ()=> '⬆ Treppe: Terminal',
+  action: ()=> goDeck(null, -66, 0, 281.8) });
+
+/* ============================================================
+   FUNKTIONIERENDE LÄDEN · kaufen, Boost, Souvenirs, XP
+   ============================================================ */
+let boostUntil = 0;
+const wornItems = (function(){
+  // Kaufbare Kosmetik: Sonnenbrille + Kopfhörer am Spielerkopf
+  const glasses = box(0.4, 0.09, 0.06, mat(0x14161a), 0, 1.76, 0.22);
+  const phones = new THREE.Group();
+  phones.add(box(0.08, 0.16, 0.14, mat(0xc23b2e), -0.26, 1.72, 0));
+  phones.add(box(0.08, 0.16, 0.14, mat(0xc23b2e), 0.26, 1.72, 0));
+  phones.add(box(0.5, 0.06, 0.1, mat(0x14161a), 0, 1.95, 0));
+  glasses.visible = phones.visible = false;
+  player.group.add(glasses, phones);
+  return { glasses, phones };
+})();
+const SHOPS = [
+  { x:-62,  z:293.2, deck:null, name:'🍔 Burger Palace',      items:[['Burger','🍔',12,'xp6'],['Menü Groß','🍟',20,'xp12'],['Cola','🥤',5,'xp3']] },
+  { x:-46,  z:293.2, deck:null, name:'🍕 Pizza Milano',       items:[['Pizza Margherita','🍕',15,'xp8'],['Calzone','🥟',18,'xp10'],['Espresso','☕',6,'boost']] },
+  { x:14,   z:293.2, deck:null, name:'👗 Mode Boutique',      items:[['Sonnenbrille','🕶',45,'glasses'],['Basecap','🧢',25,'xp5'],['Schal','🧣',18,'xp5']] },
+  { x:30,   z:293.2, deck:null, name:'📱 Elektronik',         items:[['Kopfhörer','🎧',60,'phones'],['Powerbank','🔋',25,'xp5'],['Reiseadapter','🔌',15,'xp5']] },
+  { x:48,   z:293.2, deck:null, name:'➕ Apotheke',           items:[['Vitamin-Booster','💊',15,'boost'],['Pflaster','🩹',6,'xp3'],['Reisetabletten','💊',10,'xp5']] },
+  { x:64,   z:293.2, deck:null, name:'📰 Presse & Tabak',     items:[['Magazin','📖',8,'xp6'],['Reiseführer','🗺',14,'xp10'],['Kaugummi','🍬',3,'xp2']] },
+  { x:68.5, z:250,   deck:null, name:'📚 Buchladen',          items:[['Roman','📕',12,'xp10'],['Krimi','🔎',15,'xp12'],['Kinderbuch','🧸',9,'xp6']] },
+  { x:68.5, z:266,   deck:null, name:'🎁 Souvenirs',          items:[['Mini-A380','✈',30,'souvenir'],['Schlüsselanhänger','🔑',10,'xp5'],['Schneekugel','❄',16,'xp8']] },
+  { x:50,   z:284.8, deck:null, name:'✨ Duty Free',          items:[['Parfüm','🌸',40,'xp15'],['Schokolade XXL','🍫',18,'xp10'],['Sonnencreme','🧴',12,'xp5']] },
+  { x:62,   z:278.6, deck:null, name:'☕ Café am Gate',       items:[['Kaffee','☕',6,'boost'],['Cappuccino','☕',8,'boost'],['Croissant','🥐',7,'xp5']] },
+  { x:14,   z:294,   deck:'t2', name:'🍣 Sushi Bar',          items:[['Sushi-Box','🍣',22,'xp15'],['Miso-Suppe','🍜',9,'xp6'],['Grüner Tee','🍵',5,'boost']] },
+  { x:32,   z:294,   deck:'t2', name:'🌮 Taco Loco',          items:[['Taco-Teller','🌮',16,'xp10'],['Burrito','🌯',18,'xp12'],['Limonade','🍋',5,'xp3']] },
+  { x:52,   z:294,   deck:'t2', name:'🍦 Eiscafé Venezia',    items:[['Eisbecher','🍨',10,'xp8'],['Waffel','🧇',8,'xp6'],['Milchshake','🥤',9,'boost']] },
+];
+function applyItemEffect(eff, itemName){
+  if(eff === 'boost'){
+    boostUntil = performance.now() + 60000;
+    toast('⚡ ' + itemName + ': 60 s schneller unterwegs!', 'ok');
+  } else if(eff === 'glasses'){
+    wornItems.glasses.visible = true;
+    toast('🕶 Sonnenbrille aufgesetzt — stylisch!', 'ok');
+  } else if(eff === 'phones'){
+    wornItems.phones.visible = true;
+    toast('🎧 Kopfhörer aufgesetzt!', 'ok');
+  } else if(eff === 'souvenir'){
+    addXP(15);
+    toast('✈ Mini-A380 eingepackt — ein Stück Flughafen für zu Hause!', 'ok');
+  } else {
+    const n = parseInt(eff.slice(2)) || 5;
+    addXP(n);
+    toast('😋 ' + itemName + ' — +' + n + ' XP', 'ok');
+  }
+}
+function buyItem(si, ii){
+  const s = SHOPS[si], it = s.items[ii];
+  if(S.credits < it[2]){ sfx.error(); toast('Zu wenig Credits für ' + it[0] + '!', 'err'); return; }
+  S.credits -= it[2];
+  updateHUD();
+  sfx.cash();
+  unlock('shopper');
+  applyItemEffect(it[3], it[0]);
+  openShopPanel(si); // Panel mit neuem Kontostand neu zeichnen
+}
+function openShopPanel(si){
+  const s = SHOPS[si];
+  let html = '<h2>' + s.name + '</h2><p class="muted">Guthaben: <b>' + S.credits + ' Credits</b></p>';
+  s.items.forEach((it, i)=>{
+    const can = S.credits >= it[2];
+    html += '<div class="row" style="display:flex;align-items:center;justify-content:space-between;margin:8px 0;">'
+      + '<span style="font-size:16px;">' + it[1] + ' ' + it[0] + '</span>'
+      + '<button class="btn ' + (can ? 'green' : '') + '" ' + (can ? '' : 'disabled style="opacity:.45"')
+      + ' onclick="buyItem(' + si + ',' + i + ')">' + it[2] + ' Cr</button></div>';
+  });
+  html += '<br><button class="btn" onclick="hidePanel()">Schließen</button>';
+  showPanel(html);
+}
+SHOPS.forEach((s, si)=>{
+  addInteract({ x:()=>s.x, z:()=>s.z, r:3.2,
+    cond: ()=> S.mode==='walk' && player.deck===s.deck && !player.seated,
+    label: ()=> s.name + ' — einkaufen',
+    action: ()=> { sfx.click(); openShopPanel(si); } });
+});
+
+/* ============================================================
+   HINSETZEN · Bänke, Sofas, Liegen, Food Court
+   ============================================================ */
+const SEATS = [
+  { x:24,   z:245.5, yaw:Math.PI,  deck:null, what:'Wartebank' },
+  { x:37,   z:254.5, yaw:Math.PI,  deck:null, what:'Wartebank' },
+  { x:-55,  z:272.5, yaw:0,        deck:null, what:'Wartebank' },
+  { x:25,   z:267.1, yaw:Math.PI,  deck:null, what:'Sky-Lounge-Sofa' },
+  { x:39,   z:267.1, yaw:Math.PI,  deck:null, what:'Sky-Lounge-Sofa' },
+  { x:28,   z:275.9, yaw:0,        deck:null, what:'Sky-Lounge-Sofa' },
+  { x:-62.5,z:255.4, yaw:Math.PI,  deck:null, what:'Relax-Liege' },
+  { x:-61,  z:246.7, yaw:Math.PI,  deck:null, what:'Lounge-Sofa' },
+  { x:22,   z:279,   yaw:0,        deck:'t2', what:'Food-Court-Platz' },
+  { x:46,   z:280,   yaw:0,        deck:'t2', what:'Food-Court-Platz' },
+];
+SEATS.forEach(st=>{
+  addInteract({ x:()=>st.x, z:()=>st.z, r:2.4,
+    cond: ()=> S.mode==='walk' && player.deck===st.deck && !player.seated,
+    label: ()=> '🪑 Hinsetzen (' + st.what + ')',
+    action: ()=>{
+      player.seated = true;
+      player.pos.set(st.x, player.pos.y, st.z);
+      player.yaw = st.yaw;
+      sfx.click();
+      toast('Kurz durchatmen … (WASD zum Aufstehen)', 'info');
+    } });
 });
 
 /* ============================================================

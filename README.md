@@ -27,7 +27,21 @@ Self-Check-in-Automaten, Infoschalter, Kinderecke, **WC, Geldautomaten**) plus
 bunten Design-Sofagruppen, Couchtischen und Pendelleuchten, **🌙 Ruhezone** mit
 Relax-Liegen — dazu moderne Einrichtung überall: **Springbrunnen**, Ladesäulen
 (⚡ USB), digitale Werbescreens, Stehtische mit Hockern, Stehlampen, Pflanzkübel
-mit Bäumen, Teppichinseln und Wandkunst, plus
+mit Bäumen, Teppichinseln und Wandkunst.
+
+**Drei begehbare Ebenen:** Über der Halle liegt die **Food-Court-Galerie
+(Ebene 2)** mit Sushi Bar, Taco Loco und Eiscafé Venezia, Tischgruppen,
+Galerie-Bar am Glasgeländer — erreichbar über die **Rolltreppe** oder den
+**Glas-Aufzug** (in Roblox läuft man die Rampe echt hinauf). Und im
+**Untergeschoss** verbindet ein **beleuchteter Fußgängertunnel** mit Fahrsteig,
+Werbetafeln und Wegweisern das Parkdeck direkt mit dem Terminal.
+
+**Die Läden funktionieren wirklich:** an allen 13 Geschäften mit **E** einkaufen —
+Essen & Trinken gibt XP, **Kaffee/Energy macht 60 s schneller**, die
+**Sonnenbrille und Kopfhörer trägt die Spielfigur sichtbar**, das Mini-A380-
+Souvenir gibt den Erfolg „Shopping-Tour". Und überall im Terminal kann man sich
+**hinsetzen**: Wartebänke, Lounge-Sofas, Relax-Liegen, Food-Court-Plätze
+(Browser: E · Roblox: einfach draufsetzen dank echter Seats). Plus
 **4 Notausgänge** mit grünen Leuchtschildern, hängenden Fluchtweg-Wegweisern,
 Feuerlöschern, Alarmknöpfen und Erste-Hilfe-Kasten an den Stützen, PA-Deckenlaut-
 sprechern und Mülleimern — dazu **Terminal 2 und 3**
