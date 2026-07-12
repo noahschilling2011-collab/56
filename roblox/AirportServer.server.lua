@@ -801,15 +801,6 @@ for _, z in ipairs({ 250, 253 }) do
 	end
 	mpart(deco2, "QBand", 28, 0.1, 0.08, -38, 0.95, z, Color3.fromRGB(176, 48, 48), { CanCollide = false })
 end
-gse("Kiosk", 62, 282, 0, function(m)
-	mpart(m, "Body", 7, 2.6, 4, 0, 1.3, 0, Color3.fromRGB(106, 74, 54))
-	mpart(m, "Roof", 7.4, 0.3, 4.4, 0, 2.75, 0, Color3.fromRGB(74, 52, 38))
-	mpart(m, "Theke", 6, 1.0, 0.7, 0, 0.5, -2.0, Color3.fromRGB(138, 95, 69))
-	local ks = mpart(m, "Schild", 5, 1, 0.12, 0, 2.2, -2.06, Color3.fromRGB(58, 42, 30), { CanCollide = false })
-	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(500, 100); sg.Parent = ks
-	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
-	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94); tl.Text = "CAFÉ · SNACKS"; tl.Parent = sg
-end)
 for _, p in ipairs({ { -62, 240 }, { -62, 290 }, { 8, 238 }, { 70, 250 }, { 12, 296 } }) do
 	mpart(deco2, "Pot", 1.0, 0.8, 1.0, p[1], 0.4, p[2], Color3.fromRGB(119, 80, 60))
 	local bush = mpart(deco2, "Bush", 1.5, 1.5, 1.5, p[1], 1.35, p[2], Color3.fromRGB(47, 122, 58), { CanCollide = false })
@@ -1005,10 +996,6 @@ mpart(mega, "XrayTunnel", 2.0, 1.6, 1.8, 13.5, 0.8, 249, Color3.fromRGB(138, 146
 for _, bx in ipairs({ 7, 12 }) do
 	mpart(mega, "PassBooth", 1.8, 2.4, 1.8, bx, 1.2, 268, Color3.fromRGB(53, 80, 110))
 end
-for i = 0, 7 do
-	mpart(mega, "DutyShelf", 0.8, 1.5, 3.4, 44 + (i % 4) * 4, 0.75, 288 + math.floor(i / 4) * 5,
-		({ Color3.fromRGB(201, 164, 79), Color3.fromRGB(141, 95, 201), Color3.fromRGB(201, 79, 79), Color3.fromRGB(79, 159, 201) })[1 + i % 4])
-end
 for _, s in ipairs({ { -64, 240 }, { -64, 244 }, { -58, 240 }, { -58, 244 } }) do
 	mpart(mega, "Sofa", 2.2, 0.55, 1.1, s[1], 0.28, s[2], Color3.fromRGB(106, 74, 90))
 end
@@ -1021,22 +1008,85 @@ for i = 0, 3 do
 end
 local marker2 = marker("MarkerSecurity", 10, 256, Color3.fromRGB(154, 95, 208))
 -- Einkaufs-Arkade (6 Laeden mit Leucht-Schildern)
-local function shop(x, z, ry, name, col)
-	local body = mpart(mega, "Shop", 13, 3.8, 4.5, 0, 1.9, 0, Color3.fromRGB(44, 51, 60))
-	body.CFrame = CFrame.new(x * M, 1.9 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, -1.2 * M)
-	local band = mpart(mega, "ShopBand", 13, 0.9, 0.2, 0, 3.35, 0, col, { CanCollide = false, Material = Enum.Material.Neon })
-	band.CFrame = CFrame.new(x * M, 3.35 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, 1.1 * M)
-	local sign = mpart(mega, "ShopSign", 9, 1.35, 0.15, 0, 4.35, 0, Color3.fromRGB(21, 32, 47), { CanCollide = false })
-	sign.CFrame = CFrame.new(x * M, 4.35 * M, z * M) * CFrame.Angles(0, ry, 0) * CFrame.new(0, 0, 1.15 * M)
+-- Begehbarer Shop-Raum aus einem ShopData-Eintrag.
+-- Lokales Koordinatensystem: Front = +Z (Tueroeffnung 3.6 m breit, 2.71 m hoch, garantiert frei),
+-- Theke bei (-3.2 / -0.8) -> Interaktionspunkt des Clients liegt davor bei (-3.2 / +0.9).
+local function shop(sd)
+	local col = sd.akzentfarbe
+	local baseY = sd.ebene == 2 and 4.78 or 0
+	local dk = Color3.fromRGB(44, 51, 60)
+	local grau = Color3.fromRGB(96, 103, 116)
+	local m = Instance.new("Model"); m.Name = "Shop_" .. sd.id; m.Parent = mega
+	-- Raum: Boden, Rueckwand, zwei Seitenwaende, Decke — Front offen
+	mpart(m, "Floor", 12.8, 0.18, 4.9, 0, 0.09, -1.1, Color3.fromRGB(64, 70, 78))
+	mpart(m, "Back", 13, 3.2, 0.25, 0, 1.6, -3.72, dk)
+	mpart(m, "SideL", 0.25, 3.2, 5.2, -6.4, 1.6, -1.1, dk)
+	mpart(m, "SideR", 0.25, 3.2, 5.2, 6.4, 1.6, -1.1, dk)
+	mpart(m, "Ceil", 13.4, 0.25, 5.5, 0, 3.32, -1.05, dk)
+	-- Front: Sockel + Schaufenster beidseitig, Tuerrahmen in Akzentfarbe — Oeffnung bleibt frei
+	for _, sx in ipairs({ -1, 1 }) do
+		mpart(m, "FrontSockel", 4.7, 0.9, 0.25, sx * 4.15, 0.45, 1.4, dk)
+		mpart(m, "Schaufenster", 4.7, 2.3, 0.18, sx * 4.15, 2.05, 1.4, COL.glass, { Transparency = 0.55 })
+		mpart(m, "TuerRahmen", 0.3, 3.2, 0.3, sx * 1.95, 1.6, 1.4, col)
+	end
+	mpart(m, "TuerSturz", 3.6, 0.5, 0.25, 0, 2.96, 1.4, col, { CanCollide = false })
+	-- Theke mit Akzent-Abdeckung
+	mpart(m, "Theke", 4.2, 1.05, 1.2, -3.2, 0.52, -0.8, dk)
+	mpart(m, "ThekeTop", 4.3, 0.08, 1.3, -3.2, 1.09, -0.8, col)
+	-- Deckenlampe: Neon-Part + PointLight
+	local lamp = mpart(m, "Lampe", 2.4, 0.1, 0.7, 0, 3.15, -0.9, Color3.fromRGB(255, 244, 214), { Material = Enum.Material.Neon, CanCollide = false })
+	local pl = Instance.new("PointLight")
+	pl.Brightness = 1.1; pl.Range = 24; pl.Color = Color3.fromRGB(255, 240, 210); pl.Parent = lamp
+	-- Einrichtung nach Thema
+	local FOOD = { burger = true, pizza = true, cafe = true, sushi = true, taco = true, eiscafe = true }
+	if FOOD[sd.id] then
+		-- Vitrine auf der Theke + Regal an der Rueckwand
+		mpart(m, "Vitrine", 2.6, 0.7, 0.95, -3.2, 1.5, -0.8, COL.glass, { Transparency = 0.5, CanCollide = false })
+		for k = 0, 2 do
+			mpart(m, "Ware", 0.5, 0.32, 0.5, -4.05 + k * 0.85, 1.32, -0.8, col, { CanCollide = false })
+		end
+		mpart(m, "Regal", 5, 1.9, 0.5, 2.6, 0.95, -3.35, grau)
+		for k = 0, 3 do
+			mpart(m, "Ware", 0.55, 0.5, 0.4, 0.9 + k * 1.15, 2.15, -3.3, col, { CanCollide = false })
+		end
+	elseif sd.id == "mode" then
+		-- Kleiderstaender aus Parts + Regal
+		for _, kx in ipairs({ 2.2, 4.6 }) do
+			mpart(m, "StaenderFuss", 1.6, 0.12, 0.5, kx, 0.12, -1.6, Color3.fromRGB(138, 146, 158))
+			mpart(m, "StaenderPfostenL", 0.1, 1.7, 0.1, kx - 0.7, 1.0, -1.6, Color3.fromRGB(138, 146, 158))
+			mpart(m, "StaenderPfostenR", 0.1, 1.7, 0.1, kx + 0.7, 1.0, -1.6, Color3.fromRGB(138, 146, 158))
+			mpart(m, "StaenderStange", 1.5, 0.07, 0.07, kx, 1.82, -1.6, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+			for k = 0, 3 do
+				mpart(m, "Kleid", 0.28, 0.75, 0.06, kx - 0.55 + k * 0.36, 1.4, -1.6,
+					k % 2 == 0 and col or Color3.fromRGB(232, 238, 247), { CanCollide = false })
+			end
+		end
+		mpart(m, "Regal", 5, 1.9, 0.5, 2.6, 0.95, -3.35, grau)
+	else
+		-- Standard: 2 Regale an der rechten Wand + 1 an der Rueckwand, Waren in Akzentfarbe
+		for _, rz in ipairs({ -2.4, 0.2 }) do
+			mpart(m, "Regal", 0.5, 1.9, 2.6, 5.95, 0.95, rz, grau)
+			for k = 0, 1 do
+				mpart(m, "Ware", 0.4, 0.5, 0.55, 5.9, 0.75 + k * 0.75, rz - 0.6, col, { CanCollide = false })
+				mpart(m, "Ware", 0.4, 0.5, 0.55, 5.9, 0.75 + k * 0.75, rz + 0.6, col, { CanCollide = false })
+			end
+		end
+		mpart(m, "Regal", 5, 1.9, 0.5, 2.6, 0.95, -3.35, grau)
+		for k = 0, 3 do
+			mpart(m, "Ware", 0.55, 0.5, 0.4, 0.9 + k * 1.15, 2.15, -3.3, col, { CanCollide = false })
+		end
+	end
+	-- Aussen: Neon-Band + beleuchtetes Schild
+	mpart(m, "Band", 13, 0.9, 0.2, 0, 3.5, 1.55, col, { Material = Enum.Material.Neon, CanCollide = false })
+	local sign = mpart(m, "Schild", 9, 1.35, 0.15, 0, 4.4, 1.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(560, 84); sg.Parent = sign
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
-	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = sd.name; tl.Parent = sg
+	m:PivotTo(CFrame.new(sd.pos.x * M, baseY * M, sd.pos.z * M) * CFrame.Angles(0, sd.rotation, 0))
 end
--- Fassaden aus ShopData (fassade = false -> Spezial-Geometrie bleibt separat)
+-- Begehbare Raeume fuer alle Erdgeschoss-Shops aus ShopData
 for _, sd in ipairs(ShopData) do
-	if sd.ebene == 1 and sd.fassade ~= false then
-		shop(sd.pos.x, sd.pos.z, sd.rotation, sd.name, sd.akzentfarbe)
-	end
+	if sd.ebene == 1 then shop(sd) end
 end
 
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
@@ -1275,18 +1325,9 @@ do
 	mpart(mega, "LiftGlass", 2.8, 9.6, 0.2, 2.5, 4.8, 297.1, COL.glass, { Transparency = 0.5 })
 	mpart(mega, "LiftGlass2", 2.8, 9.6, 0.2, 2.5, 4.8, 299.7, COL.glass, { Transparency = 0.5 })
 	mpart(mega, "LiftTop", 2.8, 0.3, 2.8, 2.5, 9.7, 298.4, grey, { CanCollide = false })
-	-- Food-Court-Laeden (Front nach Sueden)
-	local function gshop(x, name, col)
-		mpart(mega, "GShopBody", 12, 3.4, 4, x, 4.78 + 1.7, 297.5, Color3.fromRGB(44, 51, 60))
-		mpart(mega, "GShopBand", 12, 0.8, 0.2, x, 4.78 + 3.0, 295.4, col, { Material = Enum.Material.Neon, CanCollide = false })
-		mpart(mega, "GShopTheke", 8, 1.05, 1.4, x, 4.78 + 0.52, 295.9, Color3.fromRGB(74, 58, 46))
-		local s = mpart(mega, "GShopSign", 8.5, 1.25, 0.14, x, 4.78 + 3.95, 295.35, Color3.fromRGB(21, 32, 47), { CanCollide = false })
-		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(560, 82); sg.Parent = s
-		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
-		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = name; tl.Parent = sg
-	end
+	-- Food-Court-Laeden: begehbare Raeume wie im EG (shop() setzt die Galerie-Hoehe selbst)
 	for _, sd in ipairs(ShopData) do
-		if sd.ebene == 2 then gshop(sd.pos.x, sd.name, sd.akzentfarbe) end
+		if sd.ebene == 2 then shop(sd) end
 	end
 	-- Food-Court-Tische mit Hockern (2 davon echte Sitzplaetze)
 	for _, t in ipairs({ { 10, 276 }, { 22, 279 }, { 34, 274 }, { 46, 280 }, { 58, 274 }, { 64, 285 } }) do

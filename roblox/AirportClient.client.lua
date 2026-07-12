@@ -2358,11 +2358,12 @@ do
 		end)
 	end
 	for si, s in ipairs(SHOPS) do
-		-- Interaktionspunkt = Geometrie-Anker + 4.4 m vor der Front -> passt immer zusammen
-		local ix = s.pos.x + math.sin(s.rotation) * 4.4
-		local iz = s.pos.z + math.cos(s.rotation) * 4.4
+		-- Interaktionspunkt = vor der Theke (lokal -3.2 / +0.9), aus pos + rotation gedreht
+		local ct, st2 = math.cos(s.rotation), math.sin(s.rotation)
+		local ix = s.pos.x + (-3.2) * ct + 0.9 * st2
+		local iz = s.pos.z - (-3.2) * st2 + 0.9 * ct
 		addInteract({
-			x = function() return ix end, z = function() return iz end, r = 3.4,
+			x = function() return ix end, z = function() return iz end, r = 4.2,
 			cond = function()
 				if S.mode ~= "walk" then return false end
 				local onG = py() > 3.5

@@ -1,20 +1,19 @@
 -- ShopData · EINE Wahrheit fuer alle 13 Shops.
 -- Server baut die Geometrie daraus, Client baut Prompts + Kauf-Panels daraus.
 -- pos = Anker der Geometrie (Meter) · rotation = Blickrichtung der Front (Yaw)
--- Interaktionspunkt = pos + Frontrichtung * 4.4 (leitet der Client ab -> passt immer zur Geometrie)
+-- Interaktionspunkt = Theken-Position (lokal -3.2 / +0.9), leitet der Client aus pos+rotation ab
 -- ebene: 1 = Erdgeschoss, 2 = Food-Court-Galerie (Boden bei 4.78 m)
--- fassade = false: Shop hat (noch) eigene Spezial-Geometrie im Server, keine Standard-Fassade
 -- items: { Name, Preis, Effekt } · Effekt: xpN | boost | glasses | phones | souvenir
 
 local ShopData = {
 	{
 		id = "burger", name = "🍔 Burger Palace", akzentfarbe = Color3.fromRGB(194, 59, 46),
-		pos = { x = -62, z = 297.8 }, ebene = 1, rotation = math.pi,
+		pos = { x = -56, z = 297.8 }, ebene = 1, rotation = math.pi,
 		items = { { "🍔 Burger", 12, "xp6" }, { "🍟 Menü Groß", 20, "xp12" }, { "🥤 Cola", 5, "xp3" } },
 	},
 	{
 		id = "pizza", name = "🍕 Pizza Milano", akzentfarbe = Color3.fromRGB(42, 122, 74),
-		pos = { x = -46, z = 297.8 }, ebene = 1, rotation = math.pi,
+		pos = { x = -41, z = 297.8 }, ebene = 1, rotation = math.pi,
 		items = { { "🍕 Pizza Margherita", 15, "xp8" }, { "🥟 Calzone", 18, "xp10" }, { "☕ Espresso", 6, "boost" } },
 	},
 	{
@@ -39,22 +38,22 @@ local ShopData = {
 	},
 	{
 		id = "buchladen", name = "📚 Buchladen", akzentfarbe = Color3.fromRGB(138, 106, 58),
-		pos = { x = 72.6, z = 250 }, ebene = 1, rotation = -math.pi / 2,
+		pos = { x = 70.2, z = 250 }, ebene = 1, rotation = -math.pi / 2,
 		items = { { "📕 Roman", 12, "xp10" }, { "🔎 Krimi", 15, "xp12" }, { "🧸 Kinderbuch", 9, "xp6" } },
 	},
 	{
 		id = "souvenirs", name = "🎁 Souvenirs", akzentfarbe = Color3.fromRGB(201, 164, 79),
-		pos = { x = 72.6, z = 266 }, ebene = 1, rotation = -math.pi / 2,
+		pos = { x = 70.2, z = 266 }, ebene = 1, rotation = -math.pi / 2,
 		items = { { "✈ Mini-A380", 30, "souvenir" }, { "🔑 Schlüsselanhänger", 10, "xp5" }, { "❄ Schneekugel", 16, "xp8" } },
 	},
 	{
 		id = "dutyfree", name = "✨ Duty Free", akzentfarbe = Color3.fromRGB(141, 95, 201),
-		pos = { x = 50, z = 289 }, ebene = 1, rotation = math.pi, fassade = false, -- Regal-Geometrie bleibt bis Phase 2
+		pos = { x = 50, z = 289 }, ebene = 1, rotation = math.pi,
 		items = { { "🌸 Parfüm", 40, "xp15" }, { "🍫 Schokolade XXL", 18, "xp10" }, { "🧴 Sonnencreme", 12, "xp5" } },
 	},
 	{
 		id = "cafe", name = "☕ Café am Gate", akzentfarbe = Color3.fromRGB(255, 215, 94),
-		pos = { x = 62, z = 282 }, ebene = 1, rotation = math.pi, fassade = false, -- Kiosk-Geometrie bleibt bis Phase 2
+		pos = { x = 62, z = 282 }, ebene = 1, rotation = math.pi,
 		items = { { "☕ Kaffee", 6, "boost" }, { "☕ Cappuccino", 8, "boost" }, { "🥐 Croissant", 7, "xp5" } },
 	},
 	{
