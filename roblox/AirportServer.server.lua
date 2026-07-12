@@ -8,7 +8,7 @@
 	"AirportClient" in StarterPlayerScripts — ausgelegt auf Solo-Play.
 ]]
 
-local M = 3 -- Studs pro Meter (muss zum Client passen)
+local M = 3.4 -- Studs pro Meter (muss zum Client passen)
 
 local Workspace = game:GetService("Workspace")
 
@@ -81,7 +81,7 @@ end
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -> grosse Flaechen kacheln!
 -- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
 local function tiled(parent, name, sx, sy, sz, x, y, z, color, props)
-	local MAXM = 650 -- 650 m * M=3 = 1950 Studs, sicher unter dem 2048er-Part-Limit
+	local MAXM = 590 -- 590 m * M=3.4 = 2006 Studs, sicher unter dem 2048er-Part-Limit
 	local nx = math.ceil(sx / MAXM)
 	local nz = math.ceil(sz / MAXM)
 	local tw, td = sx / nx, sz / nz
@@ -411,8 +411,22 @@ wallSeg("GlassE", 36, T.x2, T.z1, COL.glass, true)
 -- Suedwand mit Eingang bei x -8..0
 wallSeg("BackW", T.x1, -8, T.z2, COL.wall)
 wallSeg("BackE", 0, T.x2, T.z2, COL.wall)
-mpart(term, "SideW", 0.6, T.h, T.z2 - T.z1, T.x1, T.h / 2, (T.z1 + T.z2) / 2, COL.wall, { Material = Enum.Material.Concrete })
-mpart(term, "SideE", 0.6, T.h, T.z2 - T.z1, T.x2, T.h / 2, (T.z1 + T.z2) / 2, COL.wall, { Material = Enum.Material.Concrete })
+-- Seitenwaende MIT Notausgang-Oeffnungen (3.2 m breit, 3.4 m hoch — begehbar!)
+local function sideWall(nm, x, exits)
+	local zs = T.z1
+	local segs = {}
+	for _, ez in ipairs(exits) do
+		table.insert(segs, { zs, ez - 1.6 })
+		mpart(term, nm .. "Sturz", 0.6, T.h - 3.4, 3.2, x, 3.4 + (T.h - 3.4) / 2, ez, COL.wall, { Material = Enum.Material.Concrete })
+		zs = ez + 1.6
+	end
+	table.insert(segs, { zs, T.z2 })
+	for i, s in ipairs(segs) do
+		mpart(term, nm .. i, 0.6, T.h, s[2] - s[1], x, T.h / 2, (s[1] + s[2]) / 2, COL.wall, { Material = Enum.Material.Concrete })
+	end
+end
+sideWall("SideW", T.x1, { 246, 288 })
+sideWall("SideE", T.x2, { 238, 286 })
 -- Metall-Akzentleisten an den Innenwaenden (Phase 5)
 mpart(term, "LeisteN", T.x2 - T.x1, 0.14, 0.08, (T.x1 + T.x2) / 2, 2.3, T.z2 - 0.42, Color3.fromRGB(196, 202, 210), { Material = Enum.Material.Metal, CanCollide = false })
 mpart(term, "LeisteW", 0.08, 0.14, T.z2 - T.z1, T.x1 + 0.42, 2.3, (T.z1 + T.z2) / 2, Color3.fromRGB(196, 202, 210), { Material = Enum.Material.Metal, CanCollide = false })
@@ -607,6 +621,66 @@ marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
 marker("MarkerFuel", -152, 215, Color3.fromRGB(217, 165, 32))
 marker("MarkerMarshal", -130, 148, Color3.fromRGB(255, 136, 68))
 
+-- Parkhaus-Deko: Buchtenlinien, Ebenen-Farben P1-P3, Licht, Schranke, P-Totem
+sysInit("Parkhaus-Deko", function()
+	local X1, X2, Z1, Z2 = -166, -84, 308, 352
+	local weiss = Color3.fromRGB(235, 238, 242)
+	local LEVELS = {
+		{ 0, "P1", Color3.fromRGB(58, 111, 232) },
+		{ 3.45, "P2", Color3.fromRGB(42, 157, 92) },
+		{ 6.85, "P3", Color3.fromRGB(224, 120, 32) },
+	}
+	for _, lv in ipairs(LEVELS) do
+		local y, nm, col = lv[1], lv[2], lv[3]
+		-- Parkbuchten-Linien beidseitig + gelbe Mittellinie
+		for x = X1 + 8, X2 - 10, 4.2 do
+			mpart(pd, "PBucht", 0.14, 0.05, 5.4, x, y + 0.18, Z1 + 5.6, weiss, { CanCollide = false })
+			mpart(pd, "PBucht", 0.14, 0.05, 5.4, x, y + 0.18, Z2 - 5.6, weiss, { CanCollide = false })
+		end
+		mpart(pd, "PMittel", X2 - X1 - 18, 0.05, 0.3, (X1 + X2) / 2, y + 0.18, (Z1 + Z2) / 2, COL.yellow, { CanCollide = false })
+		-- Fahrtrichtungs-Pfeile
+		for x = X1 + 18, X2 - 16, 18 do
+			mpart(pd, "PPfeil", 2.4, 0.05, 0.4, x, y + 0.19, (Z1 + Z2) / 2, weiss, { CanCollide = false })
+			local sp = mpart(pd, "PPfeilKopf", 0.9, 0.05, 0.9, x + 1.4, y + 0.19, (Z1 + Z2) / 2, weiss, { CanCollide = false })
+			sp.CFrame = sp.CFrame * CFrame.Angles(0, math.rad(45), 0)
+		end
+		-- Ebenen-Farbbaender an den Pfeilern + grosses Ebenen-Schild
+		for x = X1 + 6, X2 - 4, 16 do
+			for _, z in ipairs({ Z1 + 8, Z2 - 8 }) do
+				mpart(pd, "PBand", 0.85, 0.55, 0.85, x, y + 2.2, z, col, { CanCollide = false })
+			end
+		end
+		local s = mpart(pd, "PEbene", 0.16, 1.6, 3.6, X1 + 1.2, y + 2.2, (Z1 + Z2) / 2, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Right; sg.CanvasSize = Vector2.new(320, 140); sg.Parent = s
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBlack; tl.TextScaled = true; tl.TextColor3 = col; tl.Text = "🅿 " .. nm; tl.Parent = sg
+		-- Lichtbaender unter der Decke (P3 ist offen)
+		if y < 6 then
+			for x = X1 + 14, X2 - 10, 16 do
+				local strip = mpart(pd, "PLicht", 4.5, 0.07, 0.55, x, y + 3.12, (Z1 + Z2) / 2, Color3.fromRGB(255, 250, 236), { Material = Enum.Material.Neon, CanCollide = false })
+				local pl = Instance.new("PointLight"); pl.Brightness = 0.6; pl.Range = 30; pl.Color = Color3.fromRGB(255, 244, 219); pl.Parent = strip
+			end
+		end
+	end
+	-- Einfahrt Sued-Ost: Schranke (rot/weiss) + Ticketautomat
+	mpart(pd, "SchrankenSockel", 0.55, 1.15, 0.55, -92.5, 0.58, 305.5, Color3.fromRGB(138, 146, 158))
+	for i = 0, 3 do
+		mpart(pd, "SchrankenArm", 1.05, 0.14, 0.26, -91.4 + i * 1.05, 1.1, 305.5,
+			i % 2 == 0 and Color3.fromRGB(194, 59, 46) or weiss, { CanCollide = false })
+	end
+	mpart(pd, "Ticket", 0.75, 1.45, 0.75, -95.5, 0.72, 305.5, Color3.fromRGB(53, 80, 110))
+	mpart(pd, "TicketScreen", 0.5, 0.36, 0.06, -95.5, 1.15, 305.1, Color3.fromRGB(84, 208, 106), { Material = Enum.Material.Neon, CanCollide = false })
+	-- P-Totem an der Zufahrt
+	mpart(pd, "PTotemFuss", 1.3, 7, 1.3, -170, 3.5, 330, Color3.fromRGB(26, 58, 122))
+	mpart(pd, "PTotemBand", 1.4, 0.5, 1.4, -170, 5.6, 330, Color3.fromRGB(255, 215, 94), { Material = Enum.Material.Neon, CanCollide = false })
+	local pt = mpart(pd, "PTotemSchild", 2.6, 2.6, 0.3, -170, 8.3, 330, Color3.fromRGB(26, 58, 122))
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local sg = Instance.new("SurfaceGui"); sg.Face = face; sg.CanvasSize = Vector2.new(120, 120); sg.Parent = pt
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBlack; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = "P"; tl.Parent = sg
+	end
+end)
+
 ---------------------------------------------------------------- Landschaft (Fluss, See, Stadt, Berge, Autobahn, Windraeder)
 local land = Instance.new("Folder"); land.Name = "Landscape"; land.Parent = airport
 math.randomseed(31)
@@ -618,11 +692,11 @@ for x = -3400, 3200, 250 do
 	seg.CFrame = seg.CFrame * CFrame.Angles(0, -math.atan2(z2 - z1, 250), 0)
 end
 -- See
--- 680 m Durchmesser: 680 * M=3 = 2040 Studs, bleibt unter dem 2048er-Part-Limit
-local lake = mpart(land, "Lake", 680, 0.3, 680, -1700, -0.2, -900, Color3.fromRGB(58, 122, 191), { CanCollide = false })
+-- 580 m Durchmesser: 580 * M=3.4 = 1972 Studs, bleibt unter dem 2048er-Part-Limit
+local lake = mpart(land, "Lake", 580, 0.3, 580, -1700, -0.2, -900, Color3.fromRGB(58, 122, 191), { CanCollide = false })
 lake.Shape = Enum.PartType.Cylinder
 lake.CFrame = CFrame.new(-1700 * M, -0.2 * M, -900 * M) * CFrame.Angles(0, 0, math.rad(90))
-lake.Size = Vector3.new(0.3 * M, 680 * M, 680 * M)
+lake.Size = Vector3.new(0.3 * M, 580 * M, 580 * M)
 -- Stadt-Skyline + Fernsehturm
 for i = 1, 55 do
 	local a, rr = math.random() * 6.28, math.sqrt(math.random()) * 440
@@ -673,6 +747,44 @@ for i, p in ipairs({ { -1750, 350 }, { -1950, 620 }, { -2150, 200 }, { -1600, 80
 end
 
 ---------------------------------------------------------------- Parkdeck (3 Ebenen, echt begehbar ueber Rampen)
+-- Huebscher Auto-Bauer: Karosserie, Kabine mit Glas, Haube, Stossstangen,
+-- Grill, Neon-Scheinwerfer/Ruecklichter, Zylinder-Raeder. Root = exakter Pivot.
+local CAR_COLS = {
+	Color3.fromRGB(196, 198, 204), Color3.fromRGB(47, 58, 74), Color3.fromRGB(155, 43, 34),
+	Color3.fromRGB(58, 111, 176), Color3.fromRGB(230, 168, 44), Color3.fromRGB(52, 120, 82),
+	Color3.fromRGB(240, 240, 244), Color3.fromRGB(40, 40, 44),
+}
+local function makeCar(parent, name, x, z, yawDeg, color, yBase)
+	color = color or CAR_COLS[math.random(#CAR_COLS)]
+	local m = Instance.new("Model"); m.Name = name; m.Parent = parent
+	local root = mpart(m, "Root", 0.4, 0.4, 0.4, 0, 0, 0, color, { Transparency = 1, CanCollide = false })
+	m.PrimaryPart = root
+	local dunkel = Color3.fromRGB(30, 33, 38)
+	mpart(m, "Wanne", 2.0, 0.55, 4.5, 0, 0.78, 0, color)
+	mpart(m, "Haube", 1.9, 0.2, 1.15, 0, 1.1, -1.62, color, { CanCollide = false })
+	mpart(m, "Heck", 1.9, 0.2, 0.85, 0, 1.1, 1.78, color, { CanCollide = false })
+	mpart(m, "Kabine", 1.8, 0.6, 2.3, 0, 1.42, 0.15, color)
+	local fs = mpart(m, "Frontscheibe", 1.68, 0.62, 0.1, 0, 1.42, -1.0, COL.glass, { Transparency = 0.4, Material = Enum.Material.Glass, CanCollide = false })
+	fs.CFrame = fs.CFrame * CFrame.Angles(-0.3, 0, 0)
+	local hs = mpart(m, "Heckscheibe", 1.68, 0.55, 0.1, 0, 1.42, 1.32, COL.glass, { Transparency = 0.4, Material = Enum.Material.Glass, CanCollide = false })
+	hs.CFrame = hs.CFrame * CFrame.Angles(0.35, 0, 0)
+	for _, sx in ipairs({ -1, 1 }) do
+		mpart(m, "Seitenglas", 0.06, 0.42, 2.0, sx * 0.92, 1.46, 0.15, dunkel, { CanCollide = false })
+		mpart(m, "Spiegel", 0.28, 0.16, 0.1, sx * 1.1, 1.25, -0.85, color, { CanCollide = false })
+		mpart(m, "LichtF", 0.4, 0.16, 0.07, sx * 0.68, 0.95, -2.28, Color3.fromRGB(255, 244, 214), { Material = Enum.Material.Neon, CanCollide = false })
+		mpart(m, "LichtB", 0.4, 0.14, 0.07, sx * 0.68, 0.95, 2.28, Color3.fromRGB(194, 40, 40), { Material = Enum.Material.Neon, CanCollide = false })
+		for _, wz in ipairs({ -1.45, 1.45 }) do
+			local rad = mpart(m, "Rad", 0.34, 0.68, 0.68, sx * 0.98, 0.34, wz, Color3.fromRGB(20, 22, 26))
+			rad.Shape = Enum.PartType.Cylinder
+		end
+	end
+	mpart(m, "Grill", 1.25, 0.22, 0.07, 0, 0.68, -2.28, dunkel, { CanCollide = false })
+	mpart(m, "StossF", 2.06, 0.24, 0.2, 0, 0.45, -2.32, Color3.fromRGB(60, 64, 70))
+	mpart(m, "StossB", 2.06, 0.24, 0.2, 0, 0.45, 2.32, Color3.fromRGB(60, 64, 70))
+	m:PivotTo(CFrame.new(x * M, (yBase or 0) * M, z * M) * CFrame.Angles(0, math.rad(yawDeg or 0), 0))
+	return m
+end
+
 local pd = Instance.new("Model"); pd.Name = "Parkdeck"; pd.Parent = airport
 sysInit("Parkdeck", function()
 	local X1, X2, Z1, Z2 = -166, -84, 308, 352
@@ -700,15 +812,13 @@ sysInit("Parkdeck", function()
 			ramp.CFrame = ramp.CFrame * CFrame.Angles(0, math.pi, 0) -- zweite Rampe andersherum
 		end
 	end
-	-- Autos auf allen Ebenen
+	-- Autos auf allen Ebenen: richtige Modelle, in Buchten geparkt (Nase zur Wand)
 	math.randomseed(17)
-	for _, y in ipairs({ 0.75, 4.05, 7.45 }) do
-		for x = X1 + 10, X2 - 10, 8 do
-			if math.random() > 0.4 then
-				local zz = cz + (math.random() < 0.5 and -12 or 12)
-				mpart(pd, "PDCar", 2.2, 0.9, 4.4, x, y, zz,
-					({ Color3.fromRGB(184, 184, 184), Color3.fromRGB(47, 58, 74), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176) })[math.random(4)])
-				mpart(pd, "PDCarCab", 1.9, 0.7, 2.2, x, y + 0.75, zz + 0.4, Color3.fromRGB(34, 40, 49), { CanCollide = false })
+	for _, y in ipairs({ 0.15, 3.6, 7.0 }) do
+		for x = X1 + 10, X2 - 12, 4.2 do
+			if math.random() > 0.45 then
+				local south = math.random() < 0.5
+				makeCar(pd, "PDCar", x, south and (Z1 + 5.8) or (Z2 - 5.8), south and 180 or 0, nil, y)
 			end
 		end
 	end
@@ -842,13 +952,14 @@ for x = -58, 40, 7 do
 	mpart(deco2, "ParkLine", 0.35, 0.1, 5.5, x, 0.2, 312, COL.white, { CanCollide = false })
 end
 math.randomseed(11)
-local carCols = { Color3.fromRGB(184, 184, 184), Color3.fromRGB(47, 58, 74), Color3.fromRGB(143, 47, 36), Color3.fromRGB(58, 111, 176), Color3.fromRGB(63, 63, 63) }
 for x = -54.5, 40, 7 do
-	if math.random() > 0.3 then
-		mpart(deco2, "Car", 2.2, 0.9, 4.4, x, 0.6, 309.5, carCols[math.random(#carCols)])
-		mpart(deco2, "CarCab", 1.9, 0.7, 2.2, x, 1.35, 309.9, Color3.fromRGB(34, 40, 49), { CanCollide = false })
+	if math.random() > 0.35 then
+		makeCar(deco2, "Car", x, 309.8, 180 + math.random(-6, 6))
 	end
 end
+-- Zwei FAHRBARE Autos: eines am Parkplatz, eines im Parkhaus (E zum Einsteigen)
+makeCar(airport, "CarA", -24, 318.5, 90, Color3.fromRGB(58, 111, 232))
+makeCar(airport, "CarB", -100, 330, 90, Color3.fromRGB(155, 43, 34))
 -- Wolken
 math.randomseed(23)
 for i = 1, 10 do
@@ -1146,15 +1257,19 @@ end
 -- Gebaeude-Upgrade: Notausgaenge, Security-Ausbau, WC, Geldautomaten, Feuerloescher
 sysInit("Gebaeude-Upgrade", function()
 	local function exitDoor(x, z, dir) -- dir = +1: Tuer zeigt nach Osten (+X), -1: nach Westen
-		mpart(mega, "ExitDoor", 0.16, 3.0, 2.2, x, 1.5, z, Color3.fromRGB(61, 143, 79), { CanCollide = false })
-		mpart(mega, "ExitBar", 0.1, 0.14, 1.7, x + dir * 0.12, 1.15, z, Color3.fromRGB(232, 238, 247), { CanCollide = false })
-		local sign = mpart(mega, "ExitSign", 0.14, 0.62, 2.6, x + dir * 0.1, 3.7, z, Color3.fromRGB(29, 122, 58), { CanCollide = false, Material = Enum.Material.Neon })
-		local sg = Instance.new("SurfaceGui")
-		sg.Face = dir > 0 and Enum.NormalId.Right or Enum.NormalId.Left
-		sg.CanvasSize = Vector2.new(420, 100); sg.Parent = sign
-		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
-		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(234, 255, 240)
-		tl.Text = "🏃 NOTAUSGANG"; tl.Parent = sg
+		-- Die Wand hat hier eine echte Oeffnung — die Tuer steht aufgeschwungen daneben
+		local tuer = mpart(mega, "ExitDoor", 0.16, 3.0, 2.2, x - dir * 0.6, 1.5, z + 2.2, Color3.fromRGB(61, 143, 79))
+		tuer.CFrame = CFrame.new((x - dir * 0.6) * M, 1.5 * M, (z + 2.2) * M) * CFrame.Angles(0, math.rad(65 * dir), 0)
+		mpart(mega, "ExitPad", 2.4, 0.1, 3.0, x - dir * 1.6, 0.06, z, Color3.fromRGB(61, 143, 79), { CanCollide = false }) -- gruener Auftritt draussen
+		local sign = mpart(mega, "ExitSign", 0.14, 0.62, 2.6, x, 3.7, z, Color3.fromRGB(29, 122, 58), { CanCollide = false, Material = Enum.Material.Neon })
+		for _, face in ipairs({ Enum.NormalId.Right, Enum.NormalId.Left }) do
+			local sg = Instance.new("SurfaceGui")
+			sg.Face = face
+			sg.CanvasSize = Vector2.new(420, 100); sg.Parent = sign
+			local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+			tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(234, 255, 240)
+			tl.Text = "🏃 NOTAUSGANG"; tl.Parent = sg
+		end
 	end
 	exitDoor(-69.5, 246, 1); exitDoor(-69.5, 288, 1)  -- Westwand
 	exitDoor(74.5, 238, -1); exitDoor(74.5, 286, -1)  -- Ostwand

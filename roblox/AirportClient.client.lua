@@ -10,7 +10,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local M = 3 -- Studs pro Meter (Welt-Massstab; 3 passt zu Roblox-Avataren)
+local M = 3.4 -- Studs pro Meter (Welt-Massstab, passt zu Roblox-Avataren)
 local KT = 1.94384 -- m/s -> Knoten
 local FT = 3.28084 -- m -> Fuss
 local FPM = 196.85 -- m/s -> ft/min
@@ -561,7 +561,7 @@ end
 RunService.RenderStepped:Connect(function()
 	local h = humanoid()
 	if h and S.mode == "walk" then
-		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 34 or 22
+		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 38 or 24
 		if S.boostUntil and os.clock() < S.boostUntil then ws = ws * 1.35 end -- ☕ Kaffee-Boost
 		h.WalkSpeed = ws
 	end
@@ -1036,6 +1036,25 @@ end
 
 ---------------------------------------------------------------- Gepaeckwagen fahren
 -- 2D-Kollisionsboxen in Metern {x1,z1,x2,z2}: A380-Ruempfe/-Triebwerke, Stand, Tower, Hangar
+-- Fahrbare Autos (Parkplatz + Parkhaus): flotter als der Gepaeckwagen,
+-- duerfen auf dem ganzen Gelaende fahren (nicht nur auf dem Vorfeld)
+local carA, carB
+do
+	local function bindCar(nm, yaw)
+		local mdl = airport:WaitForChild(nm)
+		mdl:WaitForChild("Root")
+		return {
+			model = mdl, pos = mdl:GetPivot().Position / M, yaw = yaw,
+			vel = Vector3.new(), load = {},
+			acc = 11, brake = 8, maxF = 19, turn = 2.1,
+			bx1 = -900, bx2 = 900, bz1 = -100, bz2 = 390,
+			claimName = nm,
+		}
+	end
+	carA = bindCar("CarA", math.rad(90))
+	carB = bindCar("CarB", math.rad(90))
+end
+
 local CART_COLLIDERS = {
 	{ 124, 158, 136, 172 },   -- Spieler-Flugzeug
 	{ -134, 246, -126, 254 }, -- Tower
@@ -1051,6 +1070,9 @@ for _, jx in ipairs({ -40, 200 }) do -- A380 (Gate 1) + Jumbo (Gate 5)
 	end
 end
 table.insert(CART_COLLIDERS, { 37.8, 150, 42.2, 182 })   -- A320-Rumpf (Gate 2)
+table.insert(CART_COLLIDERS, { -70.6, 231.4, 75.6, 302.6 }) -- Terminal 1 (Autos bleiben draussen)
+table.insert(CART_COLLIDERS, { -122.4, 300.8, -117.6, 305.2 }) -- Tunnel-Haeuschen
+table.insert(CART_COLLIDERS, { -54.2, 234.3, -49.8, 238.7 }) -- Keller-Treppe
 table.insert(CART_COLLIDERS, { 34.2, 166, 36.6, 169 })   -- A320-Triebwerke
 table.insert(CART_COLLIDERS, { 43.4, 166, 45.8, 169 })
 table.insert(CART_COLLIDERS, { -187.5, 162, -182.5, 185 }) -- ATR
@@ -1107,7 +1129,8 @@ claimEv.OnClientEvent:Connect(function(claimName, granted)
 	if granted then
 		enterVehicle(v)
 	else
-		toast("🚧 " .. (claimName == "Cart" and "Der Gepäckwagen" or "Der Tankwagen") .. " ist gerade besetzt!", "bad")
+		local nm = claimName == "Cart" and "Der Gepäckwagen" or claimName == "FuelTruck" and "Der Tankwagen" or "Das Auto"
+		toast("🚧 " .. nm .. " ist gerade besetzt!", "bad")
 	end
 end)
 local function exitVehicle()
@@ -1190,23 +1213,23 @@ local function updateVehicle(v, dt)
 	local fwd = Vector3.new(math.sin(v.yaw), 0, math.cos(v.yaw))
 	local right = Vector3.new(fwd.Z, 0, -fwd.X)
 	local acc = 0
-	if keys[Enum.KeyCode.W] then acc = acc + 7 end
-	if keys[Enum.KeyCode.S] then acc = acc - 5 end
+	if keys[Enum.KeyCode.W] then acc = acc + (v.acc or 7) end
+	if keys[Enum.KeyCode.S] then acc = acc - (v.brake or 5) end
 	v.vel = v.vel + fwd * acc * dt
 	local fs = v.vel:Dot(fwd)
 	local ls = v.vel:Dot(right)
 	local steer = 0
 	if keys[Enum.KeyCode.A] then steer = steer + 1 end
 	if keys[Enum.KeyCode.D] then steer = steer - 1 end
-	v.yaw = v.yaw + steer * 1.7 * clamp(fs / 5, -1, 1) * dt
+	v.yaw = v.yaw + steer * (v.turn or 1.7) * clamp(fs / 5, -1, 1) * dt
 	ls = ls * math.exp(-3.2 * dt)           -- leichtes Driften
-	fs = clamp(fs * math.exp(-0.55 * dt), -5, 11)
+	fs = clamp(fs * math.exp(-0.55 * dt), -5, v.maxF or 11)
 	local f2 = Vector3.new(math.sin(v.yaw), 0, math.cos(v.yaw))
 	local r2 = Vector3.new(f2.Z, 0, -f2.X)
 	local speedBefore = v.vel.Magnitude
 	v.vel = f2 * fs + r2 * ls
 	v.pos = v.pos + v.vel * dt
-	v.pos = Vector3.new(clamp(v.pos.X, -800, 800), 0, clamp(v.pos.Z, -60, 228))
+	v.pos = Vector3.new(clamp(v.pos.X, v.bx1 or -800, v.bx2 or 800), 0, clamp(v.pos.Z, v.bz1 or -60, v.bz2 or 228))
 	if ramp.collideCd > 0 then ramp.collideCd = ramp.collideCd - dt end
 	local newPos, hit = cartCollide(v.pos, 1.6)
 	if hit then
@@ -1236,7 +1259,7 @@ local function updateVehicle(v, dt)
 	-- Kamera-Verfolger (hinter dem Fahrzeug: Fahrtrichtung ist lokal +Z)
 	local camPos = pivot * CFrame.new(0, 4.5 * M, -11 * M)
 	camera.CFrame = CFrame.lookAt(camPos.Position, pivot.Position + Vector3.new(0, 1.5 * M, 0))
-	if v == cart then cartPrompts() else fuelPrompts(dt) end
+	if v == cart then cartPrompts() elseif v == fuelTruck then fuelPrompts(dt) end
 end
 
 endFuelJob = function(success)
@@ -2254,6 +2277,16 @@ addInteract({
 	label = function() return "Tankwagen fahren" end,
 	action = function() requestVehicle(fuelTruck, "FuelTruck") end,
 })
+for _, cv in ipairs({ { nil, "CarA", "🚗 Auto fahren (Parkplatz)" }, { nil, "CarB", "🚗 Auto fahren (Parkhaus)" } }) do
+	local nm, lbl = cv[2], cv[3]
+	addInteract({
+		x = function() return (nm == "CarA" and carA or carB).pos.X end,
+		z = function() return (nm == "CarA" and carA or carB).pos.Z end, r = 4.2,
+		cond = function() return S.mode == "walk" end,
+		label = function() return lbl .. " · WASD, E = aussteigen" end,
+		action = function() requestVehicle(nm == "CarA" and carA or carB, nm) end,
+	})
+end
 -- Station: Tankwagen-Job
 addInteract({
 	x = function() return -152 end, z = function() return 215 end, r = 4,
@@ -2498,6 +2531,8 @@ end
 local function stepFahrzeuge(dt)
 	updateVehicle(cart, dt)
 	updateVehicle(fuelTruck, dt)
+	updateVehicle(carA, dt)
+	updateVehicle(carB, dt)
 end
 local function stepKoffer()
 	if ramp.carrying then
