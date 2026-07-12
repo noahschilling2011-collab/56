@@ -1363,6 +1363,90 @@ do
 	end
 end
 
+-- Gepaeck-Sortierkeller unter dem Terminal (Baender, Buchten, Wagen; Client animiert Koffer)
+do
+	local KX1, KX2, KZ1, KZ2 = -50, -5, 237, 266
+	local kcx, kcz = (KX1 + KX2) / 2, (KZ1 + KZ2) / 2
+	local wallC = Color3.fromRGB(185, 191, 199)
+	mpart(mega, "KFloor", KX2 - KX1 + 2, 0.3, KZ2 - KZ1 + 2, kcx, -3.97, kcz, Color3.fromRGB(68, 72, 79))
+	mpart(mega, "KWallS", KX2 - KX1 + 2, 3.2, 0.3, kcx, -2.4, KZ1 - 0.85, wallC)
+	mpart(mega, "KWallN", KX2 - KX1 + 2, 3.2, 0.3, kcx, -2.4, KZ2 + 0.85, wallC)
+	mpart(mega, "KWallW", 0.3, 3.2, KZ2 - KZ1 + 2, KX1 - 0.85, -2.4, kcz, wallC)
+	mpart(mega, "KWallE", 0.3, 3.2, KZ2 - KZ1 + 2, KX2 + 0.85, -2.4, kcz, wallC)
+	mpart(mega, "KCeil", KX2 - KX1 + 2, 0.25, KZ2 - KZ1 + 2, kcx, -1.05, kcz, Color3.fromRGB(127, 135, 144), { CanCollide = false })
+	for _, p in ipairs({ { -30, 250 }, { -16, 250 }, { -30, 260 }, { -16, 260 } }) do
+		mpart(mega, "KPillar", 0.55, 3.0, 0.55, p[1], -2.4, p[2], Color3.fromRGB(138, 146, 158))
+	end
+	for lx = KX1 + 6, KX2 - 1, 9 do
+		mpart(mega, "KLight", 1.8, 0.06, 1.0, lx, -1.22, 252, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
+		mpart(mega, "KLight", 1.8, 0.06, 1.0, lx, -1.22, 261, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
+	end
+	for _, zz in ipairs({ KZ1 - 0.68, KZ2 + 0.68 }) do
+		mpart(mega, "KWarn", KX2 - KX1 + 2, 0.4, 0.06, kcx, -3.35, zz, COL.yellow, { CanCollide = false })
+	end
+	-- Baender: Sammelband, Querband, Steigband aufs Rollfeld-Band
+	mpart(mega, "KBelt1", 25, 0.18, 1.7, -33.5, -3.25, 261, Color3.fromRGB(96, 103, 116))
+	mpart(mega, "KBelt1T", 25, 0.06, 1.3, -33.5, -3.12, 261, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	mpart(mega, "KBelt2", 1.7, 0.18, 11, -22, -3.25, 255.5, Color3.fromRGB(96, 103, 116))
+	mpart(mega, "KBelt2T", 1.3, 0.06, 11, -22, -3.12, 255.5, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	local inc = mpart(mega, "KIncline", 1.7, 0.2, 8.6, -21.6, -1.2, 253.9, Color3.fromRGB(96, 103, 116), { CanCollide = false })
+	inc.CFrame = inc.CFrame * CFrame.Angles(-0.53, 0, 0)
+	-- Rutschen von den Check-in-Schaltern
+	for _, cx in ipairs({ -45, -29, -13 }) do
+		local ch = mpart(mega, "KChute", 1.4, 0.14, 3.4, cx, -1.9, 259.6, Color3.fromRGB(154, 164, 176), { CanCollide = false })
+		ch.CFrame = ch.CFrame * CFrame.Angles(0.72, 0, 0)
+	end
+	-- Abzweig zur Gepaeckausgabe
+	mpart(mega, "KBelt3", 1.7, 0.18, 6, -44, -3.25, 262.5, Color3.fromRGB(96, 103, 116))
+	local up2 = mpart(mega, "KIncline2", 1.7, 0.2, 4.4, -44, -2.1, 264.6, Color3.fromRGB(96, 103, 116), { CanCollide = false })
+	up2.CFrame = up2.CFrame * CFrame.Angles(-0.6, 0, 0)
+	-- Sortier-Buchten (Farben wie beim Ramp-Job) + Regale + Kofferstapel
+	local function kSign(txt, x, y, z, w, fg)
+		local s = mpart(mega, "KSign", w, w * 0.16, 0.1, x, y, z, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(w * 60, w * 9.6); sg.Parent = s
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = fg; tl.Text = txt; tl.Parent = sg
+	end
+	local BAYS = {
+		{ x = -42, col = Color3.fromRGB(58, 111, 232), paint = Color3.fromRGB(42, 75, 143), name = "LH 452 · MÜNCHEN" },
+		{ x = -33, col = Color3.fromRGB(224, 120, 32), paint = Color3.fromRGB(143, 90, 31), name = "EW 771 · WIEN" },
+	}
+	for _, b in ipairs(BAYS) do
+		mpart(mega, "KBay", 7, 0.06, 8, b.x, -3.79, 244, b.paint, { CanCollide = false })
+		mpart(mega, "KBayLine", 6.4, 0.14, 0.5, b.x, -3.72, 248.2, b.col, { CanCollide = false })
+		kSign(b.name, b.x, -1.7, 240.6, 5.5, b.col)
+		mpart(mega, "KRack", 6.4, 1.7, 1.0, b.x, -3.1, 241, Color3.fromRGB(96, 103, 116))
+		mpart(mega, "KRackTop", 6.4, 0.1, 1.0, b.x, -2.5, 241, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		for k = 0, 5 do
+			mpart(mega, "KBag", 0.78, 0.52, 0.42, b.x - 2.4 + (k % 3) * 2.4, k < 3 and -2.16 or -3.5, k < 3 and 241 or (244.6 + (k - 3) * 0.2), b.col, { CanCollide = false })
+		end
+	end
+	-- Gepaeckwagen-Zuege
+	for _, t in ipairs({ { -11, 246, 0.3 }, { -38, 254, -1.4 } }) do
+		local mdl = Instance.new("Model"); mdl.Name = "KCart"; mdl.Parent = mega
+		mpart(mdl, "Tug", 1.5, 0.8, 2.2, 0, -3.4, 0, Color3.fromRGB(42, 109, 181))
+		for a = 1, 2 do
+			mpart(mdl, "Trailer", 1.5, 0.14, 2.0, 0, -3.55, -a * 2.6, Color3.fromRGB(139, 149, 161))
+			mpart(mdl, "TBag", 0.9, 0.5, 1.2, 0, -3.25, -a * 2.6, a == 1 and Color3.fromRGB(58, 111, 232) or Color3.fromRGB(224, 120, 32))
+		end
+		mdl:PivotTo(CFrame.new(t[1] * M, 0, t[2] * M) * CFrame.Angles(0, t[3], 0))
+	end
+	-- laufende Koffer (Client bewegt sie den Pfad entlang)
+	local kb = Instance.new("Folder"); kb.Name = "KellerBags"; kb.Parent = mega
+	local bagCols = { Color3.fromRGB(58, 111, 232), Color3.fromRGB(224, 120, 32), Color3.fromRGB(122, 48, 48), Color3.fromRGB(48, 80, 122), Color3.fromRGB(201, 164, 79) }
+	for i = 1, 7 do
+		mpart(kb, "FlowBag" .. i, 0.78, 0.52, 0.42, -45.5, -2.95, 261, bagCols[1 + (i % #bagCols)], { CanCollide = false })
+	end
+	kSign("🧳 GEPÄCKSORTIERUNG · NUR PERSONAL", kcx, -1.6, KZ1 - 0.6, 10, Color3.fromRGB(255, 215, 94))
+	kSign("⬆ ROLLFELD · GEPÄCKBAND", -21.6, -1.5, 249.9, 6.5, Color3.fromRGB(255, 215, 94))
+	kSign("⬆ GEPÄCKAUSGABE 1", -44, -1.5, 262.4, 5.5, Color3.fromRGB(159, 212, 232))
+	-- Personal-Treppe im EG (Optik; Client teleportiert)
+	for _, ox in ipairs({ -1.7, 1.7 }) do
+		mpart(mega, "KStairRail", 0.16, 1.05, 3.8, -52 + ox, 0.55, 236.5, COL.glass, { Transparency = 0.5 })
+	end
+	kSign("⬇ GEPÄCKKELLER · PERSONAL", -52, 2.4, 234.2, 6.5, Color3.fromRGB(255, 215, 94))
+end
+
 ---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
 local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport
 -- Gewoelbtes Terminaldach (Halbellipse aus 10 Segmenten)

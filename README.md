@@ -36,6 +36,14 @@ Galerie-Bar am Glasgeländer — erreichbar über die **Rolltreppe** oder den
 **Untergeschoss** verbindet ein **beleuchteter Fußgängertunnel** mit Fahrsteig,
 Werbetafeln und Wegweisern das Parkdeck direkt mit dem Terminal.
 
+**Gepäck-Sortierkeller:** Unter der Check-in-Halle liegt der Personal-Bereich
+(Treppe „⬇ GEPÄCKKELLER · PERSONAL"): Koffer rutschen von den drei Check-in-
+Schaltern auf das Sammelband, **fahren sichtbar über die Förderbänder** durch
+den Keller und das Steigband hinauf aufs Rollfeld-Gepäckband, wo der Ramp Agent
+sie abholt. Dazu farbige **Sortier-Buchten je Flug** (blau LH 452 / orange
+EW 771 — wie im Ramp-Job), Regale voller Koffer, Gepäckwagen-Züge, ein Abzweig
+„⬆ GEPÄCKAUSGABE 1" zum Karussell und Warnstreifen überall.
+
 **Die Läden funktionieren wirklich:** an allen 13 Geschäften mit **E** einkaufen —
 Essen & Trinken gibt XP, **Kaffee/Energy macht 60 s schneller**, die
 **Sonnenbrille und Kopfhörer trägt die Spielfigur sichtbar**, das Mini-A380-

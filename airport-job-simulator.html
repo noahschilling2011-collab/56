@@ -1602,6 +1602,7 @@ const CABIN = {
   p3:    { x1:-166, x2:-84, z1:308, z2:352, y:6.85 },            // Parkdeck Ebene 3 (offen)
   t2:    { x1:0.5, x2:71, z1:263.5, z2:299.5, y:4.78, ceil:9.8 },        // Terminal Ebene 2 (Food Court)
   tunnel:{ x1:-121, x2:-60, z1:287, z2:293, y:-3.8, ceil:-1.3 },         // UG-Tunnel Parkdeck <-> Terminal
+  keller:{ x1:-48.5, x2:-6.5, z1:238.5, z2:264.5, y:-3.8, ceil:-1.3 },   // Gepäck-Sortierkeller
 };
 (function buildA380Interior(){
   const JX = -40, JZ = 165;
@@ -2388,6 +2389,153 @@ const CABIN = {
     scene.add(g);
     addCollider(-68.2, 282.2, -63.8, 286.8);
     sign('⬇ TUNNEL ZUM PARKDECK', -66, 2.6, 281.9, 6.5, '#15202f', '#9fd4e8');
+  })();
+})();
+
+/* ============================================================
+   GEPÄCK-SORTIERKELLER · Förderbänder mit laufenden Koffern,
+   Rutschen von den Check-in-Schaltern, Sortier-Buchten je Flug,
+   Gepäckwagen — und das Steigband hinauf aufs Rollfeld-Band
+   ============================================================ */
+(function buildBaggageKeller(){
+  const K = { x1:-50, x2:-5, z1:237, z2:266 };
+  const kcx = (K.x1+K.x2)/2, kcz = (K.z1+K.z2)/2;
+  function sign(txt, x, y, z, w, bg, fg, ry){
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(w, w*0.16),
+      new THREE.MeshBasicMaterial({ map: textSignTex(txt, bg||'#15202f', fg||'#e8eef7', 512, 82, 46) }));
+    s.position.set(x, y, z); if(ry) s.rotation.y = ry;
+    scene.add(s);
+  }
+  // Raum: Boden, Wände, Decke, Stützen, Lichtbänder
+  scene.add(box(K.x2-K.x1+2, 0.3, K.z2-K.z1+2, mat(0x44484f), kcx, -3.97, kcz));
+  scene.add(box(K.x2-K.x1+2, 3.2, 0.3, mat(0xb9bfc7), kcx, -2.4, K.z1-0.85));
+  scene.add(box(K.x2-K.x1+2, 3.2, 0.3, mat(0xb9bfc7), kcx, -2.4, K.z2+0.85));
+  scene.add(box(0.3, 3.2, K.z2-K.z1+2, mat(0xb9bfc7), K.x1-0.85, -2.4, kcz));
+  scene.add(box(0.3, 3.2, K.z2-K.z1+2, mat(0xb9bfc7), K.x2+0.85, -2.4, kcz));
+  scene.add(box(K.x2-K.x1+2, 0.25, K.z2-K.z1+2, mat(0x7f8790), kcx, -1.05, kcz));
+  for(const [px, pz] of [[-30, 250],[-16, 250],[-30, 260],[-16, 260]]){
+    scene.add(box(0.55, 3.0, 0.55, mat(0x8a929e), px, -2.4, pz));
+  }
+  for(let lx=K.x1+6; lx<K.x2; lx+=9){
+    scene.add(box(1.8, 0.06, 1.0, emat(0xffffff, 0.9), lx, -1.22, 252));
+    scene.add(box(1.8, 0.06, 1.0, emat(0xffffff, 0.9), lx, -1.22, 261));
+  }
+  // Warnstreifen an den Wänden
+  for(const zz of [K.z1-0.68, K.z2+0.68]) scene.add(box(K.x2-K.x1+2, 0.4, 0.06, mat(0xd8b62a), kcx, -3.35, zz));
+
+  // Förderband-Strecke: Sammelband hinter den Schaltern -> Kurve -> Steigband aufs EG-Band
+  const beltM = mat(0x22262c), frameM = mat(0x606774);
+  scene.add(box(25, 0.18, 1.7, frameM, -33.5, -3.25, 261));   // B1: Sammelband (x -46..-21)
+  scene.add(box(25, 0.06, 1.3, beltM, -33.5, -3.12, 261));
+  scene.add(box(1.7, 0.18, 11, frameM, -22, -3.25, 255.5));   // B2: Querband (z 250..261)
+  scene.add(box(1.3, 0.06, 11, beltM, -22, -3.12, 255.5));
+  const inc = box(1.7, 0.2, 8.6, frameM, -21.6, -1.2, 253.9); // B3: Steigband hoch zum Rollfeld-Band
+  inc.rotation.x = -0.53; scene.add(inc);
+  const incB = box(1.3, 0.08, 8.6, beltM, -21.6, -1.06, 253.9);
+  incB.rotation.x = -0.53; scene.add(incB);
+  sign('⬆ ROLLFELD · GEPÄCKBAND', -21.6, -1.5, 249.9, 6.5, '#15202f', '#ffd75e');
+  // Rutschen von den 3 Check-in-Schaltern (fallen aufs Sammelband)
+  for(const cx of [-45, -29, -13]){
+    if(cx < K.x2){
+      const ch = box(1.4, 0.14, 3.4, mat(0x9aa4b0), cx, -1.9, 259.6);
+      ch.rotation.x = 0.72; scene.add(ch);
+      scene.add(box(1.6, 0.5, 0.14, mat(0x9aa4b0), cx, -1.35, 258.3));
+    }
+  }
+  // Abzweig zur Gepäckausgabe (Karussell oben)
+  scene.add(box(1.7, 0.18, 6, frameM, -44, -3.25, 262.5));
+  const up2 = box(1.7, 0.2, 4.4, frameM, -44, -2.1, 264.6);
+  up2.rotation.x = -0.6; scene.add(up2);
+  sign('⬆ GEPÄCKAUSGABE 1', -44, -1.5, 262.4, 5.5, '#15202f', '#9fd4e8');
+
+  // Sortier-Buchten je Flug (Farben wie beim Ramp-Job) + Regale mit Koffern
+  const BAYS = [
+    { x:-42, col:0x3a6fe8, name:'LH 452 · MÜNCHEN',  paint:0x2a4b8f },
+    { x:-33, col:0xe07820, name:'EW 771 · WIEN',     paint:0x8f5a1f },
+  ];
+  for(const b of BAYS){
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(7, 8), new THREE.MeshLambertMaterial({ color:b.paint }));
+    p.rotation.x = -Math.PI/2; p.position.set(b.x, -3.79, 244); scene.add(p);
+    scene.add(box(6.4, 0.14, 0.5, mat(b.col), b.x, -3.72, 248.2));
+    sign(b.name, b.x, -1.7, 240.6, 5.5, '#15202f', '#'+b.col.toString(16).padStart(6, '0'));
+    scene.add(box(6.4, 1.7, 1.0, mat(0x606774), b.x, -3.1, 241));  // Regal
+    scene.add(box(6.4, 0.1, 1.0, mat(0x8a929e), b.x, -2.5, 241));
+  }
+  (function(){ // Koffer in den Regalen + auf den Buchten (instanziert)
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(0.78, 0.52, 0.42), new THREE.MeshLambertMaterial(), 18);
+    const m4 = new THREE.Matrix4(); const col = new THREE.Color();
+    let i = 0;
+    for(const b of BAYS){
+      for(let k=0;k<6;k++){
+        im.setColorAt(i, col.setHex(b.col));
+        m4.setPosition(b.x - 2.4 + (k%3)*2.4, k<3 ? -2.16 : -3.5, k<3 ? 241 : 244.6 + (k-3)*0.2);
+        im.setMatrixAt(i++, m4);
+      }
+    }
+    for(let k=0;k<6;k++){ // gemischte Koffer neben dem Band
+      im.setColorAt(i, col.setHex(pick([0x7a3030, 0x30507a, 0x3a3a3a, 0xc9a44f])));
+      m4.setPosition(-14 + (k%3)*1.3, -3.5, 258 + Math.floor(k/3)*0.9);
+      im.setMatrixAt(i++, m4);
+    }
+    if(im.instanceColor) im.instanceColor.needsUpdate = true;
+    scene.add(im);
+  })();
+
+  // Gepäckwagen-Zug: Schlepper + 2 Anhänger
+  for(const [tx, tz, ry] of [[-11, 246, 0.3],[-38, 254, -1.4]]){
+    const g = new THREE.Group();
+    g.add(box(1.5, 0.8, 2.2, mat(0x2a6db5), 0, -3.4, 0));
+    g.add(box(1.3, 0.6, 0.1, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.5 }), 0, -2.85, 0.6));
+    for(let a=1;a<=2;a++){
+      g.add(box(1.5, 0.14, 2.0, mat(0x8b95a1), 0, -3.55, -a*2.6));
+      g.add(box(1.5, 0.5, 0.1, mat(0x606774), 0, -3.3, -a*2.6-1.0));
+      g.add(box(0.9, 0.5, 1.2, mat(a===1 ? 0x3a6fe8 : 0xe07820), 0, -3.25, -a*2.6));
+    }
+    g.position.set(tx, 0, tz); g.rotation.y = ry;
+    scene.add(g);
+  }
+
+  // Laufende Koffer auf den Bändern (Pfad B1 -> B2 -> Steigband)
+  const PATH = [
+    new THREE.Vector3(-45.5, -2.95, 261),
+    new THREE.Vector3(-22, -2.95, 261),
+    new THREE.Vector3(-22, -2.95, 250.5),
+    new THREE.Vector3(-21.6, 1.05, 257.9),
+  ];
+  const segLen = []; let total = 0;
+  for(let i=0;i<PATH.length-1;i++){ const l = PATH[i].distanceTo(PATH[i+1]); segLen.push(l); total += l; }
+  const flowIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.78, 0.52, 0.42), new THREE.MeshLambertMaterial(), 7);
+  const fcol = new THREE.Color();
+  for(let i=0;i<7;i++) flowIM.setColorAt(i, fcol.setHex(pick([0x3a6fe8, 0xe07820, 0x7a3030, 0x30507a, 0xc9a44f])));
+  if(flowIM.instanceColor) flowIM.instanceColor.needsUpdate = true;
+  scene.add(flowIM);
+  const fm4 = new THREE.Matrix4(); const fpos = new THREE.Vector3();
+  envAnims.push((t)=>{
+    for(let i=0;i<7;i++){
+      let s = ((t*1.25 + i*total/7) % total);
+      let seg = 0;
+      while(seg < segLen.length-1 && s > segLen[seg]){ s -= segLen[seg]; seg++; }
+      fpos.lerpVectors(PATH[seg], PATH[seg+1], Math.min(1, s/segLen[seg]));
+      fm4.setPosition(fpos.x, fpos.y, fpos.z);
+      flowIM.setMatrixAt(i, fm4);
+    }
+    flowIM.instanceMatrix.needsUpdate = true;
+  });
+
+  sign('🧳 GEPÄCKSORTIERUNG · NUR PERSONAL', kcx, -1.6, K.z1-0.65, 10, '#3a2a10', '#ffd75e');
+
+  // Personal-Treppe im Terminal (EG, nahe Check-in) hinunter in den Keller
+  (function(){
+    const g = new THREE.Group();
+    for(const ox of [-1.7, 1.7]){
+      g.add(box(0.16, 1.05, 3.8, new THREE.MeshLambertMaterial({ color:0x9fd4e8, transparent:true, opacity:0.4 }), ox, 0.55, 0));
+      g.add(box(0.2, 0.09, 3.8, mat(0x8a929e), ox, 1.12, 0));
+    }
+    const st = box(3.0, 0.14, 4.2, mat(0x606774), 0, -0.72, 0.2); st.rotation.x = 0.36; g.add(st);
+    g.position.set(-52, 0, 236.5);
+    scene.add(g);
+    addCollider(-53.9, 234.4, -50.1, 238.6);
+    sign('⬇ GEPÄCKKELLER · PERSONAL', -52, 2.4, 234.2, 6.5, '#3a2a10', '#ffd75e');
   })();
 })();
 
@@ -3923,6 +4071,14 @@ addInteract({ x:()=>-63, z:()=>290, r:2.8,
   cond: ()=> S.mode==='walk' && player.deck==='tunnel',
   label: ()=> '⬆ Treppe: Terminal',
   action: ()=> goDeck(null, -66, 0, 281.8) });
+addInteract({ x:()=>-52, z:()=>236.5, r:3.0,
+  cond: ()=> S.mode==='walk' && !player.deck,
+  label: ()=> '⬇ Gepäckkeller (Personal)',
+  action: ()=> goDeck('keller', -46, CABIN.keller.y, 241) });
+addInteract({ x:()=>-46, z:()=>241, r:2.8,
+  cond: ()=> S.mode==='walk' && player.deck==='keller',
+  label: ()=> '⬆ Treppe: Terminal',
+  action: ()=> goDeck(null, -51.5, 0, 240) });
 
 /* ============================================================
    FUNKTIONIERENDE LÄDEN · kaufen, Boost, Souvenirs, XP

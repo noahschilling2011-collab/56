@@ -2017,6 +2017,32 @@ local function updateMarshal(dt)
 	marshalJet:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, math.atan2(-dx, -dz), 0))
 end
 
+---------------------------------------------------------------- Keller-Koffer laufen auf den Bändern
+local kellerBags = {}
+do
+	local kb = airport:FindFirstChild("KellerBags", true) -- liegt im Mega-Ordner
+	if kb then
+		for _, p in ipairs(kb:GetChildren()) do table.insert(kellerBags, p) end
+	end
+end
+local function updateKellerBags(t)
+	if #kellerBags == 0 then return end
+	-- Pfad: Sammelband -> Querband -> Steigband (Meter)
+	local P = {
+		Vector3.new(-45.5, -2.95, 261), Vector3.new(-22, -2.95, 261),
+		Vector3.new(-22, -2.95, 250.5), Vector3.new(-21.6, 1.05, 257.9),
+	}
+	local L = { (P[2] - P[1]).Magnitude, (P[3] - P[2]).Magnitude, (P[4] - P[3]).Magnitude }
+	local total = L[1] + L[2] + L[3]
+	for i, p in ipairs(kellerBags) do
+		local s = (t * 1.25 + (i - 1) * total / #kellerBags) % total
+		local seg = 1
+		while seg < 3 and s > L[seg] do s = s - L[seg] seg = seg + 1 end
+		local pos = P[seg]:Lerp(P[seg + 1], math.min(1, s / L[seg]))
+		p.CFrame = CFrame.new(pos * M)
+	end
+end
+
 ---------------------------------------------------------------- Windräder drehen
 local turbines = {}
 do
@@ -2236,6 +2262,15 @@ do
 		cond = function() return S.mode == "walk" and py() < -2 end,
 		label = function() return "⬆ Treppe: Terminal" end,
 		action = function() tp(-66, 0, 281.8) end })
+	-- Gepaeckkeller (Personal)
+	addInteract({ x = function() return -52 end, z = function() return 236.5 end, r = 3.2,
+		cond = function() return S.mode == "walk" and py() > -1 end,
+		label = function() return "⬇ Gepäckkeller (Personal)" end,
+		action = function() tp(-46, -3.8, 241) end })
+	addInteract({ x = function() return -46 end, z = function() return 241 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() < -2 end,
+		label = function() return "⬆ Treppe: Terminal" end,
+		action = function() tp(-51.5, 0, 240) end })
 	-- Glas-Aufzug EG <-> Food-Court-Galerie (Rampe geht auch zu Fuss)
 	addInteract({ x = function() return 2.5 end, z = function() return 295.6 end, r = 2.8,
 		cond = function() return S.mode == "walk" and py() < 2.5 and py() > -1 end,
@@ -2401,6 +2436,7 @@ RunService.RenderStepped:Connect(function(dt)
 	updateTraffic(dt)
 	updateWindsock()
 	updateTurbines(dt)
+	updateKellerBags(os.clock())
 	keyEdge = {}
 end)
 
