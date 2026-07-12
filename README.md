@@ -21,8 +21,13 @@ Drei verbundene Terminals: das begehbare **Terminal 1** (Check-in-Halle, **zweis
 Sicherheitskontrolle mit Metalldetektoren, Körperscanner, Röntgenbändern, Wannen,
 Zickzack-Warteschlange und Sicherheitspersonal**, Passkontrolle, Duty-Free,
 Einkaufs-Arkade mit Mode/Elektronik/Buchladen/Souvenirs/**Apotheke/Presse & Tabak**,
-Burger- und Pizza-Restaurant, Café, Business-Lounge, Gepäckausgabe-Karussell,
+Burger- und Pizza-Restaurant, Café, Gepäckausgabe-Karussell,
 Self-Check-in-Automaten, Infoschalter, Kinderecke, **WC, Geldautomaten**) plus
+**drei Lounges** — Business Lounge mit Glaswand und Teppich, **☁ Sky Lounge** mit
+bunten Design-Sofagruppen, Couchtischen und Pendelleuchten, **🌙 Ruhezone** mit
+Relax-Liegen — dazu moderne Einrichtung überall: **Springbrunnen**, Ladesäulen
+(⚡ USB), digitale Werbescreens, Stehtische mit Hockern, Stehlampen, Pflanzkübel
+mit Bäumen, Teppichinseln und Wandkunst, plus
 **4 Notausgänge** mit grünen Leuchtschildern, hängenden Fluchtweg-Wegweisern,
 Feuerlöschern, Alarmknöpfen und Erste-Hilfe-Kasten an den Stützen, PA-Deckenlaut-
 sprechern und Mülleimern — dazu **Terminal 2 und 3**

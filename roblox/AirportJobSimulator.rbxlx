@@ -1131,6 +1131,127 @@ do
 	end
 end
 
+-- Moderne Inneneinrichtung: Sky Lounge, Ruhezone, Ladesaeulen, Screens, Brunnen
+do
+	local function carpet(x, z, w, d, col)
+		mpart(mega, "Carpet", w, 0.06, d, x, 0.28, z, col, { CanCollide = false, Material = Enum.Material.Fabric })
+	end
+	local function sofa(x, z, ry, col, len)
+		local mdl = Instance.new("Model"); mdl.Name = "Sofa"; mdl.Parent = mega
+		mpart(mdl, "Seat", len, 0.42, 1.05, 0, 0.44, 0, col, { CanCollide = false })
+		mpart(mdl, "Back", len, 0.8, 0.28, 0, 0.88, -0.5, col, { CanCollide = false })
+		mpart(mdl, "ArmL", 0.28, 0.5, 1.05, -len / 2 + 0.14, 0.78, 0, col, { CanCollide = false })
+		mpart(mdl, "ArmR", 0.28, 0.5, 1.05, len / 2 - 0.14, 0.78, 0, col, { CanCollide = false })
+		mpart(mdl, "Rail", len - 0.4, 0.1, 0.75, 0, 0.15, 0, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		mdl:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, ry, 0))
+	end
+	local function ltable(x, z, r)
+		local top = mpart(mega, "LTable", 0.07, r * 2, r * 2, x, 0.47, z, Color3.fromRGB(217, 210, 196), { CanCollide = false })
+		top.Shape = Enum.PartType.Cylinder
+		top.CFrame = CFrame.new(x * M, 0.47 * M, z * M) * CFrame.Angles(0, 0, math.rad(90))
+		mpart(mega, "LTableLeg", 0.12, 0.44, 0.12, x, 0.22, z, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+	end
+	local function floorLamp(x, z)
+		mpart(mega, "LampPole", 0.1, 1.9, 0.1, x, 0.95, z, Color3.fromRGB(102, 110, 120), { CanCollide = false })
+		local b = mpart(mega, "LampBall", 0.6, 0.6, 0.6, x, 2.0, z, Color3.fromRGB(255, 242, 204), { Material = Enum.Material.Neon, CanCollide = false })
+		b.Shape = Enum.PartType.Ball
+	end
+	local function planter(x, z)
+		local pot = mpart(mega, "Pot", 0.72, 1.2, 1.2, x, 0.36, z, Color3.fromRGB(58, 63, 70))
+		pot.Shape = Enum.PartType.Cylinder
+		pot.CFrame = CFrame.new(x * M, 0.36 * M, z * M) * CFrame.Angles(0, 0, math.rad(90))
+		mpart(mega, "Trunk", 0.2, 1.0, 0.2, x, 1.2, z, Color3.fromRGB(90, 70, 50), { CanCollide = false })
+		local k = mpart(mega, "Crown", 1.6, 1.6, 1.6, x, 2.1, z, Color3.fromRGB(63, 125, 70), { CanCollide = false })
+		k.Shape = Enum.PartType.Ball
+	end
+	local function pendant(x, z)
+		mpart(mega, "PendRod", 0.06, 2.2, 0.06, x, 9.4, z, Color3.fromRGB(102, 110, 120), { CanCollide = false })
+		local l = mpart(mega, "PendLamp", 0.22, 1.1, 1.1, x, 8.2, z, Color3.fromRGB(255, 242, 204), { Material = Enum.Material.Neon, CanCollide = false })
+		l.Shape = Enum.PartType.Cylinder
+		l.CFrame = CFrame.new(x * M, 8.2 * M, z * M) * CFrame.Angles(0, 0, math.rad(90))
+	end
+	local function recliner(x, z, ry)
+		local mdl = Instance.new("Model"); mdl.Name = "Recliner"; mdl.Parent = mega
+		mpart(mdl, "Seat", 0.8, 0.35, 1.8, 0, 0.35, 0.2, Color3.fromRGB(74, 106, 85), { CanCollide = false })
+		local back = mpart(mdl, "Back", 0.8, 0.12, 1.15, 0, 0.78, -1.02, Color3.fromRGB(74, 106, 85), { CanCollide = false })
+		back.CFrame = back.CFrame * CFrame.Angles(0.65, 0, 0)
+		mpart(mdl, "Base", 0.7, 0.12, 0.5, 0, 0.12, 0.2, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		mdl:PivotTo(CFrame.new(x * M, 0, z * M) * CFrame.Angles(0, ry, 0))
+	end
+	local function textOn(part, face, txt, fg, w, h)
+		local sg = Instance.new("SurfaceGui"); sg.Face = face; sg.CanvasSize = Vector2.new(w, h); sg.Parent = part
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = fg; tl.Text = txt; tl.Parent = sg
+	end
+	local function chargePillar(x, z)
+		mpart(mega, "Charger", 0.42, 1.35, 0.42, x, 0.68, z, Color3.fromRGB(232, 238, 247))
+		mpart(mega, "ChargerScreen", 0.3, 0.34, 0.05, x, 1.05, z + 0.21, Color3.fromRGB(84, 208, 106), { Material = Enum.Material.Neon, CanCollide = false })
+		local s = mpart(mega, "ChargerSign", 2.4, 0.5, 0.08, x, 1.8, z, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		textOn(s, Enum.NormalId.Front, "⚡ LADESTATION", Color3.fromRGB(84, 208, 106), 300, 62)
+		textOn(s, Enum.NormalId.Back, "⚡ LADESTATION", Color3.fromRGB(84, 208, 106), 300, 62)
+	end
+	local function adScreen(x, z, txt, fg)
+		local s = mpart(mega, "AdScreen", 3.3, 2.0, 0.2, x, 3.2, z, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		textOn(s, Enum.NormalId.Front, txt, fg, 480, 290)
+		textOn(s, Enum.NormalId.Back, txt, fg, 480, 290)
+	end
+	local function zoneSign(x, z, txt, fg)
+		local s = mpart(mega, "ZoneSign", 6.5, 1.0, 0.14, x, 3.4, z, Color3.fromRGB(22, 34, 46), { CanCollide = false })
+		textOn(s, Enum.NormalId.Front, txt, fg, 460, 70)
+	end
+	-- Business Lounge West: Teppich, Glaswand, Sofa, Lampe
+	carpet(-61, 243.5, 13, 9.5, Color3.fromRGB(58, 50, 68))
+	mpart(mega, "LoungeGlass", 0.12, 2.2, 9.5, -54.5, 1.1, 243.5, COL.glass, { Transparency = 0.55 })
+	mpart(mega, "LoungeGlass2", 13, 2.2, 0.12, -61, 1.1, 248.2, COL.glass, { Transparency = 0.55 })
+	sofa(-61, 246.8, math.pi, Color3.fromRGB(106, 74, 90), 2.4)
+	ltable(-61, 242, 0.7)
+	floorLamp(-67, 246.5); planter(-56, 246.5)
+	-- Ruhezone West
+	carpet(-60.5, 255.5, 14, 8, Color3.fromRGB(46, 68, 54))
+	for _, rx in ipairs({ -65.5, -62.5, -59.5, -56.5 }) do recliner(rx, 255.5, math.pi) end
+	planter(-67.5, 258.5); planter(-54, 258.5); floorLamp(-54, 252.5)
+	zoneSign(-60.5, 251.6, "🌙 RUHEZONE", Color3.fromRGB(143, 232, 159))
+	-- Sky Lounge im Gate-Bereich
+	carpet(32, 271, 23, 13.5, Color3.fromRGB(34, 54, 72))
+	sofa(25, 267.2, math.pi, Color3.fromRGB(42, 143, 143), 3.2); sofa(21.6, 271, math.pi / 2, Color3.fromRGB(42, 143, 143), 3.0)
+	ltable(25.5, 271, 0.85)
+	sofa(39, 267.2, math.pi, Color3.fromRGB(224, 120, 32), 3.2); sofa(42.4, 271, -math.pi / 2, Color3.fromRGB(224, 120, 32), 3.0)
+	ltable(38.5, 271, 0.85)
+	sofa(28, 275.8, 0, Color3.fromRGB(201, 164, 79), 3.2); sofa(36, 275.8, 0, Color3.fromRGB(141, 95, 201), 3.2)
+	ltable(32, 274, 0.7)
+	pendant(25.5, 271); pendant(38.5, 271)
+	planter(32, 264.8); planter(45.5, 276); floorLamp(18.5, 276)
+	zoneSign(32, 263.4, "☁ SKY LOUNGE", Color3.fromRGB(159, 212, 232))
+	-- Stehtische + Springbrunnen
+	for _, t in ipairs({ { -13, 289 }, { -9, 292 } }) do
+		local top = mpart(mega, "BarTable", 0.06, 1.1, 1.1, t[1], 1.12, t[2], Color3.fromRGB(217, 210, 196), { CanCollide = false })
+		top.Shape = Enum.PartType.Cylinder
+		top.CFrame = CFrame.new(t[1] * M, 1.12 * M, t[2] * M) * CFrame.Angles(0, 0, math.rad(90))
+		mpart(mega, "BarPole", 0.1, 1.1, 0.1, t[1], 0.55, t[2], Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		for _, sx in ipairs({ -0.9, 0.9 }) do
+			mpart(mega, "Stool", 0.55, 0.72, 0.55, t[1] + sx, 0.36, t[2], Color3.fromRGB(53, 80, 110), { CanCollide = false })
+		end
+	end
+	local basin = mpart(mega, "Fountain", 0.55, 4.2, 4.2, -32, 0.28, 243, Color3.fromRGB(74, 80, 88))
+	basin.Shape = Enum.PartType.Cylinder
+	basin.CFrame = CFrame.new(-32 * M, 0.28 * M, 243 * M) * CFrame.Angles(0, 0, math.rad(90))
+	local water = mpart(mega, "FountainWater", 0.1, 3.44, 3.44, -32, 0.55, 243, Color3.fromRGB(58, 122, 191), { Material = Enum.Material.Neon, CanCollide = false })
+	water.Shape = Enum.PartType.Cylinder
+	water.CFrame = CFrame.new(-32 * M, 0.55 * M, 243 * M) * CFrame.Angles(0, 0, math.rad(90))
+	mpart(mega, "FountainCol", 0.35, 1.1, 0.35, -32, 0.9, 243, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+	local fb = mpart(mega, "FountainBall", 0.6, 0.6, 0.6, -32, 1.5, 243, Color3.fromRGB(159, 212, 232), { Material = Enum.Material.Neon, CanCollide = false })
+	fb.Shape = Enum.PartType.Ball
+	-- Werbescreens, Ladesaeulen, Pendelleuchten, Wandkunst
+	adScreen(-33, 267, "SKYJET ✈ JETZT BUCHEN", Color3.fromRGB(159, 212, 232))
+	adScreen(55, 267, "✨ DUTY FREE SALE ✨", Color3.fromRGB(255, 215, 94))
+	adScreen(-14, 296, "☕ CAFÉ · FRISCH GERÖSTET", Color3.fromRGB(255, 215, 94))
+	chargePillar(16, 260.5); chargePillar(48.5, 260.5); chargePillar(-41.5, 272); chargePillar(58, 278)
+	pendant(-45, 252); pendant(-15, 262); pendant(10, 276); pendant(-40, 286); pendant(55, 276)
+	for _, p in ipairs({ { 256, Color3.fromRGB(42, 143, 143) }, { 261, Color3.fromRGB(224, 120, 32) }, { 266, Color3.fromRGB(201, 164, 79) } }) do
+		mpart(mega, "WallArt", 0.1, 2.6, 2.0, -69.45, 4.2, p[1], p[2], { CanCollide = false })
+	end
+end
+
 ---------------------------------------------------------------- Design-Upgrade: Bogendach, Totem, Flutlicht, Zaun, Radar, Stand-Nummern, ILS
 local design = Instance.new("Folder"); design.Name = "RealDesign"; design.Parent = airport
 -- Gewoelbtes Terminaldach (Halbellipse aus 10 Segmenten)
