@@ -8,7 +8,7 @@
 	"AirportClient" in StarterPlayerScripts — ausgelegt auf Solo-Play.
 ]]
 
-local M = 2 -- Meter -> Studs
+local M = 3 -- Studs pro Meter (muss zum Client passen)
 
 local Workspace = game:GetService("Workspace")
 
@@ -81,7 +81,7 @@ end
 -- Roblox kappt Part-Groessen bei 2048 Studs pro Achse -> grosse Flaechen kacheln!
 -- Kachel-Helfer: teilt sx/sz in Stuecke von maximal 1000 m (= 2000 Studs)
 local function tiled(parent, name, sx, sy, sz, x, y, z, color, props)
-	local MAXM = 1000
+	local MAXM = 650 -- 650 m * M=3 = 1950 Studs, sicher unter dem 2048er-Part-Limit
 	local nx = math.ceil(sx / MAXM)
 	local nz = math.ceil(sz / MAXM)
 	local tw, td = sx / nx, sz / nz
@@ -438,7 +438,7 @@ for x = T.x1 + 8, T.x2 - 4, 8 do
 	for _, lz in ipairs({ 250, 285 }) do
 		local strip = mpart(term, "LichtLeiste", 1.2, 0.08, 6, x, T.h - 0.55, lz, Color3.fromRGB(255, 250, 236), { Material = Enum.Material.Neon, CanCollide = false })
 		local lpl = Instance.new("PointLight")
-		lpl.Brightness = 0.55; lpl.Range = 30; lpl.Color = Color3.fromRGB(255, 244, 219); lpl.Parent = strip
+		lpl.Brightness = 0.55; lpl.Range = 44; lpl.Color = Color3.fromRGB(255, 244, 219); lpl.Parent = strip
 	end
 end
 -- Teppichzonen vor den Gates + Westhalle (Phase 5)
@@ -618,10 +618,11 @@ for x = -3400, 3200, 250 do
 	seg.CFrame = seg.CFrame * CFrame.Angles(0, -math.atan2(z2 - z1, 250), 0)
 end
 -- See
-local lake = mpart(land, "Lake", 760, 0.3, 760, -1700, -0.2, -900, Color3.fromRGB(58, 122, 191), { CanCollide = false })
+-- 680 m Durchmesser: 680 * M=3 = 2040 Studs, bleibt unter dem 2048er-Part-Limit
+local lake = mpart(land, "Lake", 680, 0.3, 680, -1700, -0.2, -900, Color3.fromRGB(58, 122, 191), { CanCollide = false })
 lake.Shape = Enum.PartType.Cylinder
 lake.CFrame = CFrame.new(-1700 * M, -0.2 * M, -900 * M) * CFrame.Angles(0, 0, math.rad(90))
-lake.Size = Vector3.new(0.3 * M, 760 * M, 760 * M)
+lake.Size = Vector3.new(0.3 * M, 680 * M, 680 * M)
 -- Stadt-Skyline + Fernsehturm
 for i = 1, 55 do
 	local a, rr = math.random() * 6.28, math.sqrt(math.random()) * 440
@@ -1084,7 +1085,7 @@ local function shop(sd)
 	-- Deckenlampe: Neon-Part + PointLight
 	local lamp = mpart(m, "Lampe", 2.4, 0.1, 0.7, 0, 3.55, -0.9, Color3.fromRGB(255, 244, 214), { Material = Enum.Material.Neon, CanCollide = false })
 	local pl = Instance.new("PointLight")
-	pl.Brightness = 1.1; pl.Range = 24; pl.Color = Color3.fromRGB(255, 240, 210); pl.Parent = lamp
+	pl.Brightness = 1.1; pl.Range = 36; pl.Color = Color3.fromRGB(255, 240, 210); pl.Parent = lamp
 	-- Einrichtung nach Thema
 	local FOOD = { burger = true, pizza = true, cafe = true, sushi = true, taco = true, eiscafe = true }
 	if FOOD[sd.id] then
@@ -1131,7 +1132,7 @@ local function shop(sd)
 	if sd.ebene == 1 then sh, sy = 0.72, 4.0 end
 	local sign = mpart(m, "Schild", sw, sh, 0.15, 0, sy, 1.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
 	local spl = Instance.new("PointLight")
-	spl.Brightness = 0.8; spl.Range = 12; spl.Color = col; spl.Parent = sign
+	spl.Brightness = 0.8; spl.Range = 18; spl.Color = col; spl.Parent = sign
 	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(560, 84); sg.Parent = sign
 	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
 	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.new(1, 1, 1); tl.Text = sd.name; tl.Parent = sg
@@ -1640,7 +1641,7 @@ end)
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")
 spawnLoc.Name = "Spawn"
-spawnLoc.Size = Vector3.new(16, 1, 16) -- Platz fuer mehrere Spieler
+spawnLoc.Size = Vector3.new(24, 1, 24) -- Platz fuer mehrere Spieler
 spawnLoc.CFrame = CFrame.new(-30 * M, 0.5, 268 * M)
 spawnLoc.Anchored = true
 spawnLoc.Neutral = true

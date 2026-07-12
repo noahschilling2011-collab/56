@@ -10,7 +10,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local M = 2 -- Meter -> Studs
+local M = 3 -- Studs pro Meter (Welt-Massstab; 3 passt zu Roblox-Avataren)
 local KT = 1.94384 -- m/s -> Knoten
 local FT = 3.28084 -- m -> Fuss
 local FPM = 196.85 -- m/s -> ft/min
@@ -250,15 +250,31 @@ local function clearPanel()
 		if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
 	end
 end
+local function hidePanel()
+	panelOpen = false
+	panelWrap.Visible = false
+end
+-- Klick auf den dunklen Hintergrund schliesst das Panel (nie wieder festhaengen)
+do
+	local bg = Instance.new("TextButton")
+	bg.BackgroundTransparency = 1; bg.Text = ""
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.ZIndex = 5
+	bg.Parent = panelWrap
+	bg.MouseButton1Click:Connect(hidePanel)
+end
 local function showPanel(build)
 	clearPanel()
 	panelOpen = true
 	panelWrap.Visible = true
-	build(panel)
-end
-local function hidePanel()
-	panelOpen = false
-	panelWrap.Visible = false
+	-- Aufbau abgesichert: schlaegt er fehl, bleibt KEIN leerer schwarzer Kasten stehen
+	local ok, err = pcall(build, panel)
+	if not ok then
+		warn("[Airport] Panel-Aufbau fehlgeschlagen: " .. tostring(err))
+		label(panel, "Hoppla — Inhalt konnte nicht geladen werden.", UDim2.new(0, 20, 0, 60), UDim2.new(1, -40, 0, 30), TXT, 15)
+	end
+	local x = button(panel, "✕", UDim2.new(1, -46, 0, 10), UDim2.new(0, 36, 0, 32), Color3.fromRGB(96, 46, 46), hidePanel)
+	x.ZIndex = 8
 end
 
 -- Tutorial-Overlay (einmal pro Job)
@@ -382,6 +398,7 @@ local TweenService = game:GetService("TweenService")
 sysInit("Game-Feel", function()
 	-- Titelscreen
 	local splash = Instance.new("Frame")
+	splash.Name = "Splash"
 	splash.Size = UDim2.fromScale(1, 1)
 	splash.BackgroundColor3 = Color3.fromRGB(15, 32, 54)
 	splash.ZIndex = 50
@@ -544,7 +561,7 @@ end
 RunService.RenderStepped:Connect(function()
 	local h = humanoid()
 	if h and S.mode == "walk" then
-		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 24 or 16
+		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 34 or 22
 		if S.boostUntil and os.clock() < S.boostUntil then ws = ws * 1.35 end -- ☕ Kaffee-Boost
 		h.WalkSpeed = ws
 	end
@@ -2443,6 +2460,8 @@ updateHUD()
 setJobHUD("Arbeitslos", "Geh zum leuchtenden Check-in-Schalter im Terminal und drücke E.")
 resetPlaneToStand()
 task.defer(function()
+	-- warten, bis der Titelscreen weggeklickt ist — sonst liegt das Panel unsichtbar darunter
+	while gui:FindFirstChild("Splash") do task.wait(0.25) end
 	showTutorial("welcome", "Willkommen am Flughafen!",
 		"Karriereleiter: 500 Ramp · 750 Security · 1000 Tankwagen · 1500 Marshaller · 2000 Captain.\n\n· WASD laufen · Shift sprinten · E an leuchtenden Stationen · H Legende\n· Schau dir den begehbaren A380 an Gate 1 und das Parkdeck an!")
 end)
