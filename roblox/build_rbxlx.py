@@ -38,6 +38,14 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 			<string name="Name">Workspace</string>
 		</Properties>
 	</Item>
+	<Item class="Players" referent="RBX13">
+		<Properties>
+			<string name="Name">Players</string>
+			<bool name="CharacterAutoLoads">true</bool>
+			<int name="MaxPlayersInternal">12</int>
+			<int name="PreferredPlayersInternal">8</int>
+		</Properties>
+	</Item>
 	<Item class="Lighting" referent="RBX9">
 		<Properties>
 			<string name="Name">Lighting</string>

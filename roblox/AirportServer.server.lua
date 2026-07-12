@@ -944,7 +944,7 @@ end)
 local mega = Instance.new("Folder"); mega.Name = "Mega"; mega.Parent = airport
 local function pier(x1, x2, letter)
 	tiled(mega, "PierApron", x2 - x1 + 60, 0.3, 100, (x1 + x2) / 2, 0.0, 178, COL.apron, { Material = Enum.Material.Concrete })
-	mpart(mega, "Pier", x2 - x1, 5.5, 16, (x1 + x2) / 2, 5.7, 196, COL.glass, { Transparency = 0.4, Material = Enum.Material.Glass5, Material = Enum.Material.Glass })
+	mpart(mega, "Pier", x2 - x1, 5.5, 16, (x1 + x2) / 2, 5.7, 196, COL.glass, { Transparency = 0.45, Material = Enum.Material.Glass })
 	mpart(mega, "PierRoof", x2 - x1 + 2, 0.6, 18, (x1 + x2) / 2, 8.6, 196, Color3.fromRGB(138, 146, 158))
 	mpart(mega, "PierFloor", x2 - x1 + 2, 0.5, 18, (x1 + x2) / 2, 3.0, 196, Color3.fromRGB(119, 128, 140))
 	local gnum = 1
@@ -990,7 +990,15 @@ end
 tiled(mega, "R2Taxi", 16, 0.35, 400, -700, 0.02, -300, COL.taxi)
 -- Cargo-Center
 tiled(mega, "CargoApron", 220, 0.3, 150, 830, 0.0, 130, COL.apron, { Material = Enum.Material.Concrete })
-mpart(mega, "CargoHall", 120, 14, 55, 840, 7, 180, Color3.fromRGB(143, 154, 166))
+-- Cargohalle begehbar: 2 offene Tore (je 46 m breit, 10 m hoch) nach Sueden
+mpart(mega, "CargoHallBack", 120, 14, 0.6, 840, 7, 207.5, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallL", 0.6, 14, 55, 780, 7, 180, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallR", 0.6, 14, 55, 900, 7, 180, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallRoof", 120, 0.7, 55, 840, 14, 180, Color3.fromRGB(110, 122, 135))
+mpart(mega, "CargoHallSturz", 120, 4, 0.6, 840, 12, 152.5, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallPfeiler", 8, 10, 0.6, 840, 5, 152.5, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallPfeilerL", 10, 10, 0.6, 785, 5, 152.5, Color3.fromRGB(143, 154, 166))
+mpart(mega, "CargoHallPfeilerR", 10, 10, 0.6, 895, 5, 152.5, Color3.fromRGB(143, 154, 166))
 math.randomseed(41)
 for i = 0, 25 do
 	mpart(mega, "LD", 1.8, 1.6, 1.5, 770 + (i % 9) * 2.4, 0.8, 135 + math.floor(i / 9) * 2.6,
@@ -998,7 +1006,15 @@ for i = 0, 25 do
 end
 makeJet("Freighter", Color3.fromRGB(119, 127, 137), 810, 95, 0)
 -- Feuerwache + 2 Loeschfahrzeuge
-mpart(mega, "FireStation", 46, 9, 26, -300, 4.5, 120, Color3.fromRGB(176, 48, 48))
+-- Feuerwache begehbar: offene Tore zur Vorfahrt
+mpart(mega, "FireStationBack", 46, 9, 0.5, -300, 4.5, 133, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationL", 0.5, 9, 26, -323, 4.5, 120, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationR", 0.5, 9, 26, -277, 4.5, 120, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationRoof", 46, 0.6, 26, -300, 9.2, 120, Color3.fromRGB(122, 31, 31))
+mpart(mega, "FireStationSturz", 46, 2.0, 0.5, -300, 8.0, 107, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationPfeiler", 4, 7, 0.5, -300, 3.5, 107, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationPfeilerL", 5, 7, 0.5, -320.5, 3.5, 107, Color3.fromRGB(176, 48, 48))
+mpart(mega, "FireStationPfeilerR", 5, 7, 0.5, -279.5, 3.5, 107, Color3.fromRGB(176, 48, 48))
 for _, fx in ipairs({ -312, -288 }) do
 	mpart(mega, "FireTruck", 3, 2.4, 8.5, fx, 1.6, 98, Color3.fromRGB(194, 59, 46))
 	mpart(mega, "FireCab", 2.8, 1.3, 2, fx, 3.1, 100.8, Color3.fromRGB(194, 59, 46))
@@ -1046,24 +1062,27 @@ local function shop(sd)
 	local dk = Color3.fromRGB(44, 51, 60)
 	local grau = Color3.fromRGB(96, 103, 116)
 	local m = Instance.new("Model"); m.Name = "Shop_" .. sd.id; m.Parent = mega
+	-- Root am lokalen Ursprung als PrimaryPart, sonst pivotiert PivotTo um die Bounding-Box
+	local root = mpart(m, "Root", 0.4, 0.4, 0.4, 0, 0, 0, dk, { Transparency = 1, CanCollide = false })
+	m.PrimaryPart = root
 	-- Raum: Boden, Rueckwand, zwei Seitenwaende, Decke — Front offen
 	mpart(m, "Floor", 12.8, 0.18, 4.9, 0, 0.09, -1.1, Color3.fromRGB(64, 70, 78))
-	mpart(m, "Back", 13, 3.2, 0.25, 0, 1.6, -3.72, dk)
-	mpart(m, "SideL", 0.25, 3.2, 5.2, -6.4, 1.6, -1.1, dk)
-	mpart(m, "SideR", 0.25, 3.2, 5.2, 6.4, 1.6, -1.1, dk)
-	mpart(m, "Ceil", 13.4, 0.25, 5.5, 0, 3.32, -1.05, dk)
+	mpart(m, "Back", 13, 3.6, 0.25, 0, 1.8, -3.72, dk)
+	mpart(m, "SideL", 0.25, 3.6, 5.2, -6.4, 1.8, -1.1, dk)
+	mpart(m, "SideR", 0.25, 3.6, 5.2, 6.4, 1.8, -1.1, dk)
+	mpart(m, "Ceil", 13.4, 0.25, 5.5, 0, 3.72, -1.05, dk)
 	-- Front: Sockel + Schaufenster beidseitig, Tuerrahmen in Akzentfarbe — Oeffnung bleibt frei
 	for _, sx in ipairs({ -1, 1 }) do
-		mpart(m, "FrontSockel", 4.7, 0.9, 0.25, sx * 4.15, 0.45, 1.4, dk)
-		mpart(m, "Schaufenster", 4.7, 2.3, 0.18, sx * 4.15, 2.05, 1.4, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass })
-		mpart(m, "TuerRahmen", 0.3, 3.2, 0.3, sx * 1.95, 1.6, 1.4, col)
+		mpart(m, "FrontSockel", 4.4, 0.9, 0.25, sx * 4.3, 0.45, 1.4, dk)
+		mpart(m, "Schaufenster", 4.4, 2.7, 0.18, sx * 4.3, 2.25, 1.4, COL.glass, { Transparency = 0.55, Material = Enum.Material.Glass })
+		mpart(m, "TuerRahmen", 0.3, 3.6, 0.3, sx * 2.25, 1.8, 1.4, col)
 	end
-	mpart(m, "TuerSturz", 3.6, 0.5, 0.25, 0, 2.96, 1.4, col, { CanCollide = false })
+	mpart(m, "TuerSturz", 4.2, 0.3, 0.25, 0, 3.42, 1.4, col, { CanCollide = false }) -- lichte Hoehe 3.27 m
 	-- Theke mit Akzent-Abdeckung
 	mpart(m, "Theke", 4.2, 1.05, 1.2, -3.2, 0.52, -0.8, dk)
 	mpart(m, "ThekeTop", 4.3, 0.08, 1.3, -3.2, 1.09, -0.8, col)
 	-- Deckenlampe: Neon-Part + PointLight
-	local lamp = mpart(m, "Lampe", 2.4, 0.1, 0.7, 0, 3.15, -0.9, Color3.fromRGB(255, 244, 214), { Material = Enum.Material.Neon, CanCollide = false })
+	local lamp = mpart(m, "Lampe", 2.4, 0.1, 0.7, 0, 3.55, -0.9, Color3.fromRGB(255, 244, 214), { Material = Enum.Material.Neon, CanCollide = false })
 	local pl = Instance.new("PointLight")
 	pl.Brightness = 1.1; pl.Range = 24; pl.Color = Color3.fromRGB(255, 240, 210); pl.Parent = lamp
 	-- Einrichtung nach Thema
@@ -1106,7 +1125,7 @@ local function shop(sd)
 		end
 	end
 	-- Aussen: Neon-Band + beleuchtetes Schild
-	mpart(m, "Band", 13, 0.9, 0.2, 0, 3.5, 1.55, col, { Material = Enum.Material.Neon, CanCollide = false })
+	mpart(m, "Band", 13, 0.85, 0.2, 0, 3.92, 1.55, col, { Material = Enum.Material.Neon, CanCollide = false })
 	-- Schild: breiter und beleuchtet; im EG flacher, damit es nicht in den Galerie-Boden ragt
 	local sw, sh, sy = 11, 1.5, 4.45
 	if sd.ebene == 1 then sh, sy = 0.72, 4.0 end
@@ -1170,6 +1189,7 @@ sysInit("Gebaeude-Upgrade", function()
 	end
 	-- WC-Ecke Nordwest
 	mpart(mega, "WCWall", 0.25, 3.2, 10, -63.5, 1.6, 296, COL.wall)
+	mpart(mega, "WCFill", 1.2, 3.2, 5.2, -63.05, 1.6, 298.9, COL.wall) -- schliesst den Schlitz zum Burger-Raum
 	mpart(mega, "WCWall2", 6.5, 3.2, 0.25, -66.5, 1.6, 291, COL.wall)
 	local wc = mpart(mega, "WCSign", 3.6, 0.8, 0.14, -65, 3.9, 291.2, Color3.fromRGB(26, 58, 122), { CanCollide = false })
 	local wsg = Instance.new("SurfaceGui"); wsg.Face = Enum.NormalId.Front; wsg.CanvasSize = Vector2.new(300, 66); wsg.Parent = wc
@@ -1215,6 +1235,8 @@ sysInit("Inneneinrichtung", function()
 	end
 	local function sofa(x, z, ry, col, len)
 		local mdl = Instance.new("Model"); mdl.Name = "Sofa"; mdl.Parent = mega
+		local root = mpart(mdl, "Root", 0.3, 0.3, 0.3, 0, 0, 0, col, { Transparency = 1, CanCollide = false })
+		mdl.PrimaryPart = root
 		mpart(mdl, "Seat", len, 0.42, 1.05, 0, 0.44, 0, col, { CanCollide = false })
 		mpart(mdl, "Back", len, 0.8, 0.28, 0, 0.88, -0.5, col, { CanCollide = false })
 		mpart(mdl, "ArmL", 0.28, 0.5, 1.05, -len / 2 + 0.14, 0.78, 0, col, { CanCollide = false })
@@ -1250,6 +1272,8 @@ sysInit("Inneneinrichtung", function()
 	end
 	local function recliner(x, z, ry)
 		local mdl = Instance.new("Model"); mdl.Name = "Recliner"; mdl.Parent = mega
+		local root = mpart(mdl, "Root", 0.3, 0.3, 0.3, 0, 0, 0, Color3.fromRGB(74, 106, 85), { Transparency = 1, CanCollide = false })
+		mdl.PrimaryPart = root
 		mpart(mdl, "Seat", 0.8, 0.35, 1.8, 0, 0.35, 0.2, Color3.fromRGB(74, 106, 85), { CanCollide = false })
 		local back = mpart(mdl, "Back", 0.8, 0.12, 1.15, 0, 0.78, -1.02, Color3.fromRGB(74, 106, 85), { CanCollide = false })
 		back.CFrame = back.CFrame * CFrame.Angles(0.65, 0, 0)
@@ -1389,21 +1413,21 @@ sysInit("Ebenen & Tunnel", function()
 		st.Parent = mega
 	end
 	-- UG-Tunnel Parkdeck <-> Terminal (Boden bei -3.8 m, Decke = Unterseite des Bodens)
-	mpart(mega, "TunFloor", 69, 0.3, 8, -90.5, -3.95, 290, Color3.fromRGB(58, 63, 70))
-	mpart(mega, "TunWallN", 69, 3.2, 0.3, -90.5, -2.4, 293.7, Color3.fromRGB(216, 221, 228))
-	mpart(mega, "TunWallS", 69, 3.2, 0.3, -90.5, -2.4, 286.3, Color3.fromRGB(216, 221, 228))
-	mpart(mega, "TunEndW", 0.3, 3.2, 8, -122.8, -2.4, 290, Color3.fromRGB(216, 221, 228))
-	mpart(mega, "TunEndE", 0.3, 3.2, 8, -58.2, -2.4, 290, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunFloor", 69, 0.3, 8, -90.5, -4.75, 290, Color3.fromRGB(58, 63, 70))
+	mpart(mega, "TunWallN", 69, 3.8, 0.3, -90.5, -2.7, 293.7, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunWallS", 69, 3.8, 0.3, -90.5, -2.7, 286.3, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunEndW", 0.3, 3.8, 8, -122.8, -2.7, 290, Color3.fromRGB(216, 221, 228))
+	mpart(mega, "TunEndE", 0.3, 3.8, 8, -58.2, -2.7, 290, Color3.fromRGB(216, 221, 228))
 	mpart(mega, "TunCeil", 69, 0.25, 8, -90.5, -1.05, 290, Color3.fromRGB(138, 146, 158), { CanCollide = false })
 	for _, zz in ipairs({ 286.5, 293.5 }) do
-		mpart(mega, "TunStripe", 69, 0.5, 0.08, -90.5, -3.3, zz, Color3.fromRGB(42, 143, 143), { CanCollide = false })
+		mpart(mega, "TunStripe", 69, 0.5, 0.08, -90.5, -4.1, zz, Color3.fromRGB(42, 143, 143), { CanCollide = false })
 	end
 	for lx = -118, -62, 8 do
 		mpart(mega, "TunLight", 1.8, 0.06, 1.0, lx, -1.2, 290, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
 	end
-	mpart(mega, "TunWalk", 44, 0.08, 1.9, -90.5, -3.74, 288.4, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	mpart(mega, "TunWalk", 44, 0.08, 1.9, -90.5, -4.54, 288.4, Color3.fromRGB(34, 38, 44), { CanCollide = false })
 	for _, hz in ipairs({ 287.4, 289.4 }) do
-		mpart(mega, "TunRail", 44, 0.1, 0.12, -90.5, -2.85, hz, Color3.fromRGB(22, 24, 28), { CanCollide = false })
+		mpart(mega, "TunRail", 44, 0.1, 0.12, -90.5, -3.65, hz, Color3.fromRGB(22, 24, 28), { CanCollide = false })
 	end
 	local function tunAd(x, txt, fg)
 		local s = mpart(mega, "TunAd", 6, 1.0, 0.1, x, -2.3, 293.5, Color3.fromRGB(21, 32, 47), { CanCollide = false })
@@ -1444,37 +1468,37 @@ sysInit("Gepaeckkeller", function()
 	local KX1, KX2, KZ1, KZ2 = -50, -5, 237, 266
 	local kcx, kcz = (KX1 + KX2) / 2, (KZ1 + KZ2) / 2
 	local wallC = Color3.fromRGB(185, 191, 199)
-	mpart(mega, "KFloor", KX2 - KX1 + 2, 0.3, KZ2 - KZ1 + 2, kcx, -3.97, kcz, Color3.fromRGB(68, 72, 79))
-	mpart(mega, "KWallS", KX2 - KX1 + 2, 3.2, 0.3, kcx, -2.4, KZ1 - 0.85, wallC)
-	mpart(mega, "KWallN", KX2 - KX1 + 2, 3.2, 0.3, kcx, -2.4, KZ2 + 0.85, wallC)
-	mpart(mega, "KWallW", 0.3, 3.2, KZ2 - KZ1 + 2, KX1 - 0.85, -2.4, kcz, wallC)
-	mpart(mega, "KWallE", 0.3, 3.2, KZ2 - KZ1 + 2, KX2 + 0.85, -2.4, kcz, wallC)
+	mpart(mega, "KFloor", KX2 - KX1 + 2, 0.3, KZ2 - KZ1 + 2, kcx, -4.77, kcz, Color3.fromRGB(68, 72, 79))
+	mpart(mega, "KWallS", KX2 - KX1 + 2, 3.8, 0.3, kcx, -2.7, KZ1 - 0.85, wallC)
+	mpart(mega, "KWallN", KX2 - KX1 + 2, 3.8, 0.3, kcx, -2.7, KZ2 + 0.85, wallC)
+	mpart(mega, "KWallW", 0.3, 3.8, KZ2 - KZ1 + 2, KX1 - 0.85, -2.7, kcz, wallC)
+	mpart(mega, "KWallE", 0.3, 3.8, KZ2 - KZ1 + 2, KX2 + 0.85, -2.7, kcz, wallC)
 	mpart(mega, "KCeil", KX2 - KX1 + 2, 0.25, KZ2 - KZ1 + 2, kcx, -1.05, kcz, Color3.fromRGB(127, 135, 144), { CanCollide = false })
 	for _, p in ipairs({ { -30, 250 }, { -16, 250 }, { -30, 260 }, { -16, 260 } }) do
-		mpart(mega, "KPillar", 0.55, 3.0, 0.55, p[1], -2.4, p[2], Color3.fromRGB(138, 146, 158))
+		mpart(mega, "KPillar", 0.55, 3.6, 0.55, p[1], -2.8, p[2], Color3.fromRGB(138, 146, 158))
 	end
 	for lx = KX1 + 6, KX2 - 1, 9 do
 		mpart(mega, "KLight", 1.8, 0.06, 1.0, lx, -1.22, 252, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
 		mpart(mega, "KLight", 1.8, 0.06, 1.0, lx, -1.22, 261, Color3.fromRGB(255, 255, 255), { Material = Enum.Material.Neon, CanCollide = false })
 	end
 	for _, zz in ipairs({ KZ1 - 0.68, KZ2 + 0.68 }) do
-		mpart(mega, "KWarn", KX2 - KX1 + 2, 0.4, 0.06, kcx, -3.35, zz, COL.yellow, { CanCollide = false })
+		mpart(mega, "KWarn", KX2 - KX1 + 2, 0.4, 0.06, kcx, -4.15, zz, COL.yellow, { CanCollide = false })
 	end
 	-- Baender: Sammelband, Querband, Steigband aufs Rollfeld-Band
-	mpart(mega, "KBelt1", 25, 0.18, 1.7, -33.5, -3.25, 261, Color3.fromRGB(96, 103, 116))
-	mpart(mega, "KBelt1T", 25, 0.06, 1.3, -33.5, -3.12, 261, Color3.fromRGB(34, 38, 44), { CanCollide = false })
-	mpart(mega, "KBelt2", 1.7, 0.18, 11, -22, -3.25, 255.5, Color3.fromRGB(96, 103, 116))
-	mpart(mega, "KBelt2T", 1.3, 0.06, 11, -22, -3.12, 255.5, Color3.fromRGB(34, 38, 44), { CanCollide = false })
-	local inc = mpart(mega, "KIncline", 1.7, 0.2, 8.6, -21.6, -1.2, 253.9, Color3.fromRGB(96, 103, 116), { CanCollide = false })
-	inc.CFrame = inc.CFrame * CFrame.Angles(-0.53, 0, 0)
+	mpart(mega, "KBelt1", 25, 0.18, 1.7, -33.5, -4.05, 261, Color3.fromRGB(96, 103, 116))
+	mpart(mega, "KBelt1T", 25, 0.06, 1.3, -33.5, -3.92, 261, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	mpart(mega, "KBelt2", 1.7, 0.18, 11, -22, -4.05, 255.5, Color3.fromRGB(96, 103, 116))
+	mpart(mega, "KBelt2T", 1.3, 0.06, 11, -22, -3.92, 255.5, Color3.fromRGB(34, 38, 44), { CanCollide = false })
+	local inc = mpart(mega, "KIncline", 1.7, 0.2, 9.8, -21.6, -1.55, 253.9, Color3.fromRGB(96, 103, 116), { CanCollide = false })
+	inc.CFrame = inc.CFrame * CFrame.Angles(-0.58, 0, 0)
 	-- Rutschen von den Check-in-Schaltern
 	for _, cx in ipairs({ -45, -29, -13 }) do
-		local ch = mpart(mega, "KChute", 1.4, 0.14, 3.4, cx, -1.9, 259.6, Color3.fromRGB(154, 164, 176), { CanCollide = false })
-		ch.CFrame = ch.CFrame * CFrame.Angles(0.72, 0, 0)
+		local ch = mpart(mega, "KChute", 1.4, 0.14, 4.2, cx, -2.3, 259.6, Color3.fromRGB(154, 164, 176), { CanCollide = false })
+		ch.CFrame = ch.CFrame * CFrame.Angles(0.82, 0, 0)
 	end
 	-- Abzweig zur Gepaeckausgabe
-	mpart(mega, "KBelt3", 1.7, 0.18, 6, -44, -3.25, 262.5, Color3.fromRGB(96, 103, 116))
-	local up2 = mpart(mega, "KIncline2", 1.7, 0.2, 4.4, -44, -2.1, 264.6, Color3.fromRGB(96, 103, 116), { CanCollide = false })
+	mpart(mega, "KBelt3", 1.7, 0.18, 6, -44, -4.05, 262.5, Color3.fromRGB(96, 103, 116))
+	local up2 = mpart(mega, "KIncline2", 1.7, 0.2, 5.2, -44, -2.6, 264.6, Color3.fromRGB(96, 103, 116), { CanCollide = false })
 	up2.CFrame = up2.CFrame * CFrame.Angles(-0.6, 0, 0)
 	-- Sortier-Buchten (Farben wie beim Ramp-Job) + Regale + Kofferstapel
 	local function kSign(txt, x, y, z, w, fg)
@@ -1488,22 +1512,24 @@ sysInit("Gepaeckkeller", function()
 		{ x = -33, col = Color3.fromRGB(224, 120, 32), paint = Color3.fromRGB(143, 90, 31), name = "EW 771 · WIEN" },
 	}
 	for _, b in ipairs(BAYS) do
-		mpart(mega, "KBay", 7, 0.06, 8, b.x, -3.79, 244, b.paint, { CanCollide = false })
-		mpart(mega, "KBayLine", 6.4, 0.14, 0.5, b.x, -3.72, 248.2, b.col, { CanCollide = false })
+		mpart(mega, "KBay", 7, 0.06, 8, b.x, -4.59, 244, b.paint, { CanCollide = false })
+		mpart(mega, "KBayLine", 6.4, 0.14, 0.5, b.x, -4.52, 248.2, b.col, { CanCollide = false })
 		kSign(b.name, b.x, -1.7, 240.6, 5.5, b.col)
-		mpart(mega, "KRack", 6.4, 1.7, 1.0, b.x, -3.1, 241, Color3.fromRGB(96, 103, 116))
-		mpart(mega, "KRackTop", 6.4, 0.1, 1.0, b.x, -2.5, 241, Color3.fromRGB(138, 146, 158), { CanCollide = false })
+		mpart(mega, "KRack", 6.4, 1.7, 1.0, b.x, -3.9, 241, Color3.fromRGB(96, 103, 116))
+		mpart(mega, "KRackTop", 6.4, 0.1, 1.0, b.x, -3.3, 241, Color3.fromRGB(138, 146, 158), { CanCollide = false })
 		for k = 0, 5 do
-			mpart(mega, "KBag", 0.78, 0.52, 0.42, b.x - 2.4 + (k % 3) * 2.4, k < 3 and -2.16 or -3.5, k < 3 and 241 or (244.6 + (k - 3) * 0.2), b.col, { CanCollide = false })
+			mpart(mega, "KBag", 0.78, 0.52, 0.42, b.x - 2.4 + (k % 3) * 2.4, k < 3 and -2.96 or -4.3, k < 3 and 241 or (244.6 + (k - 3) * 0.2), b.col, { CanCollide = false })
 		end
 	end
 	-- Gepaeckwagen-Zuege
 	for _, t in ipairs({ { -11, 246, 0.3 }, { -38, 254, -1.4 } }) do
 		local mdl = Instance.new("Model"); mdl.Name = "KCart"; mdl.Parent = mega
-		mpart(mdl, "Tug", 1.5, 0.8, 2.2, 0, -3.4, 0, Color3.fromRGB(42, 109, 181))
+		local root = mpart(mdl, "Root", 0.3, 0.3, 0.3, 0, 0, 0, Color3.fromRGB(42, 109, 181), { Transparency = 1, CanCollide = false })
+		mdl.PrimaryPart = root
+		mpart(mdl, "Tug", 1.5, 0.8, 2.2, 0, -4.2, 0, Color3.fromRGB(42, 109, 181))
 		for a = 1, 2 do
-			mpart(mdl, "Trailer", 1.5, 0.14, 2.0, 0, -3.55, -a * 2.6, Color3.fromRGB(139, 149, 161))
-			mpart(mdl, "TBag", 0.9, 0.5, 1.2, 0, -3.25, -a * 2.6, a == 1 and Color3.fromRGB(58, 111, 232) or Color3.fromRGB(224, 120, 32))
+			mpart(mdl, "Trailer", 1.5, 0.14, 2.0, 0, -4.35, -a * 2.6, Color3.fromRGB(139, 149, 161))
+			mpart(mdl, "TBag", 0.9, 0.5, 1.2, 0, -4.05, -a * 2.6, a == 1 and Color3.fromRGB(58, 111, 232) or Color3.fromRGB(224, 120, 32))
 		end
 		mdl:PivotTo(CFrame.new(t[1] * M, 0, t[2] * M) * CFrame.Angles(0, t[3], 0))
 	end
@@ -1511,7 +1537,7 @@ sysInit("Gepaeckkeller", function()
 	local kb = Instance.new("Folder"); kb.Name = "KellerBags"; kb.Parent = mega
 	local bagCols = { Color3.fromRGB(58, 111, 232), Color3.fromRGB(224, 120, 32), Color3.fromRGB(122, 48, 48), Color3.fromRGB(48, 80, 122), Color3.fromRGB(201, 164, 79) }
 	for i = 1, 7 do
-		mpart(kb, "FlowBag" .. i, 0.78, 0.52, 0.42, -45.5, -2.95, 261, bagCols[1 + (i % #bagCols)], { CanCollide = false })
+		mpart(kb, "FlowBag" .. i, 0.78, 0.52, 0.42, -45.5, -3.75, 261, bagCols[1 + (i % #bagCols)], { CanCollide = false })
 	end
 	kSign("🧳 GEPÄCKSORTIERUNG · NUR PERSONAL", kcx, -1.6, KZ1 - 0.6, 10, Color3.fromRGB(255, 215, 94))
 	kSign("⬆ ROLLFELD · GEPÄCKBAND", -21.6, -1.5, 249.9, 6.5, Color3.fromRGB(255, 215, 94))
@@ -1614,7 +1640,7 @@ end)
 ---------------------------------------------------------------- Spawn im Terminal
 local spawnLoc = Instance.new("SpawnLocation")
 spawnLoc.Name = "Spawn"
-spawnLoc.Size = Vector3.new(6, 1, 6)
+spawnLoc.Size = Vector3.new(16, 1, 16) -- Platz fuer mehrere Spieler
 spawnLoc.CFrame = CFrame.new(-30 * M, 0.5, 268 * M)
 spawnLoc.Anchored = true
 spawnLoc.Neutral = true

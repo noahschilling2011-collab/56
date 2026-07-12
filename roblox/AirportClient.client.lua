@@ -37,6 +37,7 @@ local earnEv = ecoRS:WaitForChild("EarnCredits")
 local buyEv = ecoRS:WaitForChild("BuyItem")
 local syncEv = ecoRS:WaitForChild("SyncState")
 local achEv = ecoRS:WaitForChild("UnlockAch")
+local claimEv = ecoRS:WaitForChild("ClaimVehicle")
 
 -- Fehler-Haertung (Phase 4): Systeme starten und laufen isoliert;
 -- ein Fehler in einem System legt nicht HUD + Interaktion still.
@@ -486,6 +487,7 @@ syncEv.OnClientEvent:Connect(function(credits, xp, unlocks)
 	end
 	updateHUD()
 end)
+syncEv:FireServer() -- Handshake: jetzt steht der Handler, Server schickt den echten Stand
 function showAchievements()
 	local count = 0
 	for _ in pairs(achieved) do count = count + 1 end
@@ -1073,7 +1075,26 @@ local function enterVehicle(v)
 	setCharacterHidden(true)
 	camera.CameraType = Enum.CameraType.Scriptable
 end
+-- Multiplayer: erst beim Server anmelden, damit nicht zwei Spieler denselben Wagen fahren
+local pendingVehicle = nil
+local function requestVehicle(v, claimName)
+	if pendingVehicle then return end
+	pendingVehicle = v
+	v.claimName = claimName
+	claimEv:FireServer(claimName, true)
+end
+claimEv.OnClientEvent:Connect(function(claimName, granted)
+	local v = pendingVehicle
+	pendingVehicle = nil
+	if not v or v.claimName ~= claimName then return end
+	if granted then
+		enterVehicle(v)
+	else
+		toast("🚧 " .. (claimName == "Cart" and "Der Gepäckwagen" or "Der Tankwagen") .. " ist gerade besetzt!", "bad")
+	end
+end)
 local function exitVehicle()
+	if S.vehicle and S.vehicle.claimName then claimEv:FireServer(S.vehicle.claimName, false) end
 	local v = S.vehicle
 	S.mode = "walk"
 	S.vehicle = nil
@@ -2067,8 +2088,8 @@ local function updateKellerBags(t)
 	if #kellerBags == 0 then return end
 	-- Pfad: Sammelband -> Querband -> Steigband (Meter)
 	local P = {
-		Vector3.new(-45.5, -2.95, 261), Vector3.new(-22, -2.95, 261),
-		Vector3.new(-22, -2.95, 250.5), Vector3.new(-21.6, 1.05, 257.9),
+		Vector3.new(-45.5, -3.75, 261), Vector3.new(-22, -3.75, 261),
+		Vector3.new(-22, -3.75, 250.5), Vector3.new(-21.6, 1.05, 257.9),
 	}
 	local L = { (P[2] - P[1]).Magnitude, (P[3] - P[2]).Magnitude, (P[4] - P[3]).Magnitude }
 	local total = L[1] + L[2] + L[3]
@@ -2208,13 +2229,13 @@ addInteract({
 	x = function() return cart.pos.X end, z = function() return cart.pos.Z end, r = 3.2,
 	cond = function() return S.mode == "walk" and not ramp.carrying end,
 	label = function() return "Gepäckwagen fahren" end,
-	action = function() enterVehicle(cart) end,
+	action = function() requestVehicle(cart, "Cart") end,
 })
 addInteract({
 	x = function() return fuelTruck.pos.X end, z = function() return fuelTruck.pos.Z end, r = 3.4,
 	cond = function() return S.mode == "walk" and not ramp.carrying end,
 	label = function() return "Tankwagen fahren" end,
-	action = function() enterVehicle(fuelTruck) end,
+	action = function() requestVehicle(fuelTruck, "FuelTruck") end,
 })
 -- Station: Tankwagen-Job
 addInteract({
@@ -2287,7 +2308,7 @@ sysInit("Ebenen & Shops", function()
 	addInteract({ x = function() return -120 end, z = function() return 305 end, r = 3.2,
 		cond = function() return S.mode == "walk" and py() > -1 end,
 		label = function() return "⬇ Tunnel zum Terminal (UG)" end,
-		action = function() tp(-118, -3.8, 290) end })
+		action = function() tp(-118, -4.6, 290) end })
 	addInteract({ x = function() return -118 end, z = function() return 290 end, r = 3.0,
 		cond = function() return S.mode == "walk" and py() < -2 end,
 		label = function() return "⬆ Treppe: Parkdeck" end,
@@ -2295,7 +2316,7 @@ sysInit("Ebenen & Shops", function()
 	addInteract({ x = function() return -66 end, z = function() return 284.5 end, r = 3.0,
 		cond = function() return S.mode == "walk" and py() > -1 and py() < 2 end,
 		label = function() return "⬇ Tunnel zum Parkdeck (UG)" end,
-		action = function() tp(-63, -3.8, 290) end })
+		action = function() tp(-63, -4.6, 290) end })
 	addInteract({ x = function() return -63 end, z = function() return 290 end, r = 3.0,
 		cond = function() return S.mode == "walk" and py() < -2 end,
 		label = function() return "⬆ Treppe: Terminal" end,
@@ -2304,7 +2325,7 @@ sysInit("Ebenen & Shops", function()
 	addInteract({ x = function() return -52 end, z = function() return 236.5 end, r = 3.2,
 		cond = function() return S.mode == "walk" and py() > -1 end,
 		label = function() return "⬇ Gepäckkeller (Personal)" end,
-		action = function() tp(-46, -3.8, 241) end })
+		action = function() tp(-46, -4.6, 241) end })
 	addInteract({ x = function() return -46 end, z = function() return 241 end, r = 3.0,
 		cond = function() return S.mode == "walk" and py() < -2 end,
 		label = function() return "⬆ Treppe: Terminal" end,

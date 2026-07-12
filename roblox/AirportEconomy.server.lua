@@ -11,6 +11,7 @@ local earnEv = Instance.new("RemoteEvent"); earnEv.Name = "EarnCredits"; earnEv.
 local buyEv = Instance.new("RemoteEvent"); buyEv.Name = "BuyItem"; buyEv.Parent = RS
 local syncEv = Instance.new("RemoteEvent"); syncEv.Name = "SyncState"; syncEv.Parent = RS
 local achEv = Instance.new("RemoteEvent"); achEv.Name = "UnlockAch"; achEv.Parent = RS
+local claimEv = Instance.new("RemoteEvent"); claimEv.Name = "ClaimVehicle"; claimEv.Parent = RS
 
 -- plausible Obergrenzen pro gemeldetem Auftrag (Credits); XP pro Meldung max. 200
 local CAPS = {
@@ -48,11 +49,21 @@ local function withRetry(what, fn)
 	return false
 end
 
+local function fullSync(pl)
+	local st = state[pl]
+	if not st then return end
+	local unlockList = {}
+	for id in pairs(st.unlocks) do table.insert(unlockList, id) end
+	syncEv:FireClient(pl, st.credits, st.xp, unlockList)
+end
+
 Players.PlayerAdded:Connect(function(pl)
-	local st = { credits = 0, xp = 0, unlocks = {} }
+	-- loaded verhindert, dass ein fehlgeschlagenes Laden beim Verlassen Nullen
+	-- ueber den echten Spielstand speichert (save() prueft das Flag)
+	local st = { credits = 0, xp = 0, unlocks = {}, loaded = store == nil }
 	state[pl] = st
 	if store then
-		withRetry("Laden", function()
+		st.loaded = withRetry("Laden", function()
 			local data = store:GetAsync("p" .. pl.UserId)
 			if type(data) == "table" then
 				st.credits = tonumber(data.c) or 0
@@ -63,22 +74,29 @@ Players.PlayerAdded:Connect(function(pl)
 			end
 		end)
 	end
+	-- Spieler kann waehrend GetAsync/Retries schon weg sein
+	if not pl:IsDescendantOf(Players) then return end
 	local ls = Instance.new("Folder"); ls.Name = "leaderstats"
 	local cv = Instance.new("IntValue"); cv.Name = "Credits"; cv.Value = st.credits; cv.Parent = ls
 	local lv = Instance.new("IntValue"); lv.Name = "Level"; lv.Value = level(st.xp); lv.Parent = ls
 	ls.Parent = pl
-	local unlockList = {}
-	for id in pairs(st.unlocks) do table.insert(unlockList, id) end
-	syncEv:FireClient(pl, st.credits, st.xp, unlockList)
+	fullSync(pl)
 end)
+
+-- Client meldet sich, sobald sein Handler steht -> initialer Stand geht nie verloren
+syncEv.OnServerEvent:Connect(fullSync)
 
 earnEv.OnServerEvent:Connect(function(pl, reason, credits, xp)
 	local st = state[pl]
 	if not st then return end
 	reason = type(reason) == "string" and reason or "misc"
 	local cap = CAPS[reason] or CAPS.misc
-	credits = math.clamp(tonumber(credits) or 0, MIN_EARN, cap)
-	xp = math.clamp(tonumber(xp) or 0, 0, 200)
+	credits = tonumber(credits) or 0
+	xp = tonumber(xp) or 0
+	if credits ~= credits then credits = 0 end -- NaN rutscht durch math.clamp!
+	if xp ~= xp then xp = 0 end
+	credits = math.clamp(credits, MIN_EARN, cap)
+	xp = math.clamp(xp, 0, 200)
 	st.credits = math.max(0, st.credits + math.floor(credits))
 	st.xp = st.xp + math.floor(xp)
 	pushLeaderstats(pl)
@@ -103,14 +121,20 @@ end)
 
 achEv.OnServerEvent:Connect(function(pl, id)
 	local st = state[pl]
-	if st and type(id) == "string" and #id <= 40 then
-		st.unlocks[id] = true
-	end
+	if not (st and type(id) == "string" and #id <= 40) then return end
+	local n = 0
+	for _ in pairs(st.unlocks) do n = n + 1 end
+	if n >= 64 then return end -- weit ueber der echten Erfolgs-Liste, blockt Muell-Fluten
+	st.unlocks[id] = true
 end)
 
 local function save(pl)
 	local st = state[pl]
 	if not st or not store then return end
+	if not st.loaded then
+		warn("[AirportEconomy] Speichern uebersprungen fuer " .. pl.Name .. " — Laden war fehlgeschlagen (kein Ueberschreiben mit Defaults)")
+		return
+	end
 	local unlockList = {}
 	for id in pairs(st.unlocks) do table.insert(unlockList, id) end
 	withRetry("Speichern", function()
@@ -118,7 +142,27 @@ local function save(pl)
 	end)
 end
 
+-- Fahrzeug-Belegung (Multiplayer): pro Fahrzeugname genau ein Fahrer
+local claims = {}
+claimEv.OnServerEvent:Connect(function(pl, veh, want)
+	if type(veh) ~= "string" or #veh > 30 then return end
+	if want then
+		local holder = claims[veh]
+		if holder == nil or holder == pl or not holder:IsDescendantOf(Players) then
+			claims[veh] = pl
+			claimEv:FireClient(pl, veh, true)
+		else
+			claimEv:FireClient(pl, veh, false)
+		end
+	elseif claims[veh] == pl then
+		claims[veh] = nil
+	end
+end)
+
 Players.PlayerRemoving:Connect(function(pl)
+	for veh, holder in pairs(claims) do
+		if holder == pl then claims[veh] = nil end
+	end
 	save(pl)
 	state[pl] = nil
 end)
