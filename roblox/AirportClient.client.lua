@@ -1338,7 +1338,7 @@ for _, p in ipairs(planeModel:GetChildren()) do
 		partOffsets[p] = basePivot:ToObjectSpace(p.CFrame)
 	end
 end
-local PLANE_STAND = { x = 130, z = 165, yaw = math.pi }
+local PLANE_STAND = { x = 255, z = 180, yaw = math.pi } -- eigener Stand, frei von den Gate-Schranken
 
 local plane = {
 	pos = Vector3.new(130, 0, 165), vel = Vector3.new(),
@@ -2357,7 +2357,7 @@ addInteract({
 	end,
 })
 addInteract({
-	x = function() return 124 end, z = function() return 172 end, r = 5,
+	x = function() return 250 end, z = function() return 185 end, r = 5,
 	cond = function() return S.mode == "walk" and S.job == nil end,
 	label = function()
 		if S.credits >= UNLOCK_CAPTAIN then return "Ins Flugzeug steigen (Captain)" end
@@ -2584,6 +2584,9 @@ sysInit("Admin", function()
 					S.adminSpeed = speedOn and 2 or nil
 					toast(speedOn and "🏃 Speed ×2 AN" or "🏃 Speed normal", "good")
 				end },
+				{ "🛂 Zonen-Bypass an/aus", function()
+					adminEv:FireServer("god")
+				end },
 			}
 			for i, d in ipairs(defs) do
 				local c2 = (i - 1) % 2
@@ -2602,10 +2605,13 @@ sysInit("Admin", function()
 			end
 		end)
 	end
-	adminEv.OnClientEvent:Connect(function(what)
+	adminEv.OnClientEvent:Connect(function(what, a)
 		if what == "ok" then
 			isAdm = true
 			toast("👑 Admin aktiv — Taste P öffnet das Admin-Panel.", "good")
+		elseif what == "god" then
+			toast(a and "🛂 Zonen-Bypass AN — Security/Gates ignorieren dich."
+				or "🛂 Zonen-Bypass AUS — du spielst wie ein normaler Spieler.", "good")
 		end
 	end)
 	adminEv:FireServer("hello")

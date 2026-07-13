@@ -556,7 +556,13 @@ local function makeGate(nr, px)
 	-- Boarding-Schranke quer zum Standzugang (oeffnet NUR der ZoneService)
 	mpart(g, "GSPfostenW", 0.35, 3.0, 0.4, px - 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
 	mpart(g, "GSPfostenE", 0.35, 3.0, 0.4, px + 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
-	mpart(g, "GateSchranke" .. nr, 5.9, 2.8, 0.25, px, 1.4, 195, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+	local schranke = mpart(g, "GateSchranke" .. nr, 5.9, 2.8, 0.25, px, 1.4, 195, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local ssg = Instance.new("SurfaceGui"); ssg.Face = face; ssg.CanvasSize = Vector2.new(400, 180); ssg.Parent = schranke
+		local stl = Instance.new("TextLabel"); stl.Size = UDim2.fromScale(1, 1); stl.BackgroundTransparency = 1
+		stl.Font = Enum.Font.GothamBlack; stl.TextScaled = true; stl.TextColor3 = Color3.fromRGB(21, 32, 47)
+		stl.Text = "✋ GATE " .. nr; stl.Parent = ssg
+	end
 	-- Zaunstuecke links/rechts, damit man nicht um die Schranke herumlaeuft
 	mpart(g, "GFenceW", 10.4, 1.4, 0.2, px - 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
 	mpart(g, "GFenceE", 10.4, 1.4, 0.2, px + 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
@@ -575,6 +581,10 @@ end
 for nr, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	makeGate(nr, px)
 end
+-- Captain-Stand: eigene Parkmarkierung abseits der Gates (Flugzeug parkt bei 255/180)
+mpart(airport, "CaptainStand", 0.6, 0.1, 20, 255, 0.24, 172, COL.yellow, { CanCollide = false })
+mpart(airport, "CaptainStandQ", 13, 0.1, 0.6, 255, 0.24, 182, COL.yellow, { CanCollide = false })
+
 -- Leitlinie auf dem Gate-Walkway: von der Suedtuer zu den Gates
 mpart(airport, "WalkwayLinie", 340, 0.05, 0.35, 35, 0.22, 198.5, COL.yellow, { CanCollide = false })
 mpart(airport, "WalkwayLinie2", 0.35, 0.05, 33, 32, 0.22, 215, COL.yellow, { CanCollide = false })
@@ -701,7 +711,7 @@ local function marker(name, x, z, color)
 end
 marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
 marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
-marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+marker("MarkerPlane", 250, 185, Color3.fromRGB(143, 232, 159)) -- eigener Captain-Stand, frei von Gate 4
 marker("MarkerFuel", -152, 215, Color3.fromRGB(217, 165, 32))
 marker("MarkerMarshal", -130, 148, Color3.fromRGB(255, 136, 68))
 

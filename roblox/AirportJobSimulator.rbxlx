@@ -724,7 +724,13 @@ local function makeGate(nr, px)
 	-- Boarding-Schranke quer zum Standzugang (oeffnet NUR der ZoneService)
 	mpart(g, "GSPfostenW", 0.35, 3.0, 0.4, px - 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
 	mpart(g, "GSPfostenE", 0.35, 3.0, 0.4, px + 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
-	mpart(g, "GateSchranke" .. nr, 5.9, 2.8, 0.25, px, 1.4, 195, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+	local schranke = mpart(g, "GateSchranke" .. nr, 5.9, 2.8, 0.25, px, 1.4, 195, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local ssg = Instance.new("SurfaceGui"); ssg.Face = face; ssg.CanvasSize = Vector2.new(400, 180); ssg.Parent = schranke
+		local stl = Instance.new("TextLabel"); stl.Size = UDim2.fromScale(1, 1); stl.BackgroundTransparency = 1
+		stl.Font = Enum.Font.GothamBlack; stl.TextScaled = true; stl.TextColor3 = Color3.fromRGB(21, 32, 47)
+		stl.Text = "✋ GATE " .. nr; stl.Parent = ssg
+	end
 	-- Zaunstuecke links/rechts, damit man nicht um die Schranke herumlaeuft
 	mpart(g, "GFenceW", 10.4, 1.4, 0.2, px - 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
 	mpart(g, "GFenceE", 10.4, 1.4, 0.2, px + 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
@@ -743,6 +749,10 @@ end
 for nr, px in ipairs({ -130, -40, 40, 130, 200 }) do
 	makeGate(nr, px)
 end
+-- Captain-Stand: eigene Parkmarkierung abseits der Gates (Flugzeug parkt bei 255/180)
+mpart(airport, "CaptainStand", 0.6, 0.1, 20, 255, 0.24, 172, COL.yellow, { CanCollide = false })
+mpart(airport, "CaptainStandQ", 13, 0.1, 0.6, 255, 0.24, 182, COL.yellow, { CanCollide = false })
+
 -- Leitlinie auf dem Gate-Walkway: von der Suedtuer zu den Gates
 mpart(airport, "WalkwayLinie", 340, 0.05, 0.35, 35, 0.22, 198.5, COL.yellow, { CanCollide = false })
 mpart(airport, "WalkwayLinie2", 0.35, 0.05, 33, 32, 0.22, 215, COL.yellow, { CanCollide = false })
@@ -869,7 +879,7 @@ local function marker(name, x, z, color)
 end
 marker("MarkerCheckin", -45, 260.7, Color3.fromRGB(94, 200, 255))
 marker("MarkerRamp", -14, 192, Color3.fromRGB(224, 160, 32))
-marker("MarkerPlane", 124, 172, Color3.fromRGB(143, 232, 159))
+marker("MarkerPlane", 250, 185, Color3.fromRGB(143, 232, 159)) -- eigener Captain-Stand, frei von Gate 4
 marker("MarkerFuel", -152, 215, Color3.fromRGB(217, 165, 32))
 marker("MarkerMarshal", -130, 148, Color3.fromRGB(255, 136, 68))
 
@@ -2053,7 +2063,7 @@ local AdminService = require(ServicesF:WaitForChild("AdminService"))
 FlightService.init()
 InventoryService.init(FlightService)
 ZoneService.init(InventoryService.zoneProvider(), FlightService)
-ZoneService.setAdminCheck(AdminService.isAdmin)
+ZoneService.setAdminCheck(AdminService.isExempt) -- Bypass nur, wenn im Panel eingeschaltet
 AdminService.init(InventoryService, FlightService)
 
 print("[AirportEconomy] Services verdrahtet: Flight -&gt; Inventory -&gt; Zone -&gt; Admin")
@@ -2164,7 +2174,9 @@ local function buildZones()
 		end,
 	})
 	table.insert(zones, {
-		id = "apron", x1 = -380, z1 = -40, x2 = 380, z2 = 231.4,
+		-- ganzes Flugfeld innerhalb des Zauns (inkl. beider Runways + Cargo) —
+		-- sonst laeuft man oestlich ums Vorfeld herum an der Security vorbei
+		id = "apron", x1 = -950, z1 = -560, x2 = 950, z2 = 231.4,
 		req = function(pl)
 			if prov.hasStaff(pl) or boarded[pl] or prov.exemptFlight(pl) then return true end
 			return false, "🛂 Vorfeld: NUR PERSONAL (Mitarbeiter-Ausweis ab Level 2)."
@@ -2696,7 +2708,9 @@ jobEv.OnServerEvent:Connect(function(pl, job)
 	if not state[pl] or type(job) ~= "string" or not JOBS[job] then return end
 	local tk = tokens[pl]
 	local now = os.clock()
-	if tk and now - (tk.lastStart or 0) &lt; 8 then return end -- Start-Spam
+	-- Rate-Limit nur fuer DENSELBEN Job (sonst blockierte ein Jobwechsel
+	-- unter 8 s den neuen Token — z. B. Check-in beenden und sofort fliegen)
+	if tk and tk.job == job and now - (tk.lastStart or 0) &lt; 8 then return end
 	tokens[pl] = { job = job, started = now, lastAccept = 0, tasks = 0, lastStart = now }
 end)
 
@@ -2886,6 +2900,7 @@ local ADMIN_IDS = {
 
 local adminEv = Instance.new("RemoteEvent"); adminEv.Name = "AdminCmd"; adminEv.Parent = RS
 
+local god = {} -- [pl] = true: Zonen-Bypass aktiv (Schalter im Panel, Standard AUS)
 local inv, flights
 local M = 3.4
 
@@ -2902,6 +2917,12 @@ local TELEPORTS = {
 	tower = { -138, 0.5, 250 },
 }
 
+-- Zonen-Bypass: NUR wenn der Admin ihn im Panel eingeschaltet hat.
+-- So erlebt auch der Besitzer Security/Gates ganz normal (Standard: AUS).
+function Admin.isExempt(pl)
+	return god[pl] == true and Admin.isAdmin(pl)
+end
+
 function Admin.isAdmin(pl)
 	if RunService:IsStudio() then return true end
 	if ADMIN_IDS[pl.UserId] then return true end
@@ -2915,6 +2936,9 @@ adminEv.OnServerEvent:Connect(function(pl, cmd, arg)
 	end
 	if cmd == "hello" then
 		adminEv:FireClient(pl, "ok")
+	elseif cmd == "god" then
+		god[pl] = not god[pl] or nil
+		adminEv:FireClient(pl, "god", god[pl] == true)
 	elseif cmd == "credits" then
 		inv.adminGive(pl, math.clamp(tonumber(arg) or 1000, -100000, 100000), 0)
 	elseif cmd == "xp" then
@@ -2937,6 +2961,10 @@ adminEv.OnServerEvent:Connect(function(pl, cmd, arg)
 			root.CFrame = CFrame.new(t[1] * M, t[2] * M + 4, t[3] * M)
 		end
 	end
+end)
+
+game:GetService("Players").PlayerRemoving:Connect(function(pl)
+	god[pl] = nil
 end)
 
 function Admin.init(inventoryService, flightService)
@@ -4303,7 +4331,7 @@ for _, p in ipairs(planeModel:GetChildren()) do
 		partOffsets[p] = basePivot:ToObjectSpace(p.CFrame)
 	end
 end
-local PLANE_STAND = { x = 130, z = 165, yaw = math.pi }
+local PLANE_STAND = { x = 255, z = 180, yaw = math.pi } -- eigener Stand, frei von den Gate-Schranken
 
 local plane = {
 	pos = Vector3.new(130, 0, 165), vel = Vector3.new(),
@@ -5322,7 +5350,7 @@ addInteract({
 	end,
 })
 addInteract({
-	x = function() return 124 end, z = function() return 172 end, r = 5,
+	x = function() return 250 end, z = function() return 185 end, r = 5,
 	cond = function() return S.mode == "walk" and S.job == nil end,
 	label = function()
 		if S.credits &gt;= UNLOCK_CAPTAIN then return "Ins Flugzeug steigen (Captain)" end
@@ -5549,6 +5577,9 @@ sysInit("Admin", function()
 					S.adminSpeed = speedOn and 2 or nil
 					toast(speedOn and "🏃 Speed ×2 AN" or "🏃 Speed normal", "good")
 				end },
+				{ "🛂 Zonen-Bypass an/aus", function()
+					adminEv:FireServer("god")
+				end },
 			}
 			for i, d in ipairs(defs) do
 				local c2 = (i - 1) % 2
@@ -5567,10 +5598,13 @@ sysInit("Admin", function()
 			end
 		end)
 	end
-	adminEv.OnClientEvent:Connect(function(what)
+	adminEv.OnClientEvent:Connect(function(what, a)
 		if what == "ok" then
 			isAdm = true
 			toast("👑 Admin aktiv — Taste P öffnet das Admin-Panel.", "good")
+		elseif what == "god" then
+			toast(a and "🛂 Zonen-Bypass AN — Security/Gates ignorieren dich."
+				or "🛂 Zonen-Bypass AUS — du spielst wie ein normaler Spieler.", "good")
 		end
 	end)
 	adminEv:FireServer("hello")

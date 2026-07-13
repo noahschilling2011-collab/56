@@ -95,7 +95,9 @@ local function buildZones()
 		end,
 	})
 	table.insert(zones, {
-		id = "apron", x1 = -380, z1 = -40, x2 = 380, z2 = 231.4,
+		-- ganzes Flugfeld innerhalb des Zauns (inkl. beider Runways + Cargo) —
+		-- sonst laeuft man oestlich ums Vorfeld herum an der Security vorbei
+		id = "apron", x1 = -950, z1 = -560, x2 = 950, z2 = 231.4,
 		req = function(pl)
 			if prov.hasStaff(pl) or boarded[pl] or prov.exemptFlight(pl) then return true end
 			return false, "🛂 Vorfeld: NUR PERSONAL (Mitarbeiter-Ausweis ab Level 2)."

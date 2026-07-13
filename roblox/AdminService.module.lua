@@ -16,6 +16,7 @@ local ADMIN_IDS = {
 
 local adminEv = Instance.new("RemoteEvent"); adminEv.Name = "AdminCmd"; adminEv.Parent = RS
 
+local god = {} -- [pl] = true: Zonen-Bypass aktiv (Schalter im Panel, Standard AUS)
 local inv, flights
 local M = 3.4
 
@@ -32,6 +33,12 @@ local TELEPORTS = {
 	tower = { -138, 0.5, 250 },
 }
 
+-- Zonen-Bypass: NUR wenn der Admin ihn im Panel eingeschaltet hat.
+-- So erlebt auch der Besitzer Security/Gates ganz normal (Standard: AUS).
+function Admin.isExempt(pl)
+	return god[pl] == true and Admin.isAdmin(pl)
+end
+
 function Admin.isAdmin(pl)
 	if RunService:IsStudio() then return true end
 	if ADMIN_IDS[pl.UserId] then return true end
@@ -45,6 +52,9 @@ adminEv.OnServerEvent:Connect(function(pl, cmd, arg)
 	end
 	if cmd == "hello" then
 		adminEv:FireClient(pl, "ok")
+	elseif cmd == "god" then
+		god[pl] = not god[pl] or nil
+		adminEv:FireClient(pl, "god", god[pl] == true)
 	elseif cmd == "credits" then
 		inv.adminGive(pl, math.clamp(tonumber(arg) or 1000, -100000, 100000), 0)
 	elseif cmd == "xp" then
@@ -67,6 +77,10 @@ adminEv.OnServerEvent:Connect(function(pl, cmd, arg)
 			root.CFrame = CFrame.new(t[1] * M, t[2] * M + 4, t[3] * M)
 		end
 	end
+end)
+
+game:GetService("Players").PlayerRemoving:Connect(function(pl)
+	god[pl] = nil
 end)
 
 function Admin.init(inventoryService, flightService)

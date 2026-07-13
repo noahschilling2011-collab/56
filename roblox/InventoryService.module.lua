@@ -202,7 +202,9 @@ jobEv.OnServerEvent:Connect(function(pl, job)
 	if not state[pl] or type(job) ~= "string" or not JOBS[job] then return end
 	local tk = tokens[pl]
 	local now = os.clock()
-	if tk and now - (tk.lastStart or 0) < 8 then return end -- Start-Spam
+	-- Rate-Limit nur fuer DENSELBEN Job (sonst blockierte ein Jobwechsel
+	-- unter 8 s den neuen Token — z. B. Check-in beenden und sofort fliegen)
+	if tk and tk.job == job and now - (tk.lastStart or 0) < 8 then return end
 	tokens[pl] = { job = job, started = now, lastAccept = 0, tasks = 0, lastStart = now }
 end)
 

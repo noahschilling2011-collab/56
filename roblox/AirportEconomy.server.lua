@@ -12,7 +12,7 @@ local AdminService = require(ServicesF:WaitForChild("AdminService"))
 FlightService.init()
 InventoryService.init(FlightService)
 ZoneService.init(InventoryService.zoneProvider(), FlightService)
-ZoneService.setAdminCheck(AdminService.isAdmin)
+ZoneService.setAdminCheck(AdminService.isExempt) -- Bypass nur, wenn im Panel eingeschaltet
 AdminService.init(InventoryService, FlightService)
 
 print("[AirportEconomy] Services verdrahtet: Flight -> Inventory -> Zone -> Admin")
