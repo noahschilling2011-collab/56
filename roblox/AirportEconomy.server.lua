@@ -173,8 +173,11 @@ game:BindToClose(function()
 	end
 end)
 
--- ZoneService verdrahten (Phase 1) — Provider liest den Spielerzustand hier
-local ZoneService = require(script.Parent:WaitForChild("Services"):WaitForChild("ZoneService"))
+-- Services verdrahten — Provider liest den Spielerzustand hier
+local ServicesF = script.Parent:WaitForChild("Services")
+local FlightService = require(ServicesF:WaitForChild("FlightService"))
+FlightService.init()
+local ZoneService = require(ServicesF:WaitForChild("ZoneService"))
 ZoneService.init({
 	hasStaff = function(pl)
 		local st = state[pl]
@@ -184,6 +187,6 @@ ZoneService.init({
 	consumePass = function() end,
 	anyPassGate = function() return nil end,
 	exemptFlight = function() return false end, -- Flug-Token kommt in Phase 3
-}, nil)
+}, FlightService)
 
 print("[AirportEconomy] bereit — leaderstats, EarnCredits/BuyItem, DataStore " .. (store and "aktiv" or "NICHT verfügbar (Studio ohne API-Zugriff?)"))

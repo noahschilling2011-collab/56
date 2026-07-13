@@ -487,24 +487,13 @@ local function boardLine(txt, y, color, size)
 	return l
 end
 boardLine("ABFLÜGE · DEPARTURES", 10, Color3.fromRGB(255, 215, 94), 30)
-boardLine("FLUG    ZIEL          ZEIT   STATUS", 55, Color3.fromRGB(127, 150, 173), 22)
-local FLIGHTS = {
-	{ "LH 452", "MÜNCHEN", "14:20", "OPEN" },
-	{ "AB 118", "BERLIN", "14:35", "BOARDING" },
-	{ "EW 771", "WIEN", "14:50", "OPEN" },
-	{ "FR 903", "PARIS", "15:05", "CLOSED" },
-	{ "KL 233", "AMSTERDAM", "15:20", "OPEN" },
-	{ "SK 660", "OSLO", "15:40", "CLOSED" },
-}
--- Umlaut-sichere Spaltenbreite (utf8.len statt Byte-Laenge)
-local function pad(s, n)
-	local len = utf8.len(s) or #s
-	return s .. string.rep(" ", math.max(0, n - len))
-end
-for i, f in ipairs(FLIGHTS) do
-	local col = f[4] == "OPEN" and Color3.fromRGB(84, 208, 106) or f[4] == "BOARDING" and Color3.fromRGB(255, 215, 94) or Color3.fromRGB(255, 99, 99)
-	boardLine(pad(f[1], 8) .. pad(f[2], 14) .. f[3], 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
-	local st = boardLine(f[4], 60 + i * 38, col, 22)
+boardLine("FLUG    ZIEL         ZEIT   GATE  STATUS", 55, Color3.fromRGB(127, 150, 173), 22)
+-- Die Zeilen fuellt der FlightService (eine Wahrheit fuer alle Fluege) — hier nur benannte Labels
+for i = 1, 6 do
+	local row = boardLine("…", 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
+	row.Name = "BRow" .. i
+	local st = boardLine("…", 60 + i * 38, Color3.fromRGB(127, 150, 173), 22)
+	st.Name = "BStat" .. i
 	st.Position = UDim2.new(0, 470, 0, 60 + i * 38)
 end
 
@@ -527,6 +516,53 @@ mpart(belt, "BeltBody", 3, 0.9, 64, -20, 0.45, 226, COL.dark)
 mpart(belt, "BeltTop", 3.4, 0.2, 64.4, -20, 0.95, 226, Color3.fromRGB(28, 30, 36))
 mpart(belt, "BeltEndT", 3.6, 1.6, 1.2, -20, 0.8, 257, Color3.fromRGB(96, 103, 116))
 mpart(belt, "BeltEndA", 3.6, 1.6, 1.2, -20, 0.8, 195, Color3.fromRGB(96, 103, 116))
+
+---------------------------------------------------------------- Echte Gates (Zustand kommt vom FlightService)
+-- Pro Stand: Gate-Counter mit Live-Display (GDCode/GDStatus), Boarding-Schranke
+-- (CanCollide — schaltet der ZoneService) und ueberdachte Gangway zur Parkposition.
+local function makeGate(nr, px)
+	local g = Instance.new("Model"); g.Name = "Gate" .. nr; g.Parent = airport
+	-- Counter
+	mpart(g, "GCounter", 3.2, 1.1, 1.1, px - 5.4, 0.55, 197.5, Color3.fromRGB(53, 80, 110))
+	mpart(g, "GCounterTop", 3.3, 0.08, 1.2, px - 5.4, 1.14, 197.5, Color3.fromRGB(94, 200, 255), { CanCollide = false })
+	-- Display auf Pole (zeigt zur Wartezone im Norden, Face Back = +Z)
+	mpart(g, "GDPole", 0.18, 3.0, 0.18, px - 5.4, 1.5, 196.6, Color3.fromRGB(102, 110, 120))
+	local disp = mpart(g, "GateDisplay" .. nr, 2.9, 1.5, 0.16, px - 5.4, 3.6, 196.6, Color3.fromRGB(11, 18, 32), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(360, 190); sg.Parent = disp
+	local title = Instance.new("TextLabel"); title.Size = UDim2.new(1, 0, 0, 48); title.BackgroundTransparency = 1
+	title.Font = Enum.Font.GothamBlack; title.TextSize = 34; title.TextColor3 = Color3.fromRGB(255, 215, 94)
+	title.Text = "GATE " .. nr; title.Parent = sg
+	local code = Instance.new("TextLabel"); code.Size = UDim2.new(1, 0, 0, 56); code.Position = UDim2.new(0, 0, 0, 52)
+	code.BackgroundTransparency = 1; code.Font = Enum.Font.GothamBold; code.TextSize = 30
+	code.TextColor3 = Color3.fromRGB(232, 238, 247); code.Text = "…"; code.Name = "GDCode" .. nr; code.Parent = sg
+	local status = Instance.new("TextLabel"); status.Size = UDim2.new(1, 0, 0, 56); status.Position = UDim2.new(0, 0, 0, 116)
+	status.BackgroundTransparency = 1; status.Font = Enum.Font.GothamBlack; status.TextSize = 38
+	status.TextColor3 = Color3.fromRGB(127, 150, 173); status.Text = "…"; status.Name = "GDStatus" .. nr; status.Parent = sg
+	-- Boarding-Schranke quer zum Standzugang (oeffnet NUR der ZoneService)
+	mpart(g, "GSPfostenW", 0.35, 3.0, 0.4, px - 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
+	mpart(g, "GSPfostenE", 0.35, 3.0, 0.4, px + 3.1, 1.5, 195, Color3.fromRGB(138, 146, 158))
+	mpart(g, "GateSchranke" .. nr, 5.9, 2.8, 0.25, px, 1.4, 195, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+	-- Zaunstuecke links/rechts, damit man nicht um die Schranke herumlaeuft
+	mpart(g, "GFenceW", 10.4, 1.4, 0.2, px - 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
+	mpart(g, "GFenceE", 10.4, 1.4, 0.2, px + 8.5, 0.7, 195, Color3.fromRGB(154, 163, 173))
+	-- Gangway: kurzer ueberdachter Korridor von der Schranke Richtung Flugzeug
+	-- (endet bei z 189 — die Jet-Hecks reichen bis ~186, nichts clippt)
+	for _, sx in ipairs({ -2.4, 2.4 }) do
+		mpart(g, "GRail", 0.14, 1.05, 5.6, px + sx, 0.55, 192, Color3.fromRGB(170, 178, 188))
+	end
+	mpart(g, "GDach", 5.6, 0.16, 5.8, px, 3.3, 192, Color3.fromRGB(190, 199, 209), { CanCollide = false })
+	for _, dz in ipairs({ 190, 194 }) do
+		mpart(g, "GDachPfosten", 0.14, 3.2, 0.14, px - 2.4, 1.65, dz, Color3.fromRGB(170, 178, 188))
+		mpart(g, "GDachPfosten", 0.14, 3.2, 0.14, px + 2.4, 1.65, dz, Color3.fromRGB(170, 178, 188))
+	end
+	mpart(g, "GPfad", 4.6, 0.05, 28, px, 0.2, 181, Color3.fromRGB(216, 182, 42), { CanCollide = false })
+end
+for nr, px in ipairs({ -130, -40, 40, 130, 200 }) do
+	makeGate(nr, px)
+end
+-- Leitlinie auf dem Gate-Walkway: von der Suedtuer zu den Gates
+mpart(airport, "WalkwayLinie", 340, 0.05, 0.35, 35, 0.22, 198.5, COL.yellow, { CanCollide = false })
+mpart(airport, "WalkwayLinie2", 0.35, 0.05, 33, 32, 0.22, 215, COL.yellow, { CanCollide = false })
 
 ---------------------------------------------------------------- Gepaeckwagen
 local cart = Instance.new("Model"); cart.Name = "Cart"; cart.Parent = airport

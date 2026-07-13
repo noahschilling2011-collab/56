@@ -95,14 +95,20 @@ local function setWind(dir, speedKt)
 end
 setWind(210, 4)
 
-local FLIGHTS = {
-	{ code = "LH 452", dest = "MÜNCHEN", time = "14:20", status = "OPEN" },
-	{ code = "AB 118", dest = "BERLIN", time = "14:35", status = "BOARDING" },
-	{ code = "EW 771", dest = "WIEN", time = "14:50", status = "OPEN" },
-	{ code = "FR 903", dest = "PARIS", time = "15:05", status = "CLOSED" },
-	{ code = "KL 233", dest = "AMSTERDAM", time = "15:20", status = "OPEN" },
-	{ code = "SK 660", dest = "OSLO", time = "15:40", status = "CLOSED" },
-}
+-- Fluege kommen NUR noch vom FlightService (eine Wahrheit) — hier ein Live-Spiegel
+local FLIGHTS = {}
+local function refreshFlights(list)
+	table.clear(FLIGHTS)
+	for _, f in ipairs(list or {}) do
+		table.insert(FLIGHTS, { code = f.code, dest = f.dest, time = f.sched, status = f.status, gate = f.gate })
+	end
+end
+task.spawn(function()
+	local gf = ecoRS:WaitForChild("GetFlights")
+	local okInv, list = pcall(function() return gf:InvokeServer() end)
+	if okInv then refreshFlights(list) end
+	ecoRS:WaitForChild("FlightsChanged").OnClientEvent:Connect(refreshFlights)
+end)
 local function findFlight(code)
 	for _, f in ipairs(FLIGHTS) do
 		if f.code == code then return f end

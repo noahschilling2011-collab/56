@@ -30,6 +30,7 @@ client_src = xml_escape((HERE / "AirportClient.client.lua").read_text(encoding="
 shopdata_src = xml_escape((HERE / "ShopData.module.lua").read_text(encoding="utf-8"))
 economy_src = xml_escape((HERE / "AirportEconomy.server.lua").read_text(encoding="utf-8"))
 zone_src = xml_escape((HERE / "ZoneService.module.lua").read_text(encoding="utf-8"))
+flight_src = xml_escape((HERE / "FlightService.module.lua").read_text(encoding="utf-8"))
 
 rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<Meta name="ExplicitAutoJoints">true</Meta>
@@ -127,6 +128,12 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 				<Properties>
 					<string name="Name">ZoneService</string>
 					<ProtectedString name="Source">{zone_src}</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX16">
+				<Properties>
+					<string name="Name">FlightService</string>
+					<ProtectedString name="Source">{flight_src}</ProtectedString>
 				</Properties>
 			</Item>
 		</Item>
