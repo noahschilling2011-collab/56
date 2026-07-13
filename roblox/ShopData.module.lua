@@ -3,7 +3,8 @@
 -- pos = Anker der Geometrie (Meter) · rotation = Blickrichtung der Front (Yaw)
 -- Interaktionspunkt = Theken-Position (lokal -3.2 / +0.9), leitet der Client aus pos+rotation ab
 -- ebene: 1 = Erdgeschoss, 2 = Food-Court-Galerie (Boden bei 4.78 m)
--- items: { Name, Preis, Effekt } · Effekt: xpN | boost | glasses | phones | souvenir
+-- items: { Name, Preis, Effekt } · Effekt: xpN | boost | glasses | phones | souvenir | pass_<Flugcode>
+-- theke = true: nur Schalter statt begehbarem Raum (Ticketschalter)
 
 local ShopData = {
 	{
@@ -70,6 +71,18 @@ local ShopData = {
 		id = "eiscafe", name = "🍦 Eiscafé Venezia", akzentfarbe = Color3.fromRGB(201, 95, 160),
 		pos = { x = 52, z = 296.5 }, ebene = 2, rotation = math.pi,
 		items = { { "🍨 Eisbecher", 10, "xp8" }, { "🧇 Waffel", 8, "xp6" }, { "🥤 Milchshake", 9, "boost" } },
+	},
+	{
+		id = "tickets", name = "🎫 Ticketschalter", akzentfarbe = Color3.fromRGB(94, 200, 255),
+		pos = { x = -26, z = 262 }, ebene = 1, rotation = math.pi, theke = true,
+		items = {
+			{ "🎫 München (LH 452)", 45, "pass_LH 452" },
+			{ "🎫 Berlin (AB 118)", 40, "pass_AB 118" },
+			{ "🎫 Wien (EW 771)", 50, "pass_EW 771" },
+			{ "🎫 Paris (FR 903)", 60, "pass_FR 903" },
+			{ "🎫 Amsterdam (KL 233)", 55, "pass_KL 233" },
+			{ "🎫 Oslo (SK 660)", 65, "pass_SK 660" },
+		},
 	},
 }
 

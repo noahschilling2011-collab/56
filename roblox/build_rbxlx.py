@@ -31,6 +31,7 @@ shopdata_src = xml_escape((HERE / "ShopData.module.lua").read_text(encoding="utf
 economy_src = xml_escape((HERE / "AirportEconomy.server.lua").read_text(encoding="utf-8"))
 zone_src = xml_escape((HERE / "ZoneService.module.lua").read_text(encoding="utf-8"))
 flight_src = xml_escape((HERE / "FlightService.module.lua").read_text(encoding="utf-8"))
+inventory_src = xml_escape((HERE / "InventoryService.module.lua").read_text(encoding="utf-8"))
 
 rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<Meta name="ExplicitAutoJoints">true</Meta>
@@ -134,6 +135,12 @@ rbxlx = f"""<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="h
 				<Properties>
 					<string name="Name">FlightService</string>
 					<ProtectedString name="Source">{flight_src}</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX17">
+				<Properties>
+					<string name="Name">InventoryService</string>
+					<ProtectedString name="Source">{inventory_src}</ProtectedString>
 				</Properties>
 			</Item>
 		</Item>

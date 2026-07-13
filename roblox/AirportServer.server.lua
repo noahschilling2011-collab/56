@@ -1224,6 +1224,23 @@ local function shop(sd)
 	local dk = Color3.fromRGB(44, 51, 60)
 	local grau = Color3.fromRGB(96, 103, 116)
 	local m = Instance.new("Model"); m.Name = "Shop_" .. sd.id; m.Parent = mega
+	if sd.theke then
+		-- Nur-Schalter (Ticketschalter): Theke an derselben lokalen Position wie im
+		-- Raum-Layout (-3.2/-0.8), damit der Client-Interaktionspunkt identisch passt
+		local root0 = mpart(m, "Root", 0.4, 0.4, 0.4, 0, 0, 0, dk, { Transparency = 1, CanCollide = false })
+		m.PrimaryPart = root0
+		mpart(m, "Theke", 4.2, 1.05, 1.2, -3.2, 0.52, -0.8, dk)
+		mpart(m, "ThekeTop", 4.3, 0.08, 1.3, -3.2, 1.09, -0.8, col)
+		mpart(m, "Rueckwand", 4.6, 2.6, 0.3, -3.2, 1.3, -1.9, Color3.fromRGB(53, 80, 110))
+		mpart(m, "Monitor", 0.8, 0.5, 0.08, -4.4, 1.45, -1.1, Color3.fromRGB(84, 208, 106), { Material = Enum.Material.Neon, CanCollide = false })
+		local sign = mpart(m, "Schild", 5.4, 0.8, 0.15, -3.2, 3.2, -1.85, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+		local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Back; sg.CanvasSize = Vector2.new(460, 68); sg.Parent = sign
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = col; tl.Text = sd.name; tl.Parent = sg
+		local spl = Instance.new("PointLight"); spl.Brightness = 0.7; spl.Range = 14; spl.Color = col; spl.Parent = sign
+		m:PivotTo(CFrame.new(sd.pos.x * M, baseY * M, sd.pos.z * M) * CFrame.Angles(0, sd.rotation, 0))
+		return
+	end
 	-- Root am lokalen Ursprung als PrimaryPart, sonst pivotiert PivotTo um die Bounding-Box
 	local root = mpart(m, "Root", 0.4, 0.4, 0.4, 0, 0, 0, dk, { Transparency = 1, CanCollide = false })
 	m.PrimaryPart = root

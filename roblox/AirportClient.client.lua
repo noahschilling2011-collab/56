@@ -38,6 +38,7 @@ local buyEv = ecoRS:WaitForChild("BuyItem")
 local syncEv = ecoRS:WaitForChild("SyncState")
 local achEv = ecoRS:WaitForChild("UnlockAch")
 local claimEv = ecoRS:WaitForChild("ClaimVehicle")
+local jobEv = ecoRS:WaitForChild("StartJob")
 
 -- Fehler-Haertung (Phase 4): Systeme starten und laufen isoliert;
 -- ein Fehler in einem System legt nicht HUD + Interaktion still.
@@ -510,11 +511,18 @@ function unlock(id)
 end
 
 -- Autoritativer Kontostand + gespeicherte Erfolge vom Server (Join + nach jeder Meldung)
-syncEv.OnClientEvent:Connect(function(credits, xp, unlocks)
+syncEv.OnClientEvent:Connect(function(credits, xp, unlocks, inv)
 	S.credits = credits
 	S.xp = xp
 	if unlocks then
 		for _, id in ipairs(unlocks) do achieved[id] = true end -- still, ohne Toast
+	end
+	if inv then
+		local hadStaff = S.inv and S.inv.staff_id
+		S.inv = inv
+		if inv.staff_id and not hadStaff then
+			toast("🪪 Mitarbeiter-Ausweis erhalten — Vorfeld, Gepäckkeller & Crew-Gänge offen!", "good")
+		end
 	end
 	updateHUD()
 end)
@@ -716,6 +724,7 @@ end
 
 function startCheckin()
 	checkin.active = true
+	jobEv:FireServer("checkin") -- Job-Token (Phase 3)
 	checkin.index = 0; checkin.correct = 0; checkin.earned = 0
 	checkin.queue = genShiftCases()
 	S.job = "checkin"
@@ -836,6 +845,7 @@ local function genSecCases()
 end
 function startSecJob()
 	secJob.active = true
+	jobEv:FireServer("security")
 	secJob.idx = 0; secJob.correct = 0; secJob.earned = 0
 	secJob.queue = genSecCases()
 	S.job = "security"
@@ -1012,6 +1022,7 @@ end
 
 function startRamp()
 	ramp.active = true
+	jobEv:FireServer("ramp")
 	ramp.cases = {}; ramp.spawned = 0; ramp.delivered = 0; ramp.deliveredOk = 0
 	ramp.timer = 180; ramp.spawnT = 0; ramp.carrying = nil; ramp.nextSlot = 0
 	cart.load = {}
@@ -1300,6 +1311,7 @@ endFuelJob = function(success)
 end
 function startFuelJob()
 	fuelJob.active = true
+	jobEv:FireServer("fuel")
 	fuelJob.fueled = { false, false }
 	fuelJob.fueling = nil
 	fuelJob.timer = 150
@@ -1645,6 +1657,7 @@ local function completeMission()
 end
 
 function startMission(i)
+	jobEv:FireServer("flight") -- Flug-Token: Zonen-Ausnahme + Missions-Bezahlung
 	hidePanel()
 	local m = MISSIONS[i]
 	flight.active = true; flight.mIdx = i; flight.wpIdx = 1
@@ -2082,6 +2095,7 @@ local function endMarshal()
 end
 function startMarshal()
 	marshal.active = true
+	jobEv:FireServer("marshal")
 	marshal.s = 0; marshal.correct = 0; marshal.mistakes = 0
 	marshal.waiting = nil; marshal.sigIdx = 1; marshal.timer = 150
 	S.job = "marshal"
@@ -2437,8 +2451,15 @@ sysInit("Ebenen & Shops", function()
 			S.boostUntil = os.clock() + 60
 			toast("⚡ " .. nm .. ": 60 s schneller unterwegs!", "good")
 		elseif eff == "glasses" or eff == "phones" then
-			wear(eff)
+			-- Anziehen macht der Server (Accessory, bleibt bei Respawn/Rejoin)
 			toast(eff == "glasses" and "🕶 Sonnenbrille aufgesetzt — stylisch!" or "🎧 Kopfhörer aufgesetzt!", "good")
+		elseif eff:sub(1, 5) == "pass_" then
+			local code = eff:sub(6)
+			local gate
+			for _, f in ipairs(FLIGHTS) do
+				if f.code == code then gate = f.gate end
+			end
+			toast("🎫 Boarding-Pass " .. code .. " — durch die Security zu Gate " .. tostring(gate or "?") .. "!", "good")
 		elseif eff == "souvenir" then
 			addXP(15)
 			toast("✈ Mini-A380 eingepackt — ein Stück Flughafen für zu Hause!", "good")
