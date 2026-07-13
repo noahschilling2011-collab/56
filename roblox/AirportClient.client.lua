@@ -585,6 +585,7 @@ RunService.RenderStepped:Connect(function()
 	if h and S.mode == "walk" then
 		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 38 or 24
 		if S.boostUntil and os.clock() < S.boostUntil then ws = ws * 1.35 end -- ☕ Kaffee-Boost
+		if S.adminSpeed then ws = ws * S.adminSpeed end -- 👑 Admin
 		h.WalkSpeed = ws
 	end
 end)
@@ -2557,6 +2558,63 @@ sysInit("Ebenen & Shops", function()
 			action = function() openShopPanel(si) end,
 		})
 	end
+end)
+
+---------------------------------------------------------------- Admin-Panel (Taste P — Server bestaetigt, wer Admin ist)
+sysInit("Admin", function()
+	local adminEv = ecoRS:WaitForChild("AdminCmd")
+	local isAdm = false
+	local speedOn = false
+	local function openAdminPanel()
+		showPanel(function(p)
+			local t = label(p, "👑 ADMIN-PANEL", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), GOLD, 20)
+			t.Font = Enum.Font.GothamBlack
+			local defs = {
+				{ "💰 +1000 Credits", function() adminEv:FireServer("credits", 1000) end },
+				{ "⭐ +500 XP", function() adminEv:FireServer("xp", 500) end },
+				{ "🪪 Ausweis", function() adminEv:FireServer("staff") end },
+				{ "🎫 Alle Pässe", function() adminEv:FireServer("passes") end },
+				{ "🕶🎧 Kosmetik", function() adminEv:FireServer("cosmetics") end },
+				{ "🛫 Boarding Gate 2", function()
+					adminEv:FireServer("boarding", 2)
+					toast("Gate 2: Boarding für 5 Minuten erzwungen.", "good")
+				end },
+				{ "🏃 Speed ×2 an/aus", function()
+					speedOn = not speedOn
+					S.adminSpeed = speedOn and 2 or nil
+					toast(speedOn and "🏃 Speed ×2 AN" or "🏃 Speed normal", "good")
+				end },
+			}
+			for i, d in ipairs(defs) do
+				local c2 = (i - 1) % 2
+				local r2 = math.floor((i - 1) / 2)
+				button(p, d[1], UDim2.new(0, 20 + c2 * 225, 0, 50 + r2 * 46), UDim2.new(0, 215, 0, 38), Color3.fromRGB(50, 90, 130), d[2])
+			end
+			label(p, "Teleport:", UDim2.new(0, 20, 0, 240), UDim2.new(0, 200, 0, 20), GREY, 14)
+			local tps = { "terminal", "vorfeld", "gate1", "keller", "tunnel", "galerie", "parkhaus", "runway", "tower" }
+			for i, nm in ipairs(tps) do
+				local c3 = (i - 1) % 3
+				local r3 = math.floor((i - 1) / 3)
+				button(p, nm, UDim2.new(0, 20 + c3 * 150, 0, 262 + r3 * 38), UDim2.new(0, 140, 0, 32), Color3.fromRGB(60, 74, 92), function()
+					adminEv:FireServer("tp", nm)
+					hidePanel()
+				end)
+			end
+		end)
+	end
+	adminEv.OnClientEvent:Connect(function(what)
+		if what == "ok" then
+			isAdm = true
+			toast("👑 Admin aktiv — Taste P öffnet das Admin-Panel.", "good")
+		end
+	end)
+	adminEv:FireServer("hello")
+	game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+		if gp or not isAdm then return end
+		if input.KeyCode == Enum.KeyCode.P and not panelOpen then
+			openAdminPanel()
+		end
+	end)
 end)
 
 ---------------------------------------------------------------- Hauptschleife

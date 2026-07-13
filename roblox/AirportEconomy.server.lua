@@ -7,9 +7,12 @@ local ServicesF = script.Parent:WaitForChild("Services")
 local FlightService = require(ServicesF:WaitForChild("FlightService"))
 local InventoryService = require(ServicesF:WaitForChild("InventoryService"))
 local ZoneService = require(ServicesF:WaitForChild("ZoneService"))
+local AdminService = require(ServicesF:WaitForChild("AdminService"))
 
 FlightService.init()
 InventoryService.init(FlightService)
 ZoneService.init(InventoryService.zoneProvider(), FlightService)
+ZoneService.setAdminCheck(AdminService.isAdmin)
+AdminService.init(InventoryService, FlightService)
 
-print("[AirportEconomy] Services verdrahtet: Flight -> Inventory -> Zone")
+print("[AirportEconomy] Services verdrahtet: Flight -> Inventory -> Zone -> Admin")

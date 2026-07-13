@@ -313,6 +313,27 @@ game:BindToClose(function()
 	end
 end)
 
+---------------------------------------------------------------- Admin-Zugriffe (nur vom AdminService gerufen, serverseitig)
+function Inv.adminGive(pl, credits, xp)
+	local st = state[pl]
+	if not st then return end
+	st.credits = math.max(0, st.credits + math.floor(credits or 0))
+	st.xp = math.max(0, st.xp + math.floor(xp or 0))
+	maybeGrantStaff(pl)
+	pushLeaderstats(pl)
+	fullSync(pl)
+end
+
+function Inv.adminGrant(pl, itemId)
+	local st = state[pl]
+	if not st then return end
+	if (st.inventory[itemId] or 0) == 0 then
+		Inv.addItem(pl, itemId)
+	end
+	if COSMETICS[itemId] then equipCosmetic(pl, itemId) end
+	fullSync(pl)
+end
+
 ---------------------------------------------------------------- Provider fuer den ZoneService
 function Inv.zoneProvider()
 	return {

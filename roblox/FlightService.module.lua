@@ -34,6 +34,7 @@ local FLIGHTS = {
 }
 
 local t0 = os.clock()
+local overrides = {} -- [code] = { state, untilT } — Admin kann Boarding erzwingen
 local changedEv = Instance.new("RemoteEvent"); changedEv.Name = "FlightsChanged"; changedEv.Parent = RS
 local getFn = Instance.new("RemoteFunction"); getFn.Name = "GetFlights"; getFn.Parent = RS
 
@@ -41,9 +42,22 @@ local boardRows = {} -- { row = TextLabel, stat = TextLabel }
 local gateGuis = {} -- [gateNr] = { code = TextLabel, status = TextLabel }
 
 local function rawState(i)
+	local o = overrides[FLIGHTS[i].code]
+	if o and os.clock() < o.untilT then return o.state end
 	-- Fluege um 120 s versetzt, damit die Tafel lebt und meist 2-3 offen sind
 	local slot = math.floor(((os.clock() - t0 + (i - 1) * 120) % CYCLE) / SLOT) + 1
 	return STATES[slot]
+end
+
+-- Admin: erzwingt 5 Minuten BOARDING fuer den ersten Flug am Gate
+function Flight.forceGateBoarding(gate)
+	for _, f in ipairs(FLIGHTS) do
+		if f.gate == gate then
+			overrides[f.code] = { state = "BOARDING", untilT = os.clock() + 300 }
+			return f.code
+		end
+	end
+	return nil
 end
 
 function Flight.getFlights()

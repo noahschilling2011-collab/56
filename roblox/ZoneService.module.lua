@@ -22,6 +22,11 @@ local SPAWN = Vector3.new(-30, 1.2, 268) -- Meter, Terminalhalle
 
 local zones = {}
 local barriers = {}
+local adminCheck = nil -- Admins (Spielbesitzer) sind zonen-exempt
+
+function Zone.setAdminCheck(fn)
+	adminCheck = fn
+end
 local lastLegal = {} -- [pl] = Vector3 (Studs)
 local lastPos = {}
 local boarded = {} -- [pl] = GateNr (temporaer, bis zurueck im Terminal)
@@ -113,7 +118,8 @@ local function updateBarriers()
 			local want = false
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local root = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
-				if root and (root.Position - b.part.Position).Magnitude < 6 * M and b.check(pl) then
+				if root and (root.Position - b.part.Position).Magnitude < 6 * M
+					and (b.check(pl) or (adminCheck ~= nil and adminCheck(pl))) then
 					want = true
 					break
 				end
@@ -133,7 +139,7 @@ local function enforce()
 		local root = ch and ch:FindFirstChild("HumanoidRootPart")
 		if root then
 			local p = root.Position
-			if prov.exemptFlight(pl) then
+			if (adminCheck and adminCheck(pl)) or prov.exemptFlight(pl) then
 				-- Captain im Flug: Flugzeug bewegt den Charakter, keine Zonenpruefung
 				lastPos[pl] = p
 				lastLegal[pl] = lastLegal[pl] or p
