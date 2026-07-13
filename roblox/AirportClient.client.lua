@@ -1062,23 +1062,33 @@ end
 
 ---------------------------------------------------------------- Gepaeckwagen fahren
 -- 2D-Kollisionsboxen in Metern {x1,z1,x2,z2}: A380-Ruempfe/-Triebwerke, Stand, Tower, Hangar
--- Fahrbare Autos (Parkplatz + Parkhaus): flotter als der Gepaeckwagen,
--- duerfen auf dem ganzen Gelaende fahren (nicht nur auf dem Vorfeld)
-local carA, carB
+-- ALLE Boden-Autos sind fahrbar (Parkplatz, Parkhaus-EG, CarA/CarB).
+-- P2/P3-Autos bleiben Deko (die Fahrphysik ist eben, y = 0).
+local ALL_CARS = {}
 do
-	local function bindCar(nm, yaw)
-		local mdl = airport:WaitForChild(nm)
-		mdl:WaitForChild("Root")
+	local function bindCar(mdl)
+		mdl:WaitForChild("Root", 5)
+		local piv = mdl:GetPivot()
+		local _, ry = piv:ToEulerAnglesYXZ()
 		return {
-			model = mdl, pos = mdl:GetPivot().Position / M, yaw = yaw,
+			model = mdl, pos = piv.Position / M, yaw = ry,
 			vel = Vector3.new(), load = {},
 			acc = 11, brake = 8, maxF = 19, turn = 2.1,
 			bx1 = -900, bx2 = 900, bz1 = -100, bz2 = 390,
-			claimName = nm,
+			claimName = mdl.Name,
 		}
 	end
-	carA = bindCar("CarA", math.rad(90))
-	carB = bindCar("CarB", math.rad(90))
+	task.spawn(function()
+		airport:WaitForChild("CaptainStand", 30) -- spaetes Bauteil = Map fertig
+		for _, mdl in ipairs(airport:GetDescendants()) do
+			if mdl:IsA("Model") and (mdl.Name:match("^Car%d") or mdl.Name:match("^PDCar%d")
+				or mdl.Name == "CarA" or mdl.Name == "CarB") then
+				if mdl:GetPivot().Position.Y < 1.2 * M then
+					table.insert(ALL_CARS, bindCar(mdl))
+				end
+			end
+		end
+	end)
 end
 
 local CART_COLLIDERS = {
@@ -1349,6 +1359,17 @@ local plane = {
 	ctl = { pitch = 0, roll = 0, yaw = 0 },
 }
 local PHYS = { thrustAcc = 7.6, drag0 = 0.0021, liftK = 0.0098, stallKt = 50, rotateKt = 55 }
+-- ALLE Flugzeuge fliegbar: Profile veraendern PHYS + Steuerbarkeit + Kamera.
+-- craftBind haelt das aktuell geflogene Deko-Modell (nil = eigene Cessna).
+local CRAFTS = {
+	cessna = { label = "Cessna", thrust = 7.6, stall = 50, rot = 55, agility = 1, cam = 1, eyeY = 2.06, fixedGear = false },
+	a380 = { model = "JetA", label = "A380", thrust = 12.5, stall = 62, rot = 72, agility = 0.45, cam = 3.2, eyeY = 4.4, fixedGear = true },
+	a320 = { model = "JetB", label = "A320", thrust = 11.5, stall = 58, rot = 68, agility = 0.6, cam = 2.2, eyeY = 3.4, fixedGear = true },
+	b747 = { model = "Jumbo747", label = "Boeing 747", thrust = 12, stall = 60, rot = 70, agility = 0.5, cam = 3.0, eyeY = 4.2, fixedGear = true },
+	atr = { model = "ATR", label = "ATR-Turboprop", thrust = 9, stall = 52, rot = 60, agility = 0.8, cam = 1.8, eyeY = 2.9, fixedGear = true },
+	biz = { model = "Bizjet", label = "Businessjet", thrust = 13, stall = 54, rot = 62, agility = 0.9, cam = 1.4, eyeY = 2.1, fixedGear = true },
+}
+local craftBind = { craft = CRAFTS.cessna, pending = CRAFTS.cessna, model = nil, home = nil }
 
 local function planeCF()
 	return CFrame.new(plane.pos.X * M, plane.pos.Y * M, plane.pos.Z * M)
@@ -1370,6 +1391,10 @@ end
 local PROP_HUB = CFrame.new(0, 1.32 * M, -3.02 * M)
 
 local function syncPlaneMesh()
+	if craftBind.model then
+		craftBind.model:PivotTo(planeCF())
+		return
+	end
 	local cf = planeCF()
 	local propRot = CFrame.Angles(0, 0, plane.propSpin)
 	local gearRot = CFrame.Angles((1 - plane.gearAnim) * 1.9, 0, 0)
@@ -1555,13 +1580,22 @@ local function endFlightToApron(msg)
 	flight.active = false
 	clearRings()
 	setWind(210, 4)
+	-- geflogenen Jet zurueck an sein Gate parken + Standard-Physik (Cessna)
+	if craftBind.model then
+		craftBind.model:PivotTo(craftBind.home)
+		craftBind.model = nil
+	end
+	craftBind.craft = CRAFTS.cessna
+	craftBind.pending = CRAFTS.cessna
+	PHYS.thrustAcc = 7.6; PHYS.stallKt = 50; PHYS.rotateKt = 55
 	resetPlaneToStand()
 	S.job = nil
 	S.mode = "walk"
 	setCharacterHidden(false)
 	camera.CameraType = Enum.CameraType.Custom
 	local r = hrp()
-	if r then r.CFrame = CFrame.new(122 * M, 3.5, 174 * M) end
+	-- Ausstieg am NEUEN Captain-Stand (alter Punkt 122/174 lag mitten in Gate 4!)
+	if r then r.CFrame = CFrame.new(250 * M, 3.5, 187 * M) end
 	for _, n in ipairs({ "GlassBand", "Windshield" }) do
 		local part = planeModel:FindFirstChild(n)
 		if part then part.LocalTransparencyModifier = 0 end
@@ -1661,6 +1695,21 @@ function startMission(i)
 	jobEv:FireServer("flight") -- Flug-Token: Zonen-Ausnahme + Missions-Bezahlung
 	hidePanel()
 	local m = MISSIONS[i]
+	-- gewaehltes Flugzeug binden (Profil -> Physik, Deko-Modell -> Mesh)
+	local craft = craftBind.pending or CRAFTS.cessna
+	craftBind.craft = craft
+	PHYS.thrustAcc = craft.thrust
+	PHYS.stallKt = craft.stall
+	PHYS.rotateKt = craft.rot
+	if craftBind.model then craftBind.model:PivotTo(craftBind.home) end
+	craftBind.model = nil
+	if craft.model then
+		local mdl = airport:FindFirstChild(craft.model)
+		if mdl then
+			craftBind.model = mdl
+			craftBind.home = mdl:GetPivot()
+		end
+	end
 	flight.active = true; flight.mIdx = i; flight.wpIdx = 1
 	flight.phase = #m.rings > 0 and "fly" or "land"
 	flight.landed = false; flight.landStats = nil
@@ -1692,6 +1741,11 @@ function startMission(i)
 	setFlightHUD(true)
 	setJobHUD("CAPTAIN · " .. m.name, missionObjective())
 	toast("Mission gestartet: " .. m.name, "info")
+	if craftBind.craft.fixedGear then
+		plane.gearDown = true
+		plane.gearAnim = 1
+	end
+	syncPlaneMesh()
 end
 
 local function openMissionSelect()
@@ -1732,7 +1786,9 @@ local function updateFlightPhysics(dt)
 	end
 	p.brake = keys[Enum.KeyCode.B] == true
 	if edge(Enum.KeyCode.G) then
-		if p.onGround and p.gearDown then
+		if craftBind.craft.fixedGear then
+			toast("Dieses Flugzeug behält das Fahrwerk draußen.", "info")
+		elseif p.onGround and p.gearDown then
 			toast("Fahrwerk am Boden nicht einfahrbar!", "bad")
 		else
 			p.gearDown = not p.gearDown
@@ -1754,10 +1810,10 @@ local function updateFlightPhysics(dt)
 	local eff = clamp(kt / 75, 0, 1.35)
 
 	if not p.onGround then
-		local auth = p.stalled and 0.35 or 1
+		local auth = (p.stalled and 0.35 or 1) * craftBind.craft.agility
 		p.roll = clamp(p.roll + p.ctl.roll * 2.0 * eff * auth * dt, -1.25, 1.25)
 		p.pitch = clamp(p.pitch + p.ctl.pitch * 0.85 * eff * auth * dt, -0.7, 0.55)
-		p.yaw = p.yaw - p.ctl.yaw * 0.55 * eff * dt
+		p.yaw = p.yaw - p.ctl.yaw * 0.55 * eff * craftBind.craft.agility * dt
 		if speed > 8 then
 			p.yaw = p.yaw - math.tan(clamp(p.roll, -1.2, 1.2)) * 9.81 / math.max(speed, 18) * dt
 		end
@@ -1931,13 +1987,14 @@ local function updateFlightCamera(dt)
 		if part then part.LocalTransparencyModifier = cockpit and 1 or 0 end
 	end
 	if cockpit then
-		camera.CFrame = cf * CFrame.new(0, 2.06 * M, -0.15 * M)
+		camera.CFrame = cf * CFrame.new(0, craftBind.craft.eyeY * M, -0.15 * M)
 		return
 	end
 	local fwd = cf.LookVector
 	local fh = Vector3.new(fwd.X, 0, fwd.Z)
 	if fh.Magnitude > 0.01 then fh = fh.Unit end
-	local wantM = plane.pos - fh * 16 + Vector3.new(0, 5.5, 0)
+	local zoom = craftBind.craft.cam
+	local wantM = plane.pos - fh * 16 * zoom + Vector3.new(0, 5.5 * zoom, 0)
 	local want = Vector3.new(wantM.X * M, math.max(wantM.Y, 1.2) * M, wantM.Z * M)
 	local k = 1 - math.exp(-4.2 * dt)
 	camP = camP:Lerp(want, k)
@@ -2306,16 +2363,25 @@ addInteract({
 	label = function() return "Tankwagen fahren" end,
 	action = function() requestVehicle(fuelTruck, "FuelTruck") end,
 })
-for _, cv in ipairs({ { nil, "CarA", "🚗 Auto fahren (Parkplatz)" }, { nil, "CarB", "🚗 Auto fahren (Parkhaus)" } }) do
-	local nm, lbl = cv[2], cv[3]
-	addInteract({
-		x = function() return (nm == "CarA" and carA or carB).pos.X end,
-		z = function() return (nm == "CarA" and carA or carB).pos.Z end, r = 4.2,
-		cond = function() return S.mode == "walk" end,
-		label = function() return lbl .. " · WASD, E = aussteigen" end,
-		action = function() requestVehicle(nm == "CarA" and carA or carB, nm) end,
-	})
-end
+-- ALLE Bodenautos (Parkplatz + Parkdeck Ebene 1) werden fahrbar:
+-- die Liste ALL_CARS fuellt sich asynchron, sobald die Map steht.
+task.spawn(function()
+	local tries = 0
+	while #ALL_CARS == 0 and tries < 120 do
+		task.wait(0.5)
+		tries = tries + 1
+	end
+	for _, v in ipairs(ALL_CARS) do
+		local car = v
+		addInteract({
+			x = function() return car.pos.X end,
+			z = function() return car.pos.Z end, r = 4.2,
+			cond = function() return S.mode == "walk" end,
+			label = function() return "🚗 Auto fahren · WASD, E = aussteigen" end,
+			action = function() requestVehicle(car, car.claimName) end,
+		})
+	end
+end)
 -- Station: Tankwagen-Job
 addInteract({
 	x = function() return -152 end, z = function() return 215 end, r = 4,
@@ -2368,11 +2434,42 @@ addInteract({
 			toast("Du brauchst " .. UNLOCK_CAPTAIN .. " Credits für die Captain-Lizenz!", "bad")
 			return
 		end
+		craftBind.pending = CRAFTS.cessna
 		showTutorial("captain", "JOB: Captain",
 			"Dein eigenes Propellerflugzeug!\n· Shift/Strg(X) Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben erst ab ~55 kt, dann Fahrwerk G einfahren\n· F Klappen (0°/15°/35°): mehr Auftrieb, weniger Stallspeed – ideal zum Landen\n· Unter 50 kt droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft < 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
 			openMissionSelect)
 	end,
 })
+-- Alle grossen Jets am Vorfeld sind fliegbar (Captain-Lizenz vorausgesetzt):
+-- E an der Flugzeugnase waehlt das Muster, die Mission startet wie gewohnt
+-- auf der Runway — der Deko-Jet wird solange ausgeblendet (geparkt).
+for _, jd in ipairs({
+	{ key = "a380", x = -40, z = 149 },
+	{ key = "a320", x = 40, z = 150 },
+	{ key = "b747", x = 200, z = 152 },
+	{ key = "atr", x = -185, z = 162 },
+	{ key = "biz", x = 266, z = 176 },
+}) do
+	local craft = CRAFTS[jd.key]
+	addInteract({
+		x = function() return jd.x end, z = function() return jd.z end, r = 5,
+		cond = function() return S.mode == "walk" and S.job == nil end,
+		label = function()
+			if S.credits >= UNLOCK_CAPTAIN then return "✈ " .. craft.label .. " fliegen (Captain)" end
+			return craft.label .. " – gesperrt (" .. UNLOCK_CAPTAIN .. " Credits nötig)"
+		end,
+		action = function()
+			if S.credits < UNLOCK_CAPTAIN then
+				toast("Du brauchst " .. UNLOCK_CAPTAIN .. " Credits für die Captain-Lizenz!", "bad")
+				return
+			end
+			craftBind.pending = craft
+			showTutorial("captain", "JOB: Captain",
+				"Du fliegst: " .. craft.label .. "!\n· Shift/Strg(X) Schub · W/S Pitch (S = ziehen) · A/D Roll · Q/E Ruder/Bugrad\n· Abheben je nach Muster ab ~55–75 kt\n· F Klappen (0°/15°/35°): mehr Auftrieb, weniger Stallspeed – ideal zum Landen\n· Unter der Stallspeed droht der Stall – Nase runter, Schub rein!\n· Der Wind versetzt dich seitlich – Vorhaltewinkel fliegen\n· Landung: PAPI 2× rot / 2× weiß, sanft < 200 ft/min = Butter 🧈\n· C Kamera · B Bremse · R Reset ans Vorfeld",
+				openMissionSelect)
+		end,
+	})
+end
 
 ---------------------------------------------------------------- Ebenen-Teleports + funktionierende Laeden + Kosmetik
 sysInit("Ebenen & Shops", function()
@@ -2666,8 +2763,9 @@ end
 local function stepFahrzeuge(dt)
 	updateVehicle(cart, dt)
 	updateVehicle(fuelTruck, dt)
-	updateVehicle(carA, dt)
-	updateVehicle(carB, dt)
+	for _, v in ipairs(ALL_CARS) do
+		updateVehicle(v, dt)
+	end
 end
 local function stepKoffer()
 	if ramp.carrying then

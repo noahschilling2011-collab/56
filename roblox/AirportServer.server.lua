@@ -756,6 +756,17 @@ sysInit("Parkhaus-Deko", function()
 			end
 		end
 	end
+	-- Absturz-Gelaender auf P2 + P3 (Luecke an den Rampen im Osten)
+	for _, gy in ipairs({ 3.45, 6.85 }) do
+		local rc = Color3.fromRGB(170, 178, 186)
+		mpart(pd, "PRailN", X2 - X1, 1.0, 0.18, (X1 + X2) / 2, gy + 0.6, Z1 + 0.2, rc)
+		mpart(pd, "PRailS", X2 - X1, 1.0, 0.18, (X1 + X2) / 2, gy + 0.6, Z2 - 0.2, rc)
+		mpart(pd, "PRailW", 0.18, 1.0, Z2 - Z1, X1 + 0.2, gy + 0.6, (Z1 + Z2) / 2, rc)
+		-- Ostkante: Gelaender nur ausserhalb der Rampengasse (x X2-9 .. X2-1)
+		mpart(pd, "PRailE1", 0.18, 1.0, 14, X2 - 0.4, gy + 0.6, Z1 + 7, rc)
+		mpart(pd, "PRailE2", 0.18, 1.0, 14, X2 - 0.4, gy + 0.6, Z2 - 7, rc)
+	end
+
 	-- Einfahrt Sued-Ost: Schranke (rot/weiss) + Ticketautomat
 	mpart(pd, "SchrankenSockel", 0.55, 1.15, 0.55, -92.5, 0.58, 305.5, Color3.fromRGB(138, 146, 158))
 	for i = 0, 3 do
@@ -907,12 +918,15 @@ sysInit("Parkdeck", function()
 		end
 	end
 	-- Autos auf allen Ebenen: richtige Modelle, in Buchten geparkt (Nase zur Wand)
+	-- eindeutige Namen -> die im Erdgeschoss sind alle fahrbar (Claims brauchen Namen)
 	math.randomseed(17)
+	local pdNr = 0
 	for _, y in ipairs({ 0.15, 3.6, 7.0 }) do
 		for x = X1 + 10, X2 - 12, 4.2 do
 			if math.random() > 0.45 then
+				pdNr = pdNr + 1
 				local south = math.random() < 0.5
-				makeCar(pd, "PDCar", x, south and (Z1 + 5.8) or (Z2 - 5.8), south and 180 or 0, nil, y)
+				makeCar(pd, "PDCar" .. pdNr, x, south and (Z1 + 5.8) or (Z2 - 5.8), south and 180 or 0, nil, y)
 			end
 		end
 	end
@@ -1046,9 +1060,11 @@ for x = -58, 40, 7 do
 	mpart(deco2, "ParkLine", 0.35, 0.1, 5.5, x, 0.2, 312, COL.white, { CanCollide = false })
 end
 math.randomseed(11)
+local carNr = 0
 for x = -54.5, 40, 7 do
 	if math.random() > 0.35 then
-		makeCar(deco2, "Car", x, 309.8, 180 + math.random(-6, 6))
+		carNr = carNr + 1
+		makeCar(deco2, "Car" .. carNr, x, 309.8, 180 + math.random(-6, 6))
 	end
 end
 -- Zwei FAHRBARE Autos: eines am Parkplatz, eines im Parkhaus (E zum Einsteigen)
