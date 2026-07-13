@@ -2048,12 +2048,15 @@ local ServicesF = script.Parent:WaitForChild("Services")
 local FlightService = require(ServicesF:WaitForChild("FlightService"))
 local InventoryService = require(ServicesF:WaitForChild("InventoryService"))
 local ZoneService = require(ServicesF:WaitForChild("ZoneService"))
+local AdminService = require(ServicesF:WaitForChild("AdminService"))
 
 FlightService.init()
 InventoryService.init(FlightService)
 ZoneService.init(InventoryService.zoneProvider(), FlightService)
+ZoneService.setAdminCheck(AdminService.isAdmin)
+AdminService.init(InventoryService, FlightService)
 
-print("[AirportEconomy] Services verdrahtet: Flight -&gt; Inventory -&gt; Zone")
+print("[AirportEconomy] Services verdrahtet: Flight -&gt; Inventory -&gt; Zone -&gt; Admin")
 </ProtectedString>
 			</Properties>
 		</Item>
@@ -2088,6 +2091,11 @@ local SPAWN = Vector3.new(-30, 1.2, 268) -- Meter, Terminalhalle
 
 local zones = {}
 local barriers = {}
+local adminCheck = nil -- Admins (Spielbesitzer) sind zonen-exempt
+
+function Zone.setAdminCheck(fn)
+	adminCheck = fn
+end
 local lastLegal = {} -- [pl] = Vector3 (Studs)
 local lastPos = {}
 local boarded = {} -- [pl] = GateNr (temporaer, bis zurueck im Terminal)
@@ -2179,7 +2187,8 @@ local function updateBarriers()
 			local want = false
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local root = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
-				if root and (root.Position - b.part.Position).Magnitude &lt; 6 * M and b.check(pl) then
+				if root and (root.Position - b.part.Position).Magnitude &lt; 6 * M
+					and (b.check(pl) or (adminCheck ~= nil and adminCheck(pl))) then
 					want = true
 					break
 				end
@@ -2199,7 +2208,7 @@ local function enforce()
 		local root = ch and ch:FindFirstChild("HumanoidRootPart")
 		if root then
 			local p = root.Position
-			if prov.exemptFlight(pl) then
+			if (adminCheck and adminCheck(pl)) or prov.exemptFlight(pl) then
 				-- Captain im Flug: Flugzeug bewegt den Charakter, keine Zonenpruefung
 				lastPos[pl] = p
 				lastLegal[pl] = lastLegal[pl] or p
@@ -2336,6 +2345,7 @@ local FLIGHTS = {
 }
 
 local t0 = os.clock()
+local overrides = {} -- [code] = { state, untilT } — Admin kann Boarding erzwingen
 local changedEv = Instance.new("RemoteEvent"); changedEv.Name = "FlightsChanged"; changedEv.Parent = RS
 local getFn = Instance.new("RemoteFunction"); getFn.Name = "GetFlights"; getFn.Parent = RS
 
@@ -2343,9 +2353,22 @@ local boardRows = {} -- { row = TextLabel, stat = TextLabel }
 local gateGuis = {} -- [gateNr] = { code = TextLabel, status = TextLabel }
 
 local function rawState(i)
+	local o = overrides[FLIGHTS[i].code]
+	if o and os.clock() &lt; o.untilT then return o.state end
 	-- Fluege um 120 s versetzt, damit die Tafel lebt und meist 2-3 offen sind
 	local slot = math.floor(((os.clock() - t0 + (i - 1) * 120) % CYCLE) / SLOT) + 1
 	return STATES[slot]
+end
+
+-- Admin: erzwingt 5 Minuten BOARDING fuer den ersten Flug am Gate
+function Flight.forceGateBoarding(gate)
+	for _, f in ipairs(FLIGHTS) do
+		if f.gate == gate then
+			overrides[f.code] = { state = "BOARDING", untilT = os.clock() + 300 }
+			return f.code
+		end
+	end
+	return nil
 end
 
 function Flight.getFlights()
@@ -2784,6 +2807,27 @@ game:BindToClose(function()
 	end
 end)
 
+---------------------------------------------------------------- Admin-Zugriffe (nur vom AdminService gerufen, serverseitig)
+function Inv.adminGive(pl, credits, xp)
+	local st = state[pl]
+	if not st then return end
+	st.credits = math.max(0, st.credits + math.floor(credits or 0))
+	st.xp = math.max(0, st.xp + math.floor(xp or 0))
+	maybeGrantStaff(pl)
+	pushLeaderstats(pl)
+	fullSync(pl)
+end
+
+function Inv.adminGrant(pl, itemId)
+	local st = state[pl]
+	if not st then return end
+	if (st.inventory[itemId] or 0) == 0 then
+		Inv.addItem(pl, itemId)
+	end
+	if COSMETICS[itemId] then equipCosmetic(pl, itemId) end
+	fullSync(pl)
+end
+
 ---------------------------------------------------------------- Provider fuer den ZoneService
 function Inv.zoneProvider()
 	return {
@@ -2818,6 +2862,91 @@ function Inv.init(flightService)
 end
 
 return Inv
+</ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX18">
+				<Properties>
+					<string name="Name">AdminService</string>
+					<ProtectedString name="Source">-- AdminService · Admin-Rechte fuer den Spielbesitzer.
+-- WER ist Admin? (1) Der Creator des Spiels (dein Account), (2) jeder im
+-- Studio (zum Testen), (3) UserIds aus ADMIN_IDS unten (Freunde eintragen!).
+-- Alle Befehle werden SERVERSEITIG geprueft — ein normaler Spieler, der das
+-- Remote feuert, bekommt nur eine Warnung im Output.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local RS = game:GetService("ReplicatedStorage")
+
+local Admin = {}
+
+-- Hier zusaetzliche Admins eintragen, z. B. [123456789] = true,
+local ADMIN_IDS = {
+}
+
+local adminEv = Instance.new("RemoteEvent"); adminEv.Name = "AdminCmd"; adminEv.Parent = RS
+
+local inv, flights
+local M = 3.4
+
+-- Teleport-Ziele in Metern (y = Bodenhoehe)
+local TELEPORTS = {
+	terminal = { -30, 0.5, 268 },
+	vorfeld = { 32, 0.5, 210 },
+	gate1 = { -130, 0.5, 200 },
+	keller = { -25, -4.6, 255 },
+	tunnel = { -90, -4.6, 290 },
+	galerie = { 35, 4.9, 280 },
+	parkhaus = { -125, 0.5, 330 },
+	runway = { -700, 0.5, 8 },
+	tower = { -138, 0.5, 250 },
+}
+
+function Admin.isAdmin(pl)
+	if RunService:IsStudio() then return true end
+	if ADMIN_IDS[pl.UserId] then return true end
+	return game.CreatorType == Enum.CreatorType.User and pl.UserId == game.CreatorId
+end
+
+adminEv.OnServerEvent:Connect(function(pl, cmd, arg)
+	if not Admin.isAdmin(pl) then
+		warn("[AdminService] " .. pl.Name .. " hat ohne Admin-Rechte '" .. tostring(cmd) .. "' versucht — ignoriert.")
+		return
+	end
+	if cmd == "hello" then
+		adminEv:FireClient(pl, "ok")
+	elseif cmd == "credits" then
+		inv.adminGive(pl, math.clamp(tonumber(arg) or 1000, -100000, 100000), 0)
+	elseif cmd == "xp" then
+		inv.adminGive(pl, 0, math.clamp(tonumber(arg) or 500, 0, 100000))
+	elseif cmd == "staff" then
+		inv.adminGrant(pl, "staff_id")
+	elseif cmd == "passes" then
+		for _, f in ipairs(flights.getFlights()) do
+			inv.adminGrant(pl, "pass_" .. f.code)
+		end
+	elseif cmd == "cosmetics" then
+		inv.adminGrant(pl, "glasses")
+		inv.adminGrant(pl, "phones")
+	elseif cmd == "boarding" then
+		flights.forceGateBoarding(math.clamp(tonumber(arg) or 1, 1, 5))
+	elseif cmd == "tp" then
+		local t = TELEPORTS[tostring(arg)]
+		local root = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+		if t and root then
+			root.CFrame = CFrame.new(t[1] * M, t[2] * M + 4, t[3] * M)
+		end
+	end
+end)
+
+function Admin.init(inventoryService, flightService)
+	inv = inventoryService
+	flights = flightService
+	M = workspace:GetAttribute("MetersToStuds") or M
+	print("[AdminService] bereit — Admin: Creator, Studio, ADMIN_IDS (" .. (game.CreatorType == Enum.CreatorType.User and ("CreatorId " .. game.CreatorId) or "Gruppenspiel") .. ")")
+end
+
+return Admin
 </ProtectedString>
 				</Properties>
 			</Item>
@@ -3421,6 +3550,7 @@ RunService.RenderStepped:Connect(function()
 	if h and S.mode == "walk" then
 		local ws = (keys[Enum.KeyCode.LeftShift] or keys[Enum.KeyCode.RightShift]) and 38 or 24
 		if S.boostUntil and os.clock() &lt; S.boostUntil then ws = ws * 1.35 end -- ☕ Kaffee-Boost
+		if S.adminSpeed then ws = ws * S.adminSpeed end -- 👑 Admin
 		h.WalkSpeed = ws
 	end
 end)
@@ -5393,6 +5523,63 @@ sysInit("Ebenen &amp; Shops", function()
 			action = function() openShopPanel(si) end,
 		})
 	end
+end)
+
+---------------------------------------------------------------- Admin-Panel (Taste P — Server bestaetigt, wer Admin ist)
+sysInit("Admin", function()
+	local adminEv = ecoRS:WaitForChild("AdminCmd")
+	local isAdm = false
+	local speedOn = false
+	local function openAdminPanel()
+		showPanel(function(p)
+			local t = label(p, "👑 ADMIN-PANEL", UDim2.new(0, 20, 0, 14), UDim2.new(1, -40, 0, 26), GOLD, 20)
+			t.Font = Enum.Font.GothamBlack
+			local defs = {
+				{ "💰 +1000 Credits", function() adminEv:FireServer("credits", 1000) end },
+				{ "⭐ +500 XP", function() adminEv:FireServer("xp", 500) end },
+				{ "🪪 Ausweis", function() adminEv:FireServer("staff") end },
+				{ "🎫 Alle Pässe", function() adminEv:FireServer("passes") end },
+				{ "🕶🎧 Kosmetik", function() adminEv:FireServer("cosmetics") end },
+				{ "🛫 Boarding Gate 2", function()
+					adminEv:FireServer("boarding", 2)
+					toast("Gate 2: Boarding für 5 Minuten erzwungen.", "good")
+				end },
+				{ "🏃 Speed ×2 an/aus", function()
+					speedOn = not speedOn
+					S.adminSpeed = speedOn and 2 or nil
+					toast(speedOn and "🏃 Speed ×2 AN" or "🏃 Speed normal", "good")
+				end },
+			}
+			for i, d in ipairs(defs) do
+				local c2 = (i - 1) % 2
+				local r2 = math.floor((i - 1) / 2)
+				button(p, d[1], UDim2.new(0, 20 + c2 * 225, 0, 50 + r2 * 46), UDim2.new(0, 215, 0, 38), Color3.fromRGB(50, 90, 130), d[2])
+			end
+			label(p, "Teleport:", UDim2.new(0, 20, 0, 240), UDim2.new(0, 200, 0, 20), GREY, 14)
+			local tps = { "terminal", "vorfeld", "gate1", "keller", "tunnel", "galerie", "parkhaus", "runway", "tower" }
+			for i, nm in ipairs(tps) do
+				local c3 = (i - 1) % 3
+				local r3 = math.floor((i - 1) / 3)
+				button(p, nm, UDim2.new(0, 20 + c3 * 150, 0, 262 + r3 * 38), UDim2.new(0, 140, 0, 32), Color3.fromRGB(60, 74, 92), function()
+					adminEv:FireServer("tp", nm)
+					hidePanel()
+				end)
+			end
+		end)
+	end
+	adminEv.OnClientEvent:Connect(function(what)
+		if what == "ok" then
+			isAdm = true
+			toast("👑 Admin aktiv — Taste P öffnet das Admin-Panel.", "good")
+		end
+	end)
+	adminEv:FireServer("hello")
+	game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
+		if gp or not isAdm then return end
+		if input.KeyCode == Enum.KeyCode.P and not panelOpen then
+			openAdminPanel()
+		end
+	end)
 end)
 
 ---------------------------------------------------------------- Hauptschleife
