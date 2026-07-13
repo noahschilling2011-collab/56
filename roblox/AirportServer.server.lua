@@ -9,6 +9,7 @@
 ]]
 
 local M = 3.4 -- Studs pro Meter (muss zum Client passen)
+workspace:SetAttribute("MetersToStuds", M) -- Services (Zone/Flight/Inventory) lesen den Massstab hier
 
 local Workspace = game:GetService("Workspace")
 
@@ -505,6 +506,19 @@ for i, f in ipairs(FLIGHTS) do
 	boardLine(pad(f[1], 8) .. pad(f[2], 14) .. f[3], 60 + i * 38, Color3.fromRGB(232, 238, 247), 22)
 	local st = boardLine(f[4], 60 + i * 38, col, 22)
 	st.Position = UDim2.new(0, 470, 0, 60 + i * 38)
+end
+
+-- Security-Schranke an der Suedtuer: einziger legaler Landside->Airside-Weg zu Fuss.
+-- CanCollide=true; oeffnen tut sie NUR der ZoneService (Transparency/CanCollide).
+mpart(term, "SecSchrankePfostenW", 0.4, 3.4, 0.5, 27.6, 1.7, 232, Color3.fromRGB(138, 146, 158))
+mpart(term, "SecSchrankePfostenE", 0.4, 3.4, 0.5, 36.4, 1.7, 232, Color3.fromRGB(138, 146, 158))
+mpart(term, "SecSchranke", 8, 3.2, 0.3, 32, 1.6, 232, Color3.fromRGB(159, 212, 232), { Transparency = 0.35, Material = Enum.Material.Glass })
+do
+	local s = mpart(term, "SecSchild", 6, 0.9, 0.14, 32, 3.9, 231.6, Color3.fromRGB(21, 32, 47), { CanCollide = false })
+	local sg = Instance.new("SurfaceGui"); sg.Face = Enum.NormalId.Front; sg.CanvasSize = Vector2.new(460, 70); sg.Parent = s
+	local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+	tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94)
+	tl.Text = "🛂 SECURITY — Boarding-Pass oder Ausweis bereithalten"; tl.Parent = sg
 end
 
 ---------------------------------------------------------------- Gepaeckband Terminal -> Vorfeld

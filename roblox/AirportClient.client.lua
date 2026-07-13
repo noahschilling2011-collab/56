@@ -226,6 +226,14 @@ local function toast(msg, kind)
 	task.delay(3, function() f:Destroy() end)
 end
 
+-- Zonen-Meldungen vom Server (Zutritt verweigert / Boarding ok)
+task.spawn(function()
+	local zoneEv = ecoRS:WaitForChild("ZoneDenied")
+	zoneEv.OnClientEvent:Connect(function(msg, ok)
+		toast(msg, ok and "good" or "bad")
+	end)
+end)
+
 -- Steuerungs-Legende (H)
 local legend = frame(gui, UDim2.new(0, 14, 1, -132), UDim2.new(0, 430, 0, 118))
 label(legend,

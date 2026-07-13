@@ -173,4 +173,17 @@ game:BindToClose(function()
 	end
 end)
 
+-- ZoneService verdrahten (Phase 1) — Provider liest den Spielerzustand hier
+local ZoneService = require(script.Parent:WaitForChild("Services"):WaitForChild("ZoneService"))
+ZoneService.init({
+	hasStaff = function(pl)
+		local st = state[pl]
+		return st ~= nil and (st.unlocks.staff_id == true or st.xp >= 100) -- Ausweis ab Level 2
+	end,
+	hasPass = function() return false end,      -- Boarding-Paesse gibt es ab Phase 3
+	consumePass = function() end,
+	anyPassGate = function() return nil end,
+	exemptFlight = function() return false end, -- Flug-Token kommt in Phase 3
+}, nil)
+
 print("[AirportEconomy] bereit — leaderstats, EarnCredits/BuyItem, DataStore " .. (store and "aktiv" or "NICHT verfügbar (Studio ohne API-Zugriff?)"))
