@@ -407,7 +407,22 @@ local function wallSeg(nm, x1, x2, z, color, transp)
 		transp and { Transparency = 0.6, Material = Enum.Material.Glass } or { Material = Enum.Material.Concrete })
 end
 -- Glasfront Nord (zum Vorfeld), Tuer bei x 28..36
-wallSeg("GlassW", T.x1, 28, T.z1, COL.glass, true)
+-- Glasfront West mit Crew-Tuer bei x -60 (StaffTuer1 oeffnet nur der ZoneService)
+wallSeg("GlassW1", T.x1, -62.6, T.z1, COL.glass, true)
+wallSeg("GlassW2", -57.4, 28, T.z1, COL.glass, true)
+mpart(term, "StaffTuerSturz", 5.2, T.h - 3.4, 0.6, -60, 3.4 + (T.h - 3.4) / 2, T.z1, COL.glass, { Transparency = 0.6, Material = Enum.Material.Glass })
+mpart(term, "StaffTuer1", 5.0, 3.3, 0.3, -60, 1.65, T.z1, Color3.fromRGB(255, 170, 60), { Transparency = 0.35, Material = Enum.Material.Glass })
+do
+	local s = mpart(term, "StaffTuerSchild", 5.6, 0.8, 0.14, -60, 3.85, T.z1 + 0.45, Color3.fromRGB(58, 42, 16), { CanCollide = false })
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local sg = Instance.new("SurfaceGui"); sg.Face = face; sg.CanvasSize = Vector2.new(520, 62); sg.Parent = s
+		local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94)
+		tl.Text = "🪪 CREW-GANG · NUR PERSONAL · ZUTRITT MIT AUSWEIS"; tl.Parent = sg
+	end
+end
+-- Crew-Leitlinie von der Tuer zum Gate-Walkway
+mpart(airport, "CrewLinie", 0.35, 0.05, 33, -60, 0.22, 215, Color3.fromRGB(255, 170, 60), { CanCollide = false })
 wallSeg("GlassE", 36, T.x2, T.z1, COL.glass, true)
 -- Suedwand mit Eingang bei x -8..0
 wallSeg("BackW", T.x1, -8, T.z2, COL.wall)
@@ -563,6 +578,25 @@ end
 -- Leitlinie auf dem Gate-Walkway: von der Suedtuer zu den Gates
 mpart(airport, "WalkwayLinie", 340, 0.05, 0.35, 35, 0.22, 198.5, COL.yellow, { CanCollide = false })
 mpart(airport, "WalkwayLinie2", 0.35, 0.05, 33, 32, 0.22, 215, COL.yellow, { CanCollide = false })
+
+-- Gepaecktunnel-Ausstieg (Rollfeld, neben dem Bandende) + Technikgang-Luke (Fuel Depot)
+for _, ox in ipairs({ -1.6, 1.6 }) do
+	mpart(airport, "GTunnelRail", 0.14, 1.0, 3.6, -14 + ox, 0.5, 197.5, Color3.fromRGB(170, 178, 188))
+	mpart(airport, "TechRail", 0.14, 1.0, 3.4, -146 + ox, 0.5, 214, Color3.fromRGB(170, 178, 188))
+end
+do
+	local function pSchild(nm, x, z, txt)
+		local s = mpart(airport, nm, 4.6, 0.7, 0.14, x, 2.5, z, Color3.fromRGB(58, 42, 16), { CanCollide = false })
+		for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+			local sg = Instance.new("SurfaceGui"); sg.Face = face; sg.CanvasSize = Vector2.new(420, 56); sg.Parent = s
+			local tl = Instance.new("TextLabel"); tl.Size = UDim2.fromScale(1, 1); tl.BackgroundTransparency = 1
+			tl.Font = Enum.Font.GothamBold; tl.TextScaled = true; tl.TextColor3 = Color3.fromRGB(255, 215, 94)
+			tl.Text = txt; tl.Parent = sg
+		end
+	end
+	pSchild("GTunnelSchild", -14, 195.4, "🧳 GEPÄCKTUNNEL · NUR PERSONAL")
+	pSchild("TechSchild", -146, 212, "🛠 TECHNIKGANG · NUR PERSONAL")
+end
 
 ---------------------------------------------------------------- Gepaeckwagen
 local cart = Instance.new("Model"); cart.Name = "Cart"; cart.Parent = airport

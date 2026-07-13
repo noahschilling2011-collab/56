@@ -2399,6 +2399,42 @@ sysInit("Ebenen & Shops", function()
 		cond = function() return S.mode == "walk" and py() < -2 end,
 		label = function() return "⬆ Treppe: Terminal" end,
 		action = function() tp(-66, 0, 281.8) end })
+	-- Personal-Gaenge (Phase 4): Server erzwingt den Ausweis ueber die Zonen,
+	-- der Client sagt vorher ehrlich, warum eine Tuer nicht aufgeht
+	local function hatAusweis()
+		return S.inv ~= nil and (S.inv.staff_id or 0) ~= 0 and S.inv.staff_id ~= nil
+	end
+	local function staffTp(label, x1, y1, z1)
+		return {
+			label = function()
+				if hatAusweis() then return label end
+				return label .. "  (🪪 Ausweis nötig)"
+			end,
+			action = function()
+				if hatAusweis() then
+					tp(x1, y1, z1)
+				else
+					toast("🪪 NUR PERSONAL — Mitarbeiter-Ausweis ab Level 2.", "bad")
+				end
+			end,
+		}
+	end
+	local gt1 = staffTp("⬆ Gepäcktunnel: Rollfeld", -14, 0, 197.5)
+	addInteract({ x = function() return -21 end, z = function() return 253 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() < -2 end,
+		label = gt1.label, action = gt1.action })
+	local gt2 = staffTp("⬇ Gepäcktunnel: Sortierkeller", -21, -4.6, 253)
+	addInteract({ x = function() return -14 end, z = function() return 197.5 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() > -1 end,
+		label = gt2.label, action = gt2.action })
+	local tg1 = staffTp("🛠 Technikgang: Tankstation", -146, 0, 214)
+	addInteract({ x = function() return -48 end, z = function() return 250 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() < -2 end,
+		label = tg1.label, action = tg1.action })
+	local tg2 = staffTp("🛠 Technikgang: Sortierkeller", -48, -4.6, 250)
+	addInteract({ x = function() return -146 end, z = function() return 214 end, r = 3.0,
+		cond = function() return S.mode == "walk" and py() > -1 end,
+		label = tg2.label, action = tg2.action })
 	-- Gepaeckkeller (Personal)
 	addInteract({ x = function() return -52 end, z = function() return 236.5 end, r = 3.2,
 		cond = function() return S.mode == "walk" and py() > -1 end,
