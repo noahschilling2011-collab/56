@@ -38,7 +38,8 @@
   #speedval{font-size:26px;font-weight:600;letter-spacing:.5px;color:#dfe8f2;
     text-shadow:0 2px 8px #000}
   #speedval small{font-size:11px;color:var(--dim);font-weight:400;margin-left:3px}
-  #stance{font-size:10px;letter-spacing:3px;color:var(--dim);margin-top:2px}
+  #stance{font-size:10px;letter-spacing:3px;color:var(--dim);margin-top:2px;
+    text-shadow:0 1px 4px rgba(0,0,0,.9)}
 
   /* Trefferkreuz */
   #hitmark{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
@@ -53,7 +54,8 @@
   /* Munition */
   #ammobox{position:absolute;right:34px;bottom:30px;text-align:right;
     font-variant-numeric:tabular-nums}
-  #wname{font-size:11px;letter-spacing:4px;color:var(--dim);margin-bottom:2px}
+  #wname{font-size:11px;letter-spacing:4px;color:var(--dim);margin-bottom:2px;
+    text-shadow:0 1px 4px rgba(0,0,0,.9)}
   #wname b{color:var(--txt);font-weight:600}
   #ammo{font-size:40px;font-weight:600;line-height:1;color:#e9f0f7;text-shadow:0 2px 10px #000}
   #ammo span{font-size:17px;color:var(--dim);font-weight:400;margin-left:6px}
@@ -70,7 +72,7 @@
 
   /* Trefferprotokoll + Schadenszahlen */
   #hitlog{position:absolute;right:34px;top:52px;text-align:right;font-size:11.5px;
-    letter-spacing:1px;line-height:1.9;color:var(--dim)}
+    letter-spacing:1px;line-height:1.9;color:var(--dim);text-shadow:0 1px 4px rgba(0,0,0,.9)}
   #hitlog div span{color:var(--txt);font-weight:600}
   #hitlog div.hs span{color:#ff7a5a}
   .dmgpop{position:absolute;font-size:15px;font-weight:700;color:#ffd479;
@@ -94,7 +96,7 @@
     color:var(--dim);font-variant-numeric:tabular-nums;text-align:right}
 
   #bottomleft{position:absolute;left:26px;bottom:26px}
-  #maptag{font-size:10px;letter-spacing:4px;color:var(--dim)}
+  #maptag{font-size:10px;letter-spacing:4px;color:var(--dim);text-shadow:0 1px 4px rgba(0,0,0,.9)}
   #maptag b{color:var(--acc);font-weight:600}
 
   /* ---------- Overlays ---------- */
@@ -103,7 +105,8 @@
     backdrop-filter:blur(3px);z-index:20}
   .screen.on{display:flex}
   .card{width:min(560px,92vw);background:var(--panel);border:1px solid var(--line);
-    border-radius:4px;padding:30px 32px 26px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+    border-radius:4px;padding:30px 32px 26px;box-shadow:0 30px 80px rgba(0,0,0,.7);
+    max-height:94vh;overflow-y:auto}
   .brand{font-size:11px;letter-spacing:7px;color:var(--acc);margin-bottom:6px}
   h1{font-size:30px;font-weight:600;letter-spacing:2px;margin-bottom:4px;color:#eef3f8}
   h1 span{color:var(--dim);font-weight:300}
@@ -134,6 +137,42 @@
     border-radius:50%;background:var(--acc2);border:0;cursor:pointer}
   input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;
     background:var(--acc2);border:0;cursor:pointer}
+  .card.wide{width:min(860px,94vw)}
+  .screen.side{justify-content:flex-start;padding-left:min(6vw,90px);
+    background:linear-gradient(100deg,rgba(5,7,10,.97) 0%,rgba(5,7,10,.93) 42%,
+      rgba(5,7,10,.35) 62%,rgba(5,7,10,0) 78%)}
+  .screen.side .card{width:min(600px,90vw);background:rgba(10,13,17,.94)}
+
+  /* Mapauswahl */
+  .mapgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .mapcard{border:1px solid var(--line);border-radius:3px;padding:12px;cursor:pointer;
+    transition:border-color .15s,background .15s;background:rgba(255,255,255,.015)}
+  .mapcard:hover{border-color:#3a4550;background:rgba(255,255,255,.04)}
+  .mapcard.act{border-color:var(--acc2);background:rgba(79,209,197,.08)}
+  .mapcard canvas{width:100%;height:auto;display:block;border-radius:2px;background:#0c0f13}
+  .mapgrid+.rule{margin-top:14px}
+  .mapcard h3{font-size:14px;font-weight:600;letter-spacing:2px;margin:10px 0 2px;color:#e6edf5}
+  .mapcard p{font-size:11.5px;color:var(--dim);letter-spacing:.4px}
+  .mapcard b{float:right;font-size:10px;letter-spacing:2px;color:var(--acc2);font-weight:600}
+
+  /* Skins */
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tabs div{flex:1;text-align:center;font-size:11px;letter-spacing:2px;padding:9px 4px;
+    border:1px solid var(--line);border-radius:3px;color:var(--dim);cursor:pointer}
+  .tabs div:hover{border-color:#3a4550;color:var(--txt)}
+  .tabs div.act{background:var(--acc2);border-color:var(--acc2);color:#08120f;font-weight:600}
+  .skingrid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;max-height:46vh;
+    overflow-y:auto;padding-right:4px}
+  .skin{cursor:pointer;border:1px solid var(--line);border-radius:3px;padding:4px;
+    transition:border-color .15s,transform .08s}
+  .skin:hover{border-color:#48535f;transform:translateY(-1px)}
+  .skin.act{border-color:var(--acc2);box-shadow:0 0 0 1px var(--acc2)}
+  .skin canvas{width:100%;height:auto;display:block;border-radius:2px}
+  .skin span{display:block;font-size:8.5px;letter-spacing:.6px;text-align:center;margin-top:4px;
+    color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #skinname{font-size:12px;letter-spacing:2px;color:var(--dim)}
+  #skinname b{font-weight:600}
+
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     text-align:center;padding:40px;font-size:14px;line-height:1.7;color:var(--bad);z-index:50}
 </style>
@@ -190,6 +229,8 @@
     <div class="rule"></div>
     <div class="row">
       <div class="grow"></div>
+      <button class="ghost" id="btnMaps">MAPS</button>
+      <button class="ghost" id="btnSkins">SKINS</button>
       <button class="ghost" id="btnSettings">EINSTELLUNGEN</button>
       <button id="btnPlay">STARTEN</button>
     </div>
@@ -204,9 +245,35 @@
     <div class="rule"></div>
     <div class="row">
       <div class="grow"></div>
+      <button class="ghost" id="btnMaps2">MAPS</button>
+      <button class="ghost" id="btnSkins2">SKINS</button>
       <button class="ghost" id="btnSettings2">EINSTELLUNGEN</button>
       <button id="btnResume">WEITER</button>
     </div>
+  </div>
+</div>
+
+<div class="screen" id="maps">
+  <div class="card wide">
+    <div class="brand">E I N S A T Z O R T</div>
+    <h1>Map wählen</h1>
+    <p class="sub">Vier eigene Schauplätze — jeder mit zwei Spawns, zwei Lanes, einer Mitte
+      und einem Bombenplatz.</p>
+    <div class="mapgrid" id="mapgrid"></div>
+    <div class="rule"></div>
+    <div class="row"><div class="grow"></div><button id="btnMapBack">ZURÜCK</button></div>
+  </div>
+</div>
+
+<div class="screen side" id="skins">
+  <div class="card">
+    <div class="brand">L A C K I E R U N G E N</div>
+    <h1>Skins</h1>
+    <div class="tabs" id="skintabs"></div>
+    <div class="skingrid" id="skingrid"></div>
+    <div class="rule"></div>
+    <div class="row"><div id="skinname"></div><div class="grow"></div>
+      <button id="btnSkinBack">ZURÜCK</button></div>
   </div>
 </div>
 
@@ -253,7 +320,7 @@ let time = 0;                    // Spielzeit in Sekunden, läuft nur im Spiel
 /* --------------------------------------------------------------------------
    1 · Einstellungen (überleben den Reload, wenn der Browser es erlaubt)
    -------------------------------------------------------------------------- */
-const Settings = { sens: 2.2, fov: 90 };
+const Settings = { sens: 2.2, fov: 90, map: 'anlage', skins: { rifle: 0, pistol: 0, sniper: 0 } };
 try {
   const raw = localStorage.getItem('blacksite.settings');
   if (raw) Object.assign(Settings, JSON.parse(raw));
@@ -283,12 +350,14 @@ const camera = new THREE.PerspectiveCamera(Settings.fov, innerWidth / innerHeigh
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 
-scene.add(new THREE.AmbientLight(0xb9cadd, 0.42));
+const ambient = new THREE.AmbientLight(0xb9cadd, 0.42);
+scene.add(ambient);
 const hemi = new THREE.HemisphereLight(0xa9c2e0, 0x2a3038, 1.30);
 scene.add(hemi);
 
+const sunDir = new THREE.Vector3(-26, 44, 18);
 const sun = new THREE.DirectionalLight(0xffe9cc, 2.1);
-sun.position.set(-26, 44, 18);
+sun.position.copy(sunDir);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -46; sun.shadow.camera.right = 46;
@@ -334,7 +403,7 @@ const envMap = buildEnvironment();
 scene.environment = envMap;
 
 /* --------------------------------------------------------------------------
-   3 · Prozedurale Texturen (keine externen Dateien)
+   3 · Prozedurale Texturen und Farbwelten (keine externen Dateien)
    -------------------------------------------------------------------------- */
 function makeTexture(size, draw) {
   const c = document.createElement('canvas');
@@ -346,107 +415,154 @@ function makeTexture(size, draw) {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-function noise(g, s, amount, alpha) {
+function noise(g, s, amount) {
   const img = g.getImageData(0, 0, s, s), d = img.data;
   for (let i = 0; i < d.length; i += 4) {
     const n = (Math.random() - 0.5) * amount;
     d[i] += n; d[i + 1] += n; d[i + 2] += n;
-    if (alpha !== undefined) d[i + 3] = alpha;
   }
   g.putImageData(img, 0, 0);
 }
 
-const texFloor = makeTexture(256, (g, s) => {
-  g.fillStyle = '#2b3038'; g.fillRect(0, 0, s, s);
-  g.strokeStyle = '#22272e'; g.lineWidth = 4;
-  for (let i = 0; i <= 4; i++) {
-    const p = i * s / 4;
-    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, s); g.stroke();
-    g.beginPath(); g.moveTo(0, p); g.lineTo(s, p); g.stroke();
+/** Jede Map hat ihre eigene Farbwelt — Boden, Wände, Licht und Nebel. */
+const THEMES = {
+  industrie: {
+    floor: ['#2b3038', '#22272e', 'rgba(255,255,255,.025)'],
+    wall:  ['#3b424c', '#343b44'],
+    crate: ['#7a5c33', '#6a4f2b', '#48331b'],
+    metal: ['#2f5350', '#1d3a38'],
+    site:  ['#31363c', '#3a4048', '#c9942f'],
+    sky: 0x161c25, fogNear: 40, fogFar: 130,
+    hemi: [0xa9c2e0, 0x2a3038, 1.30], amb: [0xb9cadd, 0.42],
+    sun: [0xffe9cc, 2.10], sunDir: [-26, 44, 18], fill: [0x9ec2e8, 0.55],
+    lampA: 0xffa542, lampB: 0x49c9ff
+  },
+  hafen: {
+    floor: ['#3a3f45', '#2f343a', 'rgba(190,210,230,.05)'],
+    wall:  ['#4a545e', '#3f4952'],
+    crate: ['#8a6a3a', '#755a30', '#4f3a1e'],
+    metal: ['#8c4a2c', '#6b3720'],
+    site:  ['#3a4046', '#454c53', '#d8b44a'],
+    sky: 0x1d2733, fogNear: 46, fogFar: 150,
+    hemi: [0xbcd4ee, 0x323a42, 1.45], amb: [0xc6d6e6, 0.48],
+    sun: [0xfff0d8, 2.35], sunDir: [30, 40, -22], fill: [0x8fb6dc, 0.60],
+    lampA: 0xffb35c, lampB: 0x5ad2ff
+  },
+  bunker: {
+    floor: ['#3b3a34', '#31302b', 'rgba(255,240,200,.04)'],
+    wall:  ['#57534a', '#4a4740'],
+    crate: ['#6e6a4a', '#5c583e', '#3c3927'],
+    metal: ['#484c50', '#33373a'],
+    site:  ['#3c3a34', '#46443c', '#b8892c'],
+    sky: 0x14130f, fogNear: 22, fogFar: 74,
+    hemi: [0xd8c9a4, 0x2c2a26, 1.15], amb: [0xe0d2b0, 0.50],
+    sun: [0xffdca8, 1.65], sunDir: [-14, 40, -10], fill: [0xffca7a, 0.55],
+    lampA: 0xffb04a, lampB: 0xffb04a
+  },
+  oase: {
+    floor: ['#8a7550', '#7a6644', 'rgba(255,240,200,.06)'],
+    wall:  ['#b09166', '#9c7f58'],
+    crate: ['#8f6d3c', '#7a5c31', '#553f20'],
+    metal: ['#6d7a72', '#525d57'],
+    site:  ['#9a8258', '#a68d61', '#4a3a1c'],
+    sky: 0x9fb4c8, fogNear: 60, fogFar: 190,
+    hemi: [0xffe6c0, 0x8a7550, 1.70], amb: [0xffeed4, 0.62],
+    sun: [0xfff2d2, 2.85], sunDir: [22, 50, 26], fill: [0xbcd2ea, 0.55],
+    lampA: 0xffcf8a, lampB: 0xffcf8a
   }
-  g.fillStyle = 'rgba(255,255,255,.025)';
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * s, y = Math.random() * s, r = Math.random() * 12 + 3;
-    g.beginPath(); g.arc(x, y, r, 0, 6.3); g.fill();
-  }
-  noise(g, s, 20);
-});
-const texWall = makeTexture(256, (g, s) => {
-  g.fillStyle = '#3b424c'; g.fillRect(0, 0, s, s);
-  g.fillStyle = '#343b44';
-  for (let y = 0; y < s; y += 64) g.fillRect(0, y, s, 3);
-  g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, 0, 3, s);
-  g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(s - 3, 0, 3, s);
-  noise(g, s, 18);
-});
-const texCrate = makeTexture(256, (g, s) => {
-  g.fillStyle = '#7a5c33'; g.fillRect(0, 0, s, s);
-  g.fillStyle = '#6a4f2b';
-  for (let y = 0; y < s; y += 42) g.fillRect(0, y, s, 5);
-  g.strokeStyle = '#48331b'; g.lineWidth = 10;
-  g.strokeRect(5, 5, s - 10, s - 10);
-  g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(10, 10); g.lineTo(s - 10, s - 10); g.stroke();
-  g.beginPath(); g.moveTo(s - 10, 10); g.lineTo(10, s - 10); g.stroke();
-  noise(g, s, 26);
-});
-const texMetal = makeTexture(256, (g, s) => {
-  g.fillStyle = '#2f5350'; g.fillRect(0, 0, s, s);
-  g.fillStyle = 'rgba(0,0,0,.18)';
-  for (let x = 0; x < s; x += 32) g.fillRect(x, 0, 12, s);
-  g.fillStyle = 'rgba(255,255,255,.10)';
-  for (let i = 0; i < 12; i++) {
-    g.beginPath(); g.arc(16 + (i % 4) * 74, 22 + Math.floor(i / 4) * 96, 4, 0, 6.3); g.fill();
-  }
-  noise(g, s, 22);
-});
-const texSite = makeTexture(512, (g, s) => {
-  g.fillStyle = '#31363c'; g.fillRect(0, 0, s, s);
-  g.strokeStyle = '#3a4048'; g.lineWidth = 3;
-  for (let i = 0; i <= 8; i++) {
-    const p = i * s / 8;
-    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, s); g.stroke();
-    g.beginPath(); g.moveTo(0, p); g.lineTo(s, p); g.stroke();
-  }
-  g.save(); g.translate(s / 2, s / 2);
-  for (let i = 0; i < 26; i++) {
-    g.fillStyle = i % 2 ? '#c9942f' : '#20242a';
-    g.fillRect(-s / 2 + i * 20, -s / 2, 20, 16);
-    g.fillRect(-s / 2 + i * 20, s / 2 - 16, 20, 16);
-  }
-  g.restore();
-  g.strokeStyle = 'rgba(201,148,47,.85)'; g.lineWidth = 16;
-  g.beginPath(); g.moveTo(s * .30, s * .78); g.lineTo(s * .50, s * .22);
-  g.lineTo(s * .70, s * .78); g.moveTo(s * .37, s * .60); g.lineTo(s * .63, s * .60);
-  g.stroke();
-  noise(g, s, 14);
-});
-const texSpawn = makeTexture(256, (g, s) => {
-  g.fillStyle = '#262b32'; g.fillRect(0, 0, s, s);
-  g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 8;
-  g.strokeRect(14, 14, s - 28, s - 28);
-  g.setLineDash([26, 22]); g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.13)';
-  g.strokeRect(40, 40, s - 80, s - 80);
-  noise(g, s, 12);
-});
-
-const MAT = {
-  floor:     new THREE.MeshStandardMaterial({ map: texFloor, roughness: .95, metalness: .04 }),
-  wall:      new THREE.MeshStandardMaterial({ map: texWall,  roughness: .88, metalness: .06 }),
-  crate:     new THREE.MeshStandardMaterial({ map: texCrate, roughness: .82, metalness: .02 }),
-  metal:     new THREE.MeshStandardMaterial({ map: texMetal, roughness: .55, metalness: .55 }),
-  site:      new THREE.MeshStandardMaterial({ map: texSite,  roughness: .92, metalness: .05 }),
-  spawnA:    new THREE.MeshStandardMaterial({ map: texSpawn, roughness: .9, color: 0xffbb70 }),
-  spawnB:    new THREE.MeshStandardMaterial({ map: texSpawn, roughness: .9, color: 0x8fd4ff }),
-  stripA:    new THREE.MeshStandardMaterial({ color: 0x111418, emissive: 0xff9330, emissiveIntensity: 1.5 }),
-  stripB:    new THREE.MeshStandardMaterial({ color: 0x111418, emissive: 0x36b6ff, emissiveIntensity: 1.5 })
 };
 
+function buildThemeMaterials(t) {
+  const texFloor = makeTexture(256, (g, s) => {
+    g.fillStyle = t.floor[0]; g.fillRect(0, 0, s, s);
+    g.strokeStyle = t.floor[1]; g.lineWidth = 4;
+    for (let i = 0; i <= 4; i++) {
+      const p = i * s / 4;
+      g.beginPath(); g.moveTo(p, 0); g.lineTo(p, s); g.stroke();
+      g.beginPath(); g.moveTo(0, p); g.lineTo(s, p); g.stroke();
+    }
+    g.fillStyle = t.floor[2];
+    for (let i = 0; i < 90; i++) {
+      g.beginPath(); g.arc(Math.random() * s, Math.random() * s, Math.random() * 12 + 3, 0, 6.3); g.fill();
+    }
+    noise(g, s, 20);
+  });
+  const texWall = makeTexture(256, (g, s) => {
+    g.fillStyle = t.wall[0]; g.fillRect(0, 0, s, s);
+    g.fillStyle = t.wall[1];
+    for (let y = 0; y < s; y += 64) g.fillRect(0, y, s, 3);
+    g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, 0, 3, s);
+    g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(s - 3, 0, 3, s);
+    noise(g, s, 18);
+  });
+  const texCrate = makeTexture(256, (g, s) => {
+    g.fillStyle = t.crate[0]; g.fillRect(0, 0, s, s);
+    g.fillStyle = t.crate[1];
+    for (let y = 0; y < s; y += 42) g.fillRect(0, y, s, 5);
+    g.strokeStyle = t.crate[2]; g.lineWidth = 10; g.strokeRect(5, 5, s - 10, s - 10);
+    g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(10, 10); g.lineTo(s - 10, s - 10); g.stroke();
+    g.beginPath(); g.moveTo(s - 10, 10); g.lineTo(10, s - 10); g.stroke();
+    noise(g, s, 26);
+  });
+  const texMetal = makeTexture(256, (g, s) => {
+    g.fillStyle = t.metal[0]; g.fillRect(0, 0, s, s);
+    g.fillStyle = t.metal[1];
+    for (let x = 0; x < s; x += 32) g.fillRect(x, 0, 12, s);
+    g.fillStyle = 'rgba(255,255,255,.10)';
+    for (let i = 0; i < 12; i++) {
+      g.beginPath(); g.arc(16 + (i % 4) * 74, 22 + Math.floor(i / 4) * 96, 4, 0, 6.3); g.fill();
+    }
+    noise(g, s, 22);
+  });
+  const texSite = makeTexture(512, (g, s) => {
+    g.fillStyle = t.site[0]; g.fillRect(0, 0, s, s);
+    g.strokeStyle = t.site[1]; g.lineWidth = 3;
+    for (let i = 0; i <= 8; i++) {
+      const p = i * s / 8;
+      g.beginPath(); g.moveTo(p, 0); g.lineTo(p, s); g.stroke();
+      g.beginPath(); g.moveTo(0, p); g.lineTo(s, p); g.stroke();
+    }
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = i % 2 ? t.site[2] : 'rgba(20,22,26,.9)';
+      g.fillRect(i * 20, 0, 20, 16);
+      g.fillRect(i * 20, s - 16, 20, 16);
+    }
+    g.strokeStyle = t.site[2]; g.lineWidth = 16;
+    g.beginPath(); g.moveTo(s * .30, s * .78); g.lineTo(s * .50, s * .22);
+    g.lineTo(s * .70, s * .78); g.moveTo(s * .37, s * .60); g.lineTo(s * .63, s * .60);
+    g.stroke();
+    noise(g, s, 14);
+  });
+  const texSpawn = makeTexture(256, (g, s) => {
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, s, s);
+    g.strokeStyle = 'rgba(255,255,255,.30)'; g.lineWidth = 8;
+    g.strokeRect(14, 14, s - 28, s - 28);
+    g.setLineDash([26, 22]); g.lineWidth = 5; g.strokeStyle = 'rgba(255,255,255,.16)';
+    g.strokeRect(40, 40, s - 80, s - 80);
+    noise(g, s, 12);
+  });
+
+  return {
+    floor:  new THREE.MeshStandardMaterial({ map: texFloor, roughness: .95, metalness: .04 }),
+    wall:   new THREE.MeshStandardMaterial({ map: texWall,  roughness: .88, metalness: .06 }),
+    crate:  new THREE.MeshStandardMaterial({ map: texCrate, roughness: .82, metalness: .02 }),
+    metal:  new THREE.MeshStandardMaterial({ map: texMetal, roughness: .55, metalness: .45 }),
+    site:   new THREE.MeshStandardMaterial({ map: texSite,  roughness: .92, metalness: .05 }),
+    spawnA: new THREE.MeshStandardMaterial({ map: texSpawn, roughness: .9, color: 0xffbb70 }),
+    spawnB: new THREE.MeshStandardMaterial({ map: texSpawn, roughness: .9, color: 0x8fd4ff }),
+    stripA: new THREE.MeshStandardMaterial({ color: 0x111418, emissive: 0xff9330, emissiveIntensity: 1.5 }),
+    stripB: new THREE.MeshStandardMaterial({ color: 0x111418, emissive: 0x36b6ff, emissiveIntensity: 1.5 })
+  };
+}
+
 /* --------------------------------------------------------------------------
-   4 · Weltgeometrie + Kollisionsboxen
+   4 · Maps — Daten, Aufbau und Vorschau
    -------------------------------------------------------------------------- */
-const colliders = [];          // {min:{x,y,z}, max:{x,y,z}}
-const worldMeshes = [];        // Ziele für Schuss-Raycasts (Schritt 2)
+const colliders = [];            // AABBs für Kollision und Schüsse
+let MAT = {};                    // Materialien der aktuellen Farbwelt
+let mapGroup = new THREE.Group();
+scene.add(mapGroup);
 
 /** BoxGeometry mit größenabhängigen UVs — eine Textur, keine Verzerrung. */
 function boxGeo(w, h, d, tile) {
@@ -474,76 +590,387 @@ function addPiece(p) {
     const mesh = new THREE.Mesh(boxGeo(p.w, p.h, p.d, p.tile || 0.35), MAT[p.mat]);
     mesh.position.set(vx, p.y + p.h / 2, vz);
     if (p.shadow !== false) { mesh.castShadow = true; mesh.receiveShadow = true; }
-    scene.add(mesh);
+    mapGroup.add(mesh);
     if (p.collide !== false) {
       colliders.push({
         min: { x: vx - p.w / 2, y: p.y,       z: vz - p.d / 2 },
         max: { x: vx + p.w / 2, y: p.y + p.h, z: vz + p.d / 2 }
       });
-      worldMeshes.push(mesh);
     }
   }
 }
 
-const MAP = {
-  /* Innenmaße: x ∈ [-34.5, 34.5], z ∈ [-22.5, 22.5] */
-  minX: -34.5, maxX: 34.5, minZ: -22.5, maxZ: 22.5,
-  spawnPlayer: { x: -29.5, z: 0, yaw: -Math.PI / 2 },
-  spawnEnemy:  [{ x: 29.5, z: -15 }, { x: 30.5, z: -5 }, { x: 30.5, z: 5 }, { x: 29.5, z: 15 }]
-};
-
-const PIECES = [
-  /* Boden + Decke der Halle */
-  { x: 0, y: -1, z: 0, w: 70, h: 1, d: 46, mat: 'floor', tile: .28, shadow: true },
-
-  /* Außenwände */
-  { x: 0,   y: 0, z: -23, w: 70, h: 7,  d: 1,  mat: 'wall', mZ: true },
-  { x: -35, y: 0, z: 0,   w: 1,  h: 7,  d: 46, mat: 'wall', mX: true },
-
-  /* Trennwand Spawn ↔ Feld (Durchgänge: Nord, Mitte, Süd) */
-  { x: -25, y: 0, z: -20.25, w: 1, h: 5, d: 5.5, mat: 'wall', mX: true, mZ: true },
-  { x: -25, y: 0, z: -7.5,   w: 1, h: 5, d: 10,  mat: 'wall', mX: true, mZ: true },
-
-  /* Lane-Trennwände (Durchgänge bei x = ±14) */
-  { x: -20.5, y: 0, z: -8, w: 9,  h: 3.6, d: 1, mat: 'wall', mX: true, mZ: true },
-  { x: 0,     y: 0, z: -8, w: 24, h: 3.6, d: 1, mat: 'wall', mZ: true },
-
-  /* ---- MITTE / BOMBENPLATZ A ---- */
-  { x: 0, y: 0,    z: 0, w: 13,  h: .35, d: 13,  mat: 'site',  tile: .09 },
-  { x: 0, y: .35,  z: 0, w: 2.2, h: 4.2, d: 2.2, mat: 'metal' },
-  { x: -5,   y: .35, z: -5,   w: 1.7, h: 1.7, d: 1.7, mat: 'crate', mX: true, mZ: true },
-  { x: -5.2, y: .35, z: -1.6, w: 1.4, h: .95, d: 1.4, mat: 'crate', mX: true, mZ: true },
-  { x: -10.5, y: 0, z: 0,  w: 1.4, h: 1.15, d: 5.2, mat: 'metal', mX: true },
-  { x: -17,   y: 0, z: -4, w: 5,   h: 2.6,  d: 2.4, mat: 'metal', mX: true, mZ: true },
-  { x: -20,   y: 0, z: -4.4, w: 1.4, h: 4.2, d: 1.4, mat: 'wall',  mX: true, mZ: true },
-  { x: -22.5, y: 0, z: 3.4,  w: 1.6, h: 1.0, d: 2.6, mat: 'crate', mX: true, mZ: true },
-
-  /* ---- NORD- / SÜD-LANE ---- */
-  { x: -14,   y: 0, z: -15.5, w: 6,   h: 2.7, d: 3,   mat: 'metal', mX: true, mZ: true },
-  { x: -19.5, y: 0, z: -11.8, w: 1.7, h: 1.7, d: 1.7, mat: 'crate', mX: true, mZ: true },
-  { x: -19.5, y: 0, z: -13.6, w: 1.5, h: .95, d: 1.5, mat: 'crate', mX: true, mZ: true },
-  { x: -7,    y: 0, z: -20,   w: 1,   h: 3,   d: 5,   mat: 'wall',  mX: true, mZ: true },
-  { x: -3.5,  y: 0, z: -12,   w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
-  { x: 0,     y: 0, z: -17.5, w: 2.4, h: 1.5, d: 2.4, mat: 'metal', mZ: true },
-  { x: 0,     y: 1.5, z: -17.5, w: 1.8, h: 1.1, d: 1.8, mat: 'crate', mZ: true },
-  { x: -22,   y: 0, z: -19.5, w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
-
-  /* ---- SPAWNRÄUME ---- */
-  { x: -28, y: 0, z: -10.5, w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
-  { x: -31, y: 0, z: -17,   w: 3.4, h: 2.4, d: 2.4, mat: 'metal', mX: true, mZ: true }
-];
-PIECES.forEach(addPiece);
-
-/* Spawnmarkierungen + Lichtstreifen (dekorativ, ohne Kollision) */
-addPiece({ x: -30, y: 0.001, z: 0, w: 6, h: .02, d: 9, mat: 'spawnA', tile: .12, collide: false, shadow: false });
-addPiece({ x:  30, y: 0.001, z: 0, w: 6, h: .02, d: 9, mat: 'spawnB', tile: .12, collide: false, shadow: false });
-for (let i = -1; i <= 1; i++) {
-  addPiece({ x: -34.3, y: 4.6, z: i * 8, w: .2, h: .3, d: 4, mat: 'stripA', collide: false, shadow: false });
-  addPiece({ x:  34.3, y: 4.6, z: i * 8, w: .2, h: .3, d: 4, mat: 'stripB', collide: false, shadow: false });
+/** Boden und Außenmauern aus den Maßen der Map. */
+function shell(hw, hd, h) {
+  return [
+    { x: 0, y: -1, z: 0, w: hw * 2 + 2, h: 1, d: hd * 2 + 2, mat: 'floor', tile: .28 },
+    { x: 0, y: 0, z: -(hd + .5), w: hw * 2 + 2, h: h, d: 1, mat: 'wall', mZ: true },
+    { x: -(hw + .5), y: 0, z: 0, w: 1, h: h, d: hd * 2 + 2, mat: 'wall', mX: true }
+  ];
 }
-for (let i = -3; i <= 3; i++) {
-  addPiece({ x: i * 9, y: 6.5, z: -22.4, w: 3.2, h: .18, d: .2, mat: 'stripB', collide: false, shadow: false });
-  addPiece({ x: i * 9, y: 6.5, z:  22.4, w: 3.2, h: .18, d: .2, mat: 'stripB', collide: false, shadow: false });
+
+const MAPS = [
+{
+  id: 'anlage', name: 'ANLAGE 07', sub: 'Industriehalle · eng, symmetrisch',
+  theme: 'industrie', hw: 34.5, hd: 22.5, wallH: 7,
+  spawnPlayer: { x: -29.5, z: 0, yaw: -Math.PI / 2 },
+  spawnEnemy: [{ x: 29.5, z: -15 }, { x: 30.5, z: -5 }, { x: 30.5, z: 5 }, { x: 29.5, z: 15 }],
+  pieces: [
+    /* Trennwand Spawn ↔ Feld (Durchgänge: Nord, Mitte, Süd) */
+    { x: -25, y: 0, z: -20.25, w: 1, h: 5, d: 5.5, mat: 'wall', mX: true, mZ: true },
+    { x: -25, y: 0, z: -7.5,   w: 1, h: 5, d: 10,  mat: 'wall', mX: true, mZ: true },
+    /* Lane-Trennwände (Durchgänge bei x = ±14) */
+    { x: -20.5, y: 0, z: -8, w: 9,  h: 3.6, d: 1, mat: 'wall', mX: true, mZ: true },
+    { x: 0,     y: 0, z: -8, w: 24, h: 3.6, d: 1, mat: 'wall', mZ: true },
+    /* Mitte / Bombenplatz A */
+    { x: 0, y: 0,   z: 0, w: 13,  h: .35, d: 13,  mat: 'site', tile: .09 },
+    { x: 0, y: .35, z: 0, w: 2.2, h: 4.2, d: 2.2, mat: 'metal' },
+    { x: -5,    y: .35, z: -5,   w: 1.7, h: 1.7,  d: 1.7, mat: 'crate', mX: true, mZ: true },
+    { x: -5.2,  y: .35, z: -1.6, w: 1.4, h: .95,  d: 1.4, mat: 'crate', mX: true, mZ: true },
+    { x: -10.5, y: 0,   z: 0,    w: 1.4, h: 1.15, d: 5.2, mat: 'metal', mX: true },
+    { x: -17,   y: 0,   z: -4,   w: 5,   h: 2.6,  d: 2.4, mat: 'metal', mX: true, mZ: true },
+    { x: -20,   y: 0,   z: -4.4, w: 1.4, h: 4.2,  d: 1.4, mat: 'wall',  mX: true, mZ: true },
+    { x: -22.5, y: 0,   z: 3.4,  w: 1.6, h: 1.0,  d: 2.6, mat: 'crate', mX: true, mZ: true },
+    /* Lanes */
+    { x: -14,   y: 0,   z: -15.5, w: 6,   h: 2.7, d: 3,   mat: 'metal', mX: true, mZ: true },
+    { x: -19.5, y: 0,   z: -11.8, w: 1.7, h: 1.7, d: 1.7, mat: 'crate', mX: true, mZ: true },
+    { x: -19.5, y: 0,   z: -13.6, w: 1.5, h: .95, d: 1.5, mat: 'crate', mX: true, mZ: true },
+    { x: -7,    y: 0,   z: -20,   w: 1,   h: 3,   d: 5,   mat: 'wall',  mX: true, mZ: true },
+    { x: -3.5,  y: 0,   z: -12,   w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    { x: 0,     y: 0,   z: -17.5, w: 2.4, h: 1.5, d: 2.4, mat: 'metal', mZ: true },
+    { x: 0,     y: 1.5, z: -17.5, w: 1.8, h: 1.1, d: 1.8, mat: 'crate', mZ: true },
+    { x: -22,   y: 0,   z: -19.5, w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    /* Spawnräume */
+    { x: -28, y: 0, z: -10.5, w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    { x: -31, y: 0, z: -17,   w: 3.4, h: 2.4, d: 2.4, mat: 'metal', mX: true, mZ: true }
+  ],
+  decor: [
+    { x: -34.3, y: 4.6, z: 0, w: .2, h: .3, d: 4, mat: 'stripA', mZ: false, rep: 'stripsA' },
+    { x:  34.3, y: 4.6, z: 0, w: .2, h: .3, d: 4, mat: 'stripB', mZ: false, rep: 'stripsB' }
+  ]
+},
+{
+  id: 'hafen', name: 'HAFEN 12', sub: 'Containerterminal · lange Wege',
+  theme: 'hafen', hw: 37, hd: 24, wallH: 8,
+  spawnPlayer: { x: -32, z: 0, yaw: -Math.PI / 2 },
+  spawnEnemy: [{ x: 32, z: -16 }, { x: 33, z: -6 }, { x: 33, z: 6 }, { x: 32, z: 16 }],
+  pieces: [
+    /* Spawnriegel mit drei Toren */
+    { x: -27, y: 0, z: -21.5, w: 1, h: 6, d: 6,  mat: 'wall', mX: true, mZ: true },
+    { x: -27, y: 0, z: -8.5,  w: 1, h: 6, d: 11, mat: 'wall', mX: true, mZ: true },
+    /* Containerreihen bilden die Lanes */
+    { x: -21, y: 0, z: -10, w: 8, h: 2.8, d: 3, mat: 'metal', mX: true, mZ: true },
+    { x: -21, y: 2.8, z: -10, w: 8, h: 2.8, d: 3, mat: 'crate', mX: true, mZ: true },
+    { x: -9,  y: 0, z: -10, w: 8, h: 2.8, d: 3, mat: 'crate', mX: true, mZ: true },
+    { x: 3,   y: 0, z: -10, w: 8, h: 2.8, d: 3, mat: 'metal', mX: true, mZ: true },
+    { x: 15,  y: 0, z: -10, w: 8, h: 2.8, d: 3, mat: 'crate', mX: true, mZ: true },
+    { x: 15,  y: 2.8, z: -10, w: 8, h: 2.8, d: 3, mat: 'metal', mX: true, mZ: true },
+    /* Kaimauer als Rückwand der Lanes */
+    { x: -14, y: 0, z: -19.5, w: 14, h: 3.4, d: 1.2, mat: 'wall', mX: true, mZ: true },
+    { x: 0,   y: 0, z: -22,   w: 10, h: 2.2, d: 2.4, mat: 'metal', mZ: true },
+    /* Mitte: Bombenplatz A auf der Laderampe */
+    { x: 0, y: 0,  z: 0, w: 16, h: .5, d: 11, mat: 'site', tile: .085 },
+    { x: 0, y: .5, z: 0, w: 3,  h: 3.2, d: 3, mat: 'metal' },
+    { x: 0, y: 3.7, z: 0, w: 2.4, h: 2.2, d: 2.4, mat: 'crate' },
+    { x: -6.4, y: .5, z: -4,   w: 2, h: 2, d: 2, mat: 'crate', mX: true, mZ: true },
+    { x: -6.6, y: .5, z: 0,    w: 1.6, h: 1.0, d: 3, mat: 'crate', mX: true },
+    /* Kräne als Wegmarken */
+    { x: -12, y: 0, z: 6.5, w: 1.2, h: 7.5, d: 1.2, mat: 'metal', mX: true, mZ: true },
+    { x: -12, y: 7.5, z: 4,  w: 1,  h: .8,  d: 6,   mat: 'metal', mX: true, mZ: true },
+    /* Deckung an den Mid-Zugängen */
+    { x: -20, y: 0, z: 0,   w: 2,   h: 1.2, d: 6,   mat: 'metal', mX: true },
+    { x: -24, y: 0, z: -4,  w: 1.8, h: 1.8, d: 1.8, mat: 'crate', mX: true, mZ: true },
+    { x: -16, y: 0, z: -5.5,w: 1.8, h: 1.8, d: 1.8, mat: 'crate', mX: true, mZ: true },
+    { x: -30, y: 0, z: -12, w: 3,   h: 2.4, d: 2.4, mat: 'metal', mX: true, mZ: true },
+    { x: -33, y: 0, z: -19, w: 2,   h: 1.8, d: 1.8, mat: 'crate', mX: true, mZ: true }
+  ],
+  decor: [
+    { x: -36.3, y: 5.4, z: 0, w: .2, h: .3, d: 5, mat: 'stripA', rep: 'stripsA' },
+    { x:  36.3, y: 5.4, z: 0, w: .2, h: .3, d: 5, mat: 'stripB', rep: 'stripsB' }
+  ]
+},
+{
+  id: 'bunker', name: 'BUNKER 03', sub: 'Beton · kurze Wege, harte Ecken',
+  theme: 'bunker', hw: 29, hd: 19, wallH: 4.6,
+  spawnPlayer: { x: -24.5, z: 0, yaw: -Math.PI / 2 },
+  spawnEnemy: [{ x: 24.5, z: -12 }, { x: 25.5, z: -4 }, { x: 25.5, z: 4 }, { x: 24.5, z: 12 }],
+  pieces: [
+    /* Spawnriegel */
+    { x: -21, y: 0, z: -16.5, w: 1, h: 4.6, d: 5, mat: 'wall', mX: true, mZ: true },
+    { x: -21, y: 0, z: -6,    w: 1, h: 4.6, d: 8, mat: 'wall', mX: true, mZ: true },
+    /* Seitenkorridore */
+    { x: -12, y: 0, z: -7, w: 15, h: 4.6, d: 1, mat: 'wall', mX: true, mZ: true },
+    { x: 0,   y: 0, z: -7, w: 6,  h: 4.6, d: 1, mat: 'wall', mZ: true },
+    { x: -6,  y: 0, z: -13, w: 1, h: 4.6, d: 6, mat: 'wall', mX: true, mZ: true },
+    /* Tresorraum mit Bombenplatz A */
+    { x: 0, y: 0, z: 0, w: 11, h: .3, d: 9, mat: 'site', tile: .1 },
+    { x: -5.5, y: 0, z: -3.4, w: 1, h: 4.6, d: 2.4, mat: 'wall', mX: true, mZ: true },
+    { x: 0, y: .3, z: -3.2, w: 2.6, h: 1.1, d: 1.4, mat: 'crate', mZ: true },
+    { x: -3.6, y: .3, z: 2.6, w: 1.5, h: 1.5, d: 1.5, mat: 'crate', mX: true },
+    /* Deckung in den Korridoren */
+    { x: -14, y: 0, z: -3, w: 2.6, h: 1.15, d: 1.6, mat: 'metal', mX: true, mZ: true },
+    { x: -9,  y: 0, z: -10.5, w: 2.4, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    { x: -16, y: 0, z: -14,   w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    { x: 0,   y: 0, z: -15,   w: 4,   h: 1.3, d: 2,   mat: 'metal', mZ: true },
+    { x: -24, y: 0, z: -8,    w: 2,   h: 1.8, d: 1.8, mat: 'crate', mX: true, mZ: true },
+    { x: -12.5, y: 0, z: 0,   w: 1.4, h: 4.6, d: 1.4, mat: 'wall',  mX: true },
+    { x: -17,   y: 0, z: 3.6, w: 1.8, h: 1.2, d: 3.2, mat: 'metal', mX: true }
+  ],
+  decor: [
+    { x: -28.3, y: 3.4, z: 0, w: .2, h: .25, d: 3, mat: 'stripA', rep: 'stripsA' },
+    { x:  28.3, y: 3.4, z: 0, w: .2, h: .25, d: 3, mat: 'stripB', rep: 'stripsB' }
+  ]
+},
+{
+  id: 'oase', name: 'OASE', sub: 'Wüstenposten · offen und hell',
+  theme: 'oase', hw: 38, hd: 25, wallH: 6.5,
+  spawnPlayer: { x: -33, z: 0, yaw: -Math.PI / 2 },
+  spawnEnemy: [{ x: 33, z: -17 }, { x: 34, z: -6 }, { x: 34, z: 6 }, { x: 33, z: 17 }],
+  pieces: [
+    /* Torbögen zum Spawn */
+    { x: -28, y: 0, z: -22, w: 1, h: 5.5, d: 7, mat: 'wall', mX: true, mZ: true },
+    { x: -28, y: 0, z: -9,  w: 1, h: 5.5, d: 12, mat: 'wall', mX: true, mZ: true },
+    { x: -28, y: 3.4, z: -15.5, w: 1, h: 2.1, d: 6, mat: 'wall', mX: true, mZ: true },
+    /* Lehmmauern trennen die Lanes, aber nur brusthoch in der Mitte */
+    { x: -19, y: 0, z: -9.5, w: 11, h: 4.4, d: 1.2, mat: 'wall', mX: true, mZ: true },
+    { x: -6,  y: 0, z: -9.5, w: 8,  h: 1.25, d: 1.2, mat: 'wall', mX: true, mZ: true },
+    { x: 0,   y: 0, z: -9.5, w: 3,  h: 4.4, d: 1.2, mat: 'wall', mZ: true },
+    /* Innenhof mit Bombenplatz A */
+    { x: 0, y: 0, z: 0, w: 15, h: .4, d: 12, mat: 'site', tile: .085 },
+    { x: 0, y: .4, z: 0, w: 2.6, h: 2.6, d: 2.6, mat: 'wall' },
+    { x: -5.8, y: .4, z: -4.4, w: 1.9, h: 1.9, d: 1.9, mat: 'crate', mX: true, mZ: true },
+    { x: -6.2, y: .4, z: 0,    w: 1.4, h: 1.1, d: 3.4, mat: 'crate', mX: true },
+    /* Marktstände und Mauerreste in den Lanes */
+    { x: -13, y: 0, z: -15, w: 5,   h: 2.6, d: 2.6, mat: 'wall',  mX: true, mZ: true },
+    { x: -20, y: 0, z: -18, w: 2.2, h: 1.9, d: 2.2, mat: 'crate', mX: true, mZ: true },
+    { x: -6,  y: 0, z: -19, w: 1.2, h: 3.4, d: 5,   mat: 'wall',  mX: true, mZ: true },
+    { x: 0,   y: 0, z: -16, w: 3.4, h: 1.4, d: 3.4, mat: 'crate', mZ: true },
+    { x: -25, y: 0, z: -14, w: 1.6, h: 1.6, d: 1.6, mat: 'crate', mX: true, mZ: true },
+    /* Brunnen und Palmenschatten am Mid-Zugang */
+    { x: -14, y: 0, z: -3.5, w: 3.6, h: 1.15, d: 3.6, mat: 'metal', mX: true, mZ: true },
+    { x: -21, y: 0, z: 0,    w: 1.5, h: 5.2,  d: 1.5, mat: 'wall',  mX: true },
+    { x: -32, y: 0, z: -10,  w: 2.6, h: 2.2,  d: 2.6, mat: 'crate', mX: true, mZ: true }
+  ],
+  decor: [
+    { x: -37.3, y: 4.4, z: 0, w: .2, h: .3, d: 5, mat: 'stripA', rep: 'stripsA' },
+    { x:  37.3, y: 4.4, z: 0, w: .2, h: .3, d: 5, mat: 'stripB', rep: 'stripsB' }
+  ]
+}
+];
+
+let MAP = MAPS[0];
+
+function disposeMapGroup() {
+  mapGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  while (mapGroup.children.length) mapGroup.remove(mapGroup.children[0]);
+}
+
+function buildMap(map) {
+  MAP = map;
+  const t = THEMES[map.theme];
+
+  /* alte Map und ihre Materialien freigeben */
+  disposeMapGroup();
+  for (const k in MAT) {
+    if (MAT[k].map) MAT[k].map.dispose();
+    MAT[k].dispose();
+  }
+  MAT = buildThemeMaterials(t);
+  colliders.length = 0;
+
+  /* Farbwelt setzen */
+  scene.background = new THREE.Color(t.sky);
+  scene.fog = new THREE.Fog(t.sky, t.fogNear, t.fogFar);
+  hemi.color.setHex(t.hemi[0]); hemi.groundColor.setHex(t.hemi[1]); hemi.intensity = t.hemi[2];
+  ambient.color.setHex(t.amb[0]); ambient.intensity = t.amb[1];
+  sun.color.setHex(t.sun[0]); sun.intensity = t.sun[1];
+  fill.color.setHex(t.fill[0]); fill.intensity = t.fill[1];
+  lampA.color.setHex(t.lampA); lampB.color.setHex(t.lampB);
+  lampA.position.set(-map.hw + 5, 4.4, 0);
+  lampB.position.set(map.hw - 5, 4.4, 0);
+
+  /* Die Waffe in der Hand soll zur Beleuchtung der Map passen */
+  vmAmb.color.setHex(t.hemi[0]);  vmAmb.intensity = 0.30 + t.hemi[2] * 0.62;
+  vmKey.color.setHex(t.sun[0]);   vmKey.intensity = 0.85 + t.sun[1] * 0.95;
+  vmRim.color.setHex(t.fill[0]);  vmRim.intensity = 0.55 + t.fill[1] * 1.4;
+  $('maptag').innerHTML = map.name.replace(/ (\S+)$/, ' <b>$1</b>') + ' · ' + map.sub.toUpperCase();
+
+  /* Geometrie */
+  shell(map.hw, map.hd, map.wallH).forEach(addPiece);
+  map.pieces.forEach(addPiece);
+
+  /* Spawnfelder und Lichtbänder */
+  addPiece({ x: -(map.hw - 5), y: .001, z: 0, w: 6, h: .02, d: 9,
+             mat: 'spawnA', tile: .12, collide: false, shadow: false });
+  addPiece({ x:  (map.hw - 5), y: .001, z: 0, w: 6, h: .02, d: 9,
+             mat: 'spawnB', tile: .12, collide: false, shadow: false });
+  for (const d of map.decor) {
+    for (let i = -1; i <= 1; i++) {
+      addPiece({ x: d.x, y: d.y, z: d.z + i * (map.hd / 2.6), w: d.w, h: d.h, d: d.d,
+                 mat: d.mat, collide: false, shadow: false });
+    }
+  }
+  for (let i = -3; i <= 3; i++) {
+    addPiece({ x: i * (map.hw / 3.6), y: map.wallH - .5, z: -(map.hd + .1), w: 3.2, h: .18, d: .2,
+               mat: 'stripB', collide: false, shadow: false, mZ: true });
+  }
+
+  /* Schattenkamera an die Mapgröße anpassen */
+  const r = Math.max(map.hw, map.hd) + 12;
+  sun.shadow.camera.left = -r; sun.shadow.camera.right = r;
+  sun.shadow.camera.top = r;   sun.shadow.camera.bottom = -r;
+  sun.shadow.camera.updateProjectionMatrix();
+  sunDir.set(t.sunDir[0], t.sunDir[1], t.sunDir[2]);
+
+  clearDecals();
+  buildNav(map);
+}
+
+/* --------------------------------------------------------------------------
+   4b · Wegenetz: begehbares Raster und Deckungspunkte, aus der Geometrie
+        errechnet — jede Map bekommt es automatisch
+   -------------------------------------------------------------------------- */
+const nav = { cell: 1.4, x0: 0, z0: 0, nx: 0, nz: 0, walk: null, ground: null, cover: [] };
+
+function navIndex(ix, iz) { return iz * nav.nx + ix; }
+function navToX(ix) { return nav.x0 + ix * nav.cell; }
+function navToZ(iz) { return nav.z0 + iz * nav.cell; }
+function navCellAt(x, z) {
+  return [clamp(Math.round((x - nav.x0) / nav.cell), 0, nav.nx - 1),
+          clamp(Math.round((z - nav.z0) / nav.cell), 0, nav.nz - 1)];
+}
+
+function buildNav(map) {
+  const c = nav.cell;
+  nav.x0 = -map.hw + 1.2; nav.z0 = -map.hd + 1.2;
+  nav.nx = Math.floor((map.hw - 1.2) * 2 / c) + 1;
+  nav.nz = Math.floor((map.hd - 1.2) * 2 / c) + 1;
+  nav.walk = new Uint8Array(nav.nx * nav.nz);
+  nav.ground = new Float32Array(nav.nx * nav.nz);
+  nav.cover.length = 0;
+
+  for (let iz = 0; iz < nav.nz; iz++) {
+    for (let ix = 0; ix < nav.nx; ix++) {
+      const x = navToX(ix), z = navToZ(iz);
+      const gy = groundHeightAt(x, z, 0.34);
+      const i = navIndex(ix, iz);
+      nav.ground[i] = gy;
+      nav.walk[i] = (gy < 2.4 && canStand(x, gy, z, PLAYER.standH, 0.34)) ? 1 : 0;
+    }
+  }
+
+  /* Deckung: begehbare Zelle direkt neben einer hüft- bis kopfhohen Kante */
+  for (let iz = 0; iz < nav.nz; iz++) {
+    for (let ix = 0; ix < nav.nx; ix++) {
+      const i = navIndex(ix, iz);
+      if (!nav.walk[i]) continue;
+      const x = navToX(ix), z = navToZ(iz), gy = nav.ground[i];
+      let bx = 0, bz = 0, best = 0;
+      for (const cb of colliders) {
+        const h = cb.max.y - gy;
+        if (h < 0.75 || h > 3.2) continue;
+        const dx = clamp(x, cb.min.x, cb.max.x) - x;
+        const dz = clamp(z, cb.min.z, cb.max.z) - z;
+        const d = Math.hypot(dx, dz);
+        if (d > 1.5 || d < 0.05) continue;
+        const score = (3.2 - Math.abs(h - 1.5)) / (d + .4);
+        if (score > best) { best = score; bx = dx / d; bz = dz / d; }
+      }
+      if (best > 0) nav.cover.push({ x, z, y: gy, dx: bx, dz: bz, high: best });
+    }
+  }
+}
+
+/** A* auf dem Raster; liefert eine Liste von Wegpunkten oder null. */
+const _open = [], _came = new Map(), _gsc = new Map();
+function findPath(sx, sz, tx, tz) {
+  if (!nav.walk) return null;
+  const [six, siz] = navCellAt(sx, sz);
+  const [tix, tiz] = navCellAt(tx, tz);
+  const start = navIndex(six, siz), goal = navIndex(tix, tiz);
+  if (!nav.walk[goal]) return null;
+  _open.length = 0; _came.clear(); _gsc.clear();
+  _open.push({ i: start, f: 0 });
+  _gsc.set(start, 0);
+  let guard = 0;
+  while (_open.length && guard++ < 4000) {
+    let bi = 0;
+    for (let k = 1; k < _open.length; k++) if (_open[k].f < _open[bi].f) bi = k;
+    const cur = _open.splice(bi, 1)[0];
+    if (cur.i === goal) {
+      const out = [];
+      let n = goal;
+      while (n !== start) {
+        out.push({ x: navToX(n % nav.nx), z: navToZ(Math.floor(n / nav.nx)) });
+        n = _came.get(n);
+        if (n === undefined) return null;
+      }
+      out.reverse();
+      return out;
+    }
+    const cx = cur.i % nav.nx, cz = Math.floor(cur.i / nav.nx);
+    for (let d = 0; d < 8; d++) {
+      const ox = [1, -1, 0, 0, 1, 1, -1, -1][d], oz = [0, 0, 1, -1, 1, -1, 1, -1][d];
+      const nx2 = cx + ox, nz2 = cz + oz;
+      if (nx2 < 0 || nz2 < 0 || nx2 >= nav.nx || nz2 >= nav.nz) continue;
+      const ni = navIndex(nx2, nz2);
+      if (!nav.walk[ni]) continue;
+      if (ox && oz && (!nav.walk[navIndex(cx + ox, cz)] || !nav.walk[navIndex(cx, cz + oz)])) continue;
+      const step = (ox && oz ? 1.414 : 1) + Math.abs(nav.ground[ni] - nav.ground[cur.i]) * 2;
+      const g = _gsc.get(cur.i) + step;
+      if (_gsc.has(ni) && _gsc.get(ni) <= g) continue;
+      _gsc.set(ni, g); _came.set(ni, cur.i);
+      const h = Math.abs(nx2 - tix) + Math.abs(nz2 - tiz);
+      _open.push({ i: ni, f: g + h });
+    }
+  }
+  return null;
+}
+
+/** Kürzt einen Pfad ab, solange die direkte Linie frei ist. */
+function trimPath(px, pz, path) {
+  while (path.length > 1 && walkableLine(px, pz, path[1].x, path[1].z)) path.shift();
+  return path;
+}
+function walkableLine(ax, az, bx, bz) {
+  const d = Math.hypot(bx - ax, bz - az);
+  const steps = Math.ceil(d / 0.5);
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+    const gy = groundHeightAt(x, z, 0.34);
+    if (gy > 2.4 || !canStand(x, gy, z, PLAYER.standH, 0.36)) return false;
+  }
+  return true;
+}
+
+/** Kleine Draufsicht der Map für die Auswahl im Menü. */
+function drawMiniMap(map, canvas) {
+  const g = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, pad = 4;
+  const sc = Math.min((W - pad * 2) / (map.hw * 2), (H - pad * 2) / (map.hd * 2));
+  const cx = W / 2, cy = H / 2;
+  const t = THEMES[map.theme];
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = t.floor[0];
+  g.fillRect(cx - map.hw * sc, cy - map.hd * sc, map.hw * 2 * sc, map.hd * 2 * sc);
+  const colors = { wall: t.wall[0], crate: t.crate[0], metal: t.metal[0], site: t.site[2] };
+  const draw = p => {
+    const list = [[p.x, p.z]];
+    if (p.mX) list.push([-p.x, p.z]);
+    if (p.mZ) list.push([p.x, -p.z]);
+    if (p.mX && p.mZ) list.push([-p.x, -p.z]);
+    g.fillStyle = colors[p.mat] || '#555';
+    for (const [x, z] of list)
+      g.fillRect(cx + (x - p.w / 2) * sc, cy + (z - p.d / 2) * sc, p.w * sc, p.d * sc);
+  };
+  map.pieces.forEach(draw);
+  g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1;
+  g.strokeRect(cx - map.hw * sc, cy - map.hd * sc, map.hw * 2 * sc, map.hd * 2 * sc);
+  g.fillStyle = '#ffb35c';
+  g.beginPath(); g.arc(cx + map.spawnPlayer.x * sc, cy, 3.2, 0, 6.3); g.fill();
+  g.fillStyle = '#5ad2ff';
+  g.beginPath(); g.arc(cx - map.spawnPlayer.x * sc, cy, 3.2, 0, 6.3); g.fill();
 }
 
 /* --------------------------------------------------------------------------
@@ -991,58 +1418,247 @@ const gun = {
 };
 
 /* --------------------------------------------------------------------------
+   11b · Skins — Lackierungen für jede Waffe, prozedural gezeichnet
+   -------------------------------------------------------------------------- */
+const RARITY = [
+  { key: 'standard', label: 'STANDARD',  color: '#7c8794' },
+  { key: 'selten',   label: 'SELTEN',    color: '#4f9de0' },
+  { key: 'episch',   label: 'EPISCH',    color: '#b06ee8' },
+  { key: 'legendär', label: 'LEGENDÄR',  color: '#e8a33d' }
+];
+
+/* Zeichenmuster. Jedes bekommt drei Farben und malt eine 256er-Kachel. */
+const PATTERNS = {
+  einfarbig(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    const grd = g.createLinearGradient(0, 0, 0, s);
+    grd.addColorStop(0, 'rgba(255,255,255,.14)');
+    grd.addColorStop(.5, 'rgba(255,255,255,0)');
+    grd.addColorStop(1, 'rgba(0,0,0,.14)');
+    g.fillStyle = grd; g.fillRect(0, 0, s, s);
+  },
+  tarnflecken(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    for (let layer = 1; layer < 3; layer++) {
+      g.fillStyle = c[layer];
+      for (let i = 0; i < 16; i++) {
+        const x = Math.random() * s, y = Math.random() * s, r = 14 + Math.random() * 30;
+        g.beginPath();
+        for (let a = 0; a < 8; a++) {
+          const ang = a / 8 * 6.283, rr = r * (.6 + Math.random() * .7);
+          const px = x + Math.cos(ang) * rr, py = y + Math.sin(ang) * rr;
+          a ? g.lineTo(px, py) : g.moveTo(px, py);
+        }
+        g.closePath(); g.fill();
+      }
+    }
+  },
+  digital(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    const q = 16;
+    for (let y = 0; y < s; y += q) for (let x = 0; x < s; x += q) {
+      const r = Math.random();
+      if (r < .30) g.fillStyle = c[1];
+      else if (r < .48) g.fillStyle = c[2];
+      else continue;
+      g.fillRect(x, y, q, q);
+    }
+  },
+  streifen(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    g.save(); g.translate(s / 2, s / 2); g.rotate(-0.5); g.translate(-s, -s);
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = i % 2 ? c[1] : c[2];
+      g.fillRect(0, i * 30, s * 2, 14 + (i % 3) * 6);
+    }
+    g.restore();
+  },
+  hex(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    const r = 20;
+    g.strokeStyle = c[1]; g.lineWidth = 3;
+    for (let row = -1; row * r * 1.5 < s + r; row++) {
+      for (let col = -1; col * r * 1.74 < s + r; col++) {
+        const cx = col * r * 1.74 + (row % 2 ? r * .87 : 0), cy = row * r * 1.5;
+        g.beginPath();
+        for (let a = 0; a < 6; a++) {
+          const ang = a / 6 * 6.283 + .52;
+          const px = cx + Math.cos(ang) * r * .92, py = cy + Math.sin(ang) * r * .92;
+          a ? g.lineTo(px, py) : g.moveTo(px, py);
+        }
+        g.closePath();
+        g.fillStyle = Math.random() < .18 ? c[2] : c[0];
+        g.fill(); g.stroke();
+      }
+    }
+  },
+  verlauf(g, s, c) {
+    const grd = g.createLinearGradient(0, 0, s, s);
+    grd.addColorStop(0, c[0]); grd.addColorStop(.5, c[1]); grd.addColorStop(1, c[2]);
+    g.fillStyle = grd; g.fillRect(0, 0, s, s);
+    g.globalAlpha = .18;
+    for (let i = 0; i < 40; i++) {
+      g.strokeStyle = '#fff'; g.lineWidth = Math.random() * 2;
+      g.beginPath(); g.moveTo(Math.random() * s, 0); g.lineTo(Math.random() * s, s); g.stroke();
+    }
+    g.globalAlpha = 1;
+  },
+  splitter(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = i % 2 ? c[1] : c[2];
+      g.beginPath();
+      const x = Math.random() * s, y = Math.random() * s;
+      g.moveTo(x, y);
+      for (let k = 0; k < 3; k++)
+        g.lineTo(x + (Math.random() - .5) * 90, y + (Math.random() - .5) * 90);
+      g.closePath(); g.fill();
+    }
+  },
+  rost(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    for (let i = 0; i < 220; i++) {
+      g.fillStyle = Math.random() < .5 ? c[1] : c[2];
+      g.globalAlpha = .1 + Math.random() * .5;
+      const r = 2 + Math.random() * 16;
+      g.beginPath(); g.arc(Math.random() * s, Math.random() * s, r, 0, 6.283); g.fill();
+    }
+    g.globalAlpha = 1;
+  },
+  adern(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    g.lineCap = 'round';
+    for (let i = 0; i < 26; i++) {
+      g.strokeStyle = i % 3 ? c[1] : c[2];
+      g.lineWidth = 1 + Math.random() * 4;
+      let x = Math.random() * s, y = Math.random() * s;
+      g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += (Math.random() - .5) * 70; y += (Math.random() - .5) * 70;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+  },
+  karo(g, s, c) {
+    g.fillStyle = c[0]; g.fillRect(0, 0, s, s);
+    const q = s / 8;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      if ((x + y) % 2) continue;
+      g.fillStyle = (x * 7 + y * 3) % 5 ? c[1] : c[2];
+      g.fillRect(x * q, y * q, q, q);
+    }
+  }
+};
+
+/* Die Sammlung. name · Seltenheit · Muster · Farben · Materialwerte */
+const SKINS = [
+  { name: 'Werkstahl',    rar: 0, pat: 'einfarbig',   col: ['#5f6a78', '#46505c', '#778392'], rough: .55, metal: .40 },
+  { name: 'Nachtschicht', rar: 0, pat: 'einfarbig',   col: ['#22262c', '#171a1f', '#3a4048'], rough: .62, metal: .30 },
+  { name: 'Sandsturm',    rar: 0, pat: 'tarnflecken', col: ['#b39b6e', '#8c7549', '#d8c79b'], rough: .78, metal: .10 },
+  { name: 'Tarnwald',     rar: 1, pat: 'tarnflecken', col: ['#3d4a32', '#26301f', '#6b7a4e'], rough: .75, metal: .12 },
+  { name: 'Polarfuchs',   rar: 1, pat: 'tarnflecken', col: ['#d8e2ea', '#a9b8c6', '#7f8d9c'], rough: .60, metal: .18 },
+  { name: 'Pixelnacht',   rar: 1, pat: 'digital',     col: ['#1e2733', '#33465c', '#5b7fa6'], rough: .58, metal: .35 },
+  { name: 'Wüstenpixel',  rar: 1, pat: 'digital',     col: ['#a8905f', '#7c6a41', '#d6c496'], rough: .72, metal: .12 },
+  { name: 'Signalorange', rar: 1, pat: 'streifen',    col: ['#1c1f24', '#e8721d', '#f2a23c'], rough: .48, metal: .40 },
+  { name: 'Karbonfaser',  rar: 2, pat: 'hex',         col: ['#1a1d21', '#2c3238', '#4a545e'], rough: .32, metal: .70 },
+  { name: 'Giftgrün',     rar: 2, pat: 'hex',         col: ['#16241a', '#2f5c34', '#7ee06a'], rough: .38, metal: .55 },
+  { name: 'Tiefsee',      rar: 2, pat: 'verlauf',     col: ['#0d2a3d', '#1c6c8c', '#5fd8e6'], rough: .30, metal: .72 },
+  { name: 'Magmakern',    rar: 2, pat: 'verlauf',     col: ['#1a0d0a', '#8a2408', '#ffb03a'], rough: .35, metal: .65 },
+  { name: 'Rostschwarm',  rar: 2, pat: 'rost',        col: ['#3c3630', '#8a4a22', '#c07a3c'], rough: .85, metal: .28 },
+  { name: 'Scherbe',      rar: 2, pat: 'splitter',    col: ['#232a33', '#4d5f77', '#98b2cc'], rough: .40, metal: .60 },
+  { name: 'Kupferader',   rar: 3, pat: 'adern',       col: ['#20242a', '#b5651d', '#ffb865'], rough: .28, metal: .85 },
+  { name: 'Goldader',     rar: 3, pat: 'adern',       col: ['#181a1e', '#c99a2e', '#ffe9a3'], rough: .22, metal: .95 },
+  { name: 'Purpurwelle',  rar: 3, pat: 'verlauf',     col: ['#1b0f2b', '#6b2fa0', '#e078ff'], rough: .26, metal: .78 },
+  { name: 'Schachbrett',  rar: 3, pat: 'karo',        col: ['#101216', '#e6e9ee', '#c0392b'], rough: .34, metal: .62 }
+];
+
+const skinTexCache = {};
+function skinTexture(i) {
+  if (skinTexCache[i]) return skinTexCache[i];
+  const sk = SKINS[i];
+  const t = makeTexture(256, (g, s) => {
+    PATTERNS[sk.pat](g, s, sk.col);
+    /* Gebrauchsspuren an den Kanten */
+    g.globalAlpha = .18;
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, s, 8); g.fillRect(0, s - 8, s, 8);
+    g.globalAlpha = 1;
+    noise(g, s, 12);
+  });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return (skinTexCache[i] = t);
+}
+
+/** Erzeugt den Materialsatz einer Waffe für einen Skin. */
+function skinMaterials(i) {
+  const sk = SKINS[i], tex = skinTexture(i);
+  return {
+    body: new THREE.MeshStandardMaterial({ map: tex, roughness: sk.rough, metalness: sk.metal }),
+    acc:  new THREE.MeshStandardMaterial({ map: tex, color: 0xc4cad2,
+                                           roughness: Math.max(.22, sk.rough * .9),
+                                           metalness: Math.min(.85, sk.metal) }),
+    grip: new THREE.MeshStandardMaterial({ color: 0x3b424b, roughness: .9, metalness: .1 }),
+    dark: new THREE.MeshStandardMaterial({ color: 0x1e2227, roughness: .7, metalness: .35 })
+  };
+}
+
+/* --------------------------------------------------------------------------
    11 · Waffenmodelle in der Ansichtsszene
    -------------------------------------------------------------------------- */
 const vmScene = new THREE.Scene();
 vmScene.environment = envMap;
 const vmCam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.01, 6);
-vmScene.add(new THREE.AmbientLight(0x9fb0c4, 0.75));
+const vmAmb = new THREE.AmbientLight(0x9fb0c4, 0.75);
+vmScene.add(vmAmb);
 const vmKey = new THREE.DirectionalLight(0xfff0dc, 2.4); vmKey.position.set(-0.55, 1.1, 0.8);
 const vmRim = new THREE.DirectionalLight(0x74b0ff, 1.0); vmRim.position.set(1.1, -0.2, -0.9);
 vmScene.add(vmKey, vmRim);
 
-const gunMatBody = new THREE.MeshStandardMaterial({ color: 0x4d5661, roughness: .55, metalness: .40 });
-const gunMatGrip = new THREE.MeshStandardMaterial({ color: 0x333940, roughness: .88, metalness: .10 });
-const gunMatAcc  = new THREE.MeshStandardMaterial({ color: 0x5c6672, roughness: .45, metalness: .55 });
-const gunMatDark = new THREE.MeshStandardMaterial({ color: 0x272c32, roughness: .7,  metalness: .35 });
+/* Bauteile werden nur nach Rolle markiert — welches Material sie bekommen,
+   entscheidet der gewählte Skin. */
+const skinMatCache = {};
+function skinSet(i) { return skinMatCache[i] || (skinMatCache[i] = skinMaterials(i)); }
 
-function part(g, w, h, d, x, y, z, m) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-  mesh.position.set(x, y, z); g.add(mesh); return mesh;
+function part(g, w, h, d, x, y, z, slot) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skinSet(0)[slot]);
+  mesh.position.set(x, y, z);
+  mesh.userData.slot = slot;
+  g.add(mesh); return mesh;
 }
 
 function buildWeaponModel(id) {
   const g = new THREE.Group();
   const o = { group: g, mag: null, muzzle: new THREE.Vector3() };
   if (id === 'rifle') {
-    part(g, .075, .10, .52, 0, 0, -.22, gunMatBody);
-    part(g, .048, .048, .38, 0, .012, -.62, gunMatAcc);
-    part(g, .060, .066, .09, 0, .002, -.82, gunMatBody);
-    part(g, .050, .16, .085, 0, -.115, -.07, gunMatGrip);
-    part(g, .066, .072, .24, 0, -.005, .16, gunMatGrip);
-    o.mag = part(g, .046, .135, .11, 0, -.10, -.25, gunMatAcc);
-    part(g, .018, .034, .10, 0, .073, -.40, gunMatAcc);
-    part(g, .042, .026, .055, 0, .071, -.06, gunMatAcc);
-    part(g, .100, .022, .20, 0, .045, -.30, gunMatGrip);
+    part(g, .075, .10, .52, 0, 0, -.22, 'body');
+    part(g, .048, .048, .38, 0, .012, -.62, 'acc');
+    part(g, .060, .066, .09, 0, .002, -.82, 'body');
+    part(g, .050, .16, .085, 0, -.115, -.07, 'grip');
+    part(g, .066, .072, .24, 0, -.005, .16, 'grip');
+    o.mag = part(g, .046, .135, .11, 0, -.10, -.25, 'acc');
+    part(g, .018, .034, .10, 0, .073, -.40, 'acc');
+    part(g, .042, .026, .055, 0, .071, -.06, 'acc');
+    part(g, .100, .022, .20, 0, .045, -.30, 'grip');
     o.muzzle.set(0, .002, -.88);
   } else if (id === 'pistol') {
-    part(g, .058, .088, .30, 0, 0, -.10, gunMatBody);
-    part(g, .046, .050, .10, 0, -.004, -.28, gunMatAcc);
-    part(g, .052, .155, .075, 0, -.115, .015, gunMatGrip);
-    o.mag = part(g, .040, .105, .062, 0, -.145, .015, gunMatAcc);
-    part(g, .030, .022, .045, 0, .052, -.20, gunMatDark);
-    part(g, .038, .022, .035, 0, .052, .015, gunMatDark);
+    part(g, .058, .088, .30, 0, 0, -.10, 'body');
+    part(g, .046, .050, .10, 0, -.004, -.28, 'acc');
+    part(g, .052, .155, .075, 0, -.115, .015, 'grip');
+    o.mag = part(g, .040, .105, .062, 0, -.145, .015, 'acc');
+    part(g, .030, .022, .045, 0, .052, -.20, 'dark');
+    part(g, .038, .022, .035, 0, .052, .015, 'dark');
     o.muzzle.set(0, -.004, -.34);
   } else {
-    part(g, .066, .092, .58, 0, 0, -.26, gunMatBody);
-    part(g, .040, .040, .60, 0, .008, -.78, gunMatAcc);
-    part(g, .054, .054, .08, 0, .008, -1.10, gunMatDark);
-    part(g, .050, .155, .085, 0, -.118, -.10, gunMatGrip);
-    part(g, .070, .105, .34, 0, -.012, .22, gunMatGrip);
-    o.mag = part(g, .042, .095, .10, 0, -.082, -.30, gunMatAcc);
-    part(g, .085, .085, .30, 0, .098, -.28, gunMatDark);   // Zielfernrohr
-    part(g, .100, .100, .03, 0, .098, -.44, gunMatAcc);
-    part(g, .028, .050, .10, .052, .01, -.02, gunMatAcc);  // Kammerstängel
+    part(g, .066, .092, .58, 0, 0, -.26, 'body');
+    part(g, .040, .040, .60, 0, .008, -.78, 'acc');
+    part(g, .054, .054, .08, 0, .008, -1.10, 'dark');
+    part(g, .050, .155, .085, 0, -.118, -.10, 'grip');
+    part(g, .070, .105, .34, 0, -.012, .22, 'grip');
+    o.mag = part(g, .042, .095, .10, 0, -.082, -.30, 'acc');
+    part(g, .085, .085, .30, 0, .098, -.28, 'dark');   // Zielfernrohr
+    part(g, .100, .100, .03, 0, .098, -.44, 'acc');
+    part(g, .028, .050, .10, .052, .01, -.02, 'acc');  // Kammerstängel
     o.muzzle.set(0, .008, -1.16);
   }
   g.traverse(m => { m.castShadow = false; m.receiveShadow = false; });
@@ -1063,6 +1679,17 @@ for (const w of WEAPONS) {
   m.group.visible = (w.id === 'rifle');
   gunRoot.add(m.group);
   models[w.id] = m;
+}
+
+/** Weist einer Waffe eine Lackierung zu (auch für das Vorschaumodell). */
+function applySkin(weaponId, skinIdx, group) {
+  const mats = skinSet(clamp(skinIdx | 0, 0, SKINS.length - 1));
+  (group || models[weaponId].group).traverse(o => {
+    if (o.userData.slot) o.material = mats[o.userData.slot];
+  });
+}
+function applyAllSkins() {
+  for (const w of WEAPONS) applySkin(w.id, Settings.skins[w.id] || 0);
 }
 
 /* Mündungsfeuer: additive Kreuzfläche + kurzer Lichtblitz */
@@ -1165,6 +1792,40 @@ function updateViewModel(dt, mdx, mdy) {
   gunRoot.visible = !gun.scoped;
 }
 
+/* Vorschauszene: die gewählte Waffe dreht sich neben dem Menü. */
+const preScene = new THREE.Scene();
+preScene.background = new THREE.Color(0x0a0d12);
+preScene.environment = envMap;
+preScene.add(new THREE.AmbientLight(0xaebdd0, 0.62));
+const preKey = new THREE.DirectionalLight(0xfff2e0, 1.85); preKey.position.set(-1, 1.4, 1.2);
+const preRim = new THREE.DirectionalLight(0x6fb4ff, 1.0); preRim.position.set(1.4, -.2, -1);
+preScene.add(preKey, preRim);
+const preCam = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, .05, 20);
+const prePivot = new THREE.Group();
+prePivot.position.set(1.05, -.05, -4.4);
+preScene.add(prePivot);
+let preModel = null, preWeapon = 'rifle';
+
+const _pbox = new THREE.Box3(), _psize = new THREE.Vector3(), _pcenter = new THREE.Vector3();
+function setPreviewWeapon(id) {
+  preWeapon = id;
+  if (preModel) {
+    prePivot.remove(preModel);
+    preModel.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  preModel = buildWeaponModel(id).group;
+  /* Maße noch außerhalb des Szenengraphen nehmen — sonst sind sie in
+     Weltkoordinaten und der Versatz schiebt das Modell aus dem Bild. */
+  _pbox.setFromObject(preModel);
+  _pbox.getSize(_psize); _pbox.getCenter(_pcenter);
+  const sc = 2.3 / Math.max(_psize.x, _psize.y, _psize.z);
+  preModel.scale.setScalar(sc);
+  preModel.position.copy(_pcenter).multiplyScalar(-sc);
+  prePivot.add(preModel);
+  prePivot.rotation.set(.14, -1.35, 0);   // gleich in der Seitenansicht starten
+  applySkin(id, Settings.skins[id] || 0, preModel);
+}
+
 /* --------------------------------------------------------------------------
    12 · Einschlagseffekte: Löcher, Funken, Leuchtspur
    -------------------------------------------------------------------------- */
@@ -1200,6 +1861,9 @@ for (let i = 0; i < DECALS; i++) {
   d.visible = false;
   scene.add(d);
   decalPool.push(d);
+}
+function clearDecals() {
+  for (const d of decalPool) d.visible = false;
 }
 const _dtmp = new THREE.Vector3();
 function addDecal(px, py, pz, nx, ny, nz) {
@@ -1507,9 +2171,10 @@ addEventListener('wheel', e => {
 /* --------------------------------------------------------------------------
    10 · Spielzustand, Menüs, Pointer Lock
    -------------------------------------------------------------------------- */
-let state = 'menu';          // menu | play | pause | settings
+let state = 'menu';          // menu | play | pause | settings | maps | skins
 let prevScreen = 'menu';
-const el = { menu: $('menu'), pause: $('pause'), settings: $('settings'), hud: $('hud') };
+const el = { menu: $('menu'), pause: $('pause'), settings: $('settings'),
+             maps: $('maps'), skins: $('skins'), hud: $('hud') };
 
 function show(which) {
   for (const k in el) if (k !== 'hud') el[k].classList.toggle('on', k === which);
@@ -1542,6 +2207,84 @@ $('btnResume').onclick = resume;
 $('btnSettings').onclick = () => { prevScreen = 'menu'; state = 'settings'; show('settings'); };
 $('btnSettings2').onclick = () => { prevScreen = 'pause'; state = 'settings'; show('settings'); };
 $('btnBack').onclick = () => { state = prevScreen; show(prevScreen); };
+
+$('btnMaps').onclick  = () => openScreen('maps', 'menu');
+$('btnMaps2').onclick = () => openScreen('maps', 'pause');
+$('btnSkins').onclick  = () => openScreen('skins', 'menu');
+$('btnSkins2').onclick = () => openScreen('skins', 'pause');
+$('btnMapBack').onclick  = () => { state = prevScreen; show(prevScreen); };
+$('btnSkinBack').onclick = () => { state = prevScreen; show(prevScreen); };
+
+function openScreen(which, from) {
+  prevScreen = from; state = which; show(which);
+  if (which === 'skins') { setPreviewWeapon(preWeapon); renderSkinMenu(); }
+}
+
+/* --- Mapauswahl --- */
+function renderMapMenu() {
+  const grid = $('mapgrid');
+  grid.innerHTML = '';
+  for (const m of MAPS) {
+    const card = document.createElement('div');
+    card.className = 'mapcard' + (m.id === Settings.map ? ' act' : '');
+    const cv = document.createElement('canvas');
+    cv.width = 380; cv.height = 240;
+    card.appendChild(cv);
+    const h = document.createElement('h3');
+    h.innerHTML = m.name + (m.id === Settings.map ? '<b>AKTIV</b>' : '');
+    const p2 = document.createElement('p');
+    p2.textContent = m.sub + ' · ' + Math.round(m.hw * 2) + ' × ' + Math.round(m.hd * 2) + ' m';
+    card.appendChild(h); card.appendChild(p2);
+    card.onclick = () => { selectMap(m.id); renderMapMenu(); };
+    grid.appendChild(card);
+    drawMiniMap(m, cv);
+  }
+}
+
+function selectMap(id) {
+  const m = MAPS.find(x => x.id === id) || MAPS[0];
+  Settings.map = m.id; saveSettings();
+  buildMap(m);
+  placeTargets();
+  resetPlayer();
+}
+
+/* --- Skinauswahl --- */
+function renderSkinMenu() {
+  const tabs = $('skintabs');
+  tabs.innerHTML = '';
+  for (const w of WEAPONS) {
+    const d = document.createElement('div');
+    d.textContent = w.name;
+    d.className = w.id === preWeapon ? 'act' : '';
+    d.onclick = () => { setPreviewWeapon(w.id); renderSkinMenu(); };
+    tabs.appendChild(d);
+  }
+  const grid = $('skingrid');
+  grid.innerHTML = '';
+  const cur = Settings.skins[preWeapon] || 0;
+  SKINS.forEach((sk, i) => {
+    const d = document.createElement('div');
+    d.className = 'skin' + (i === cur ? ' act' : '');
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    cv.getContext('2d').drawImage(skinTexture(i).image, 0, 0, 64, 64);
+    const label = document.createElement('span');
+    label.textContent = sk.name;
+    label.style.color = RARITY[sk.rar].color;
+    d.appendChild(cv); d.appendChild(label);
+    d.onclick = () => {
+      Settings.skins[preWeapon] = i; saveSettings();
+      applySkin(preWeapon, i);
+      applySkin(preWeapon, i, preModel);
+      renderSkinMenu();
+    };
+    grid.appendChild(d);
+  });
+  const sk = SKINS[cur];
+  $('skinname').innerHTML = '<b style="color:' + RARITY[sk.rar].color + '">' +
+    sk.name + '</b> · ' + RARITY[sk.rar].label;
+}
 
 /* Einstellungen */
 const sSens = $('sSens'), sFov = $('sFov');
@@ -1682,10 +2425,13 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   vmCam.aspect = camera.aspect;
   vmCam.updateProjectionMatrix();
+  preCam.aspect = camera.aspect;
+  preCam.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
 
 function renderFrame() {
+  if (state === 'skins') { renderer.render(preScene, preCam); return; }
   renderer.render(scene, camera);
   renderer.autoClear = false;
   renderer.clearDepth();
@@ -1718,9 +2464,10 @@ function frame(now) {
     updateCameraFov(dt);
     updateViewModel(dt, mouseDX, mouseDY);
     updateHUD(dt);
-    sun.position.set(player.pos.x - 26, 44, player.pos.z + 18);
+    sun.position.set(player.pos.x + sunDir.x, sunDir.y, player.pos.z + sunDir.z);
     sun.target.position.set(player.pos.x, 0, player.pos.z);
   }
+  if (state === 'skins' && preModel) prePivot.rotation.y += dt * 0.5;
   mouseDX = 0; mouseDY = 0;
   renderFrame();
 }
@@ -1741,19 +2488,43 @@ function groundHeightAt(x, z, r) {
   return top;
 }
 
-const TARGET_SPOTS = [
-  { x: -16,  z: 0,    yaw: -Math.PI / 2 },
-  { x: -7,   z: -12,  yaw: -Math.PI / 2 },
-  { x: 2,    z: 5,    yaw:  Math.PI / 2 },
-  { x: 14,   z: -4,   yaw:  Math.PI / 2 },
-  { x: 24,   z: 14,   yaw:  Math.PI / 2 }
-];
-for (const t of TARGET_SPOTS) {
-  const f = makeFighter(t.x, t.z, t.yaw);
-  f.pos.y = groundHeightAt(t.x, t.z);
-  f.home = { x: t.x, z: t.z, y: f.pos.y };
-  f.mesh.position.copy(f.pos);
-  updateFighterBoxes(f);
+/** Entfernt alle Figuren samt Geometrie. */
+function clearFighters() {
+  for (const f of fighters) {
+    scene.remove(f.mesh);
+    f.mesh.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  fighters.length = 0;
+}
+
+/** Wählt n möglichst weit auseinanderliegende Punkte aus einer Liste. */
+function spreadPick(list, n) {
+  if (!list.length) return [];
+  const out = [list[Math.floor(list.length / 2)]];
+  while (out.length < n && out.length < list.length) {
+    let best = null, bestD = -1;
+    for (const c of list) {
+      let d = Infinity;
+      for (const o of out) d = Math.min(d, Math.hypot(c.x - o.x, c.z - o.z));
+      if (d > bestD) { bestD = d; best = c; }
+    }
+    if (!best) break;
+    out.push(best);
+  }
+  return out;
+}
+
+/** Stellt Trainingsziele an Deckungspunkten der aktuellen Map auf. */
+function placeTargets() {
+  clearFighters();
+  const spots = spreadPick(nav.cover.filter(c => c.x > -MAP.hw * .45), 5);
+  for (const sp of spots) {
+    const f = makeFighter(sp.x, sp.z, Math.atan2(-(MAP.spawnPlayer.x - sp.x), 0));
+    f.pos.y = groundHeightAt(sp.x, sp.z);
+    f.home = { x: sp.x, z: sp.z, y: f.pos.y };
+    f.mesh.position.copy(f.pos);
+    updateFighterBoxes(f);
+  }
 }
 
 function resetWeapons() {
@@ -1769,10 +2540,22 @@ function resetWeapons() {
 }
 resetWeapons();
 
+/* --------------------------------------------------------------------------
+   17 · Start: gewählte Map bauen, Skins anlegen, Menüs füllen
+   -------------------------------------------------------------------------- */
+buildMap(MAPS.find(m => m.id === Settings.map) || MAPS[0]);
+placeTargets();
+resetPlayer();
+applyAllSkins();
+setPreviewWeapon('rifle');
+renderMapMenu();
+renderSkinMenu();
+
 /* Debug-/Testzugriff */
 window.GAME = { THREE, scene, camera, renderer, player, colliders, MAP,
   startGame, inaccuracy: movementInaccuracy, spread: totalSpread, groundHeightAt,
   fighters, WEAPONS, gun, recoil, castRay, RAY, selectWeapon, startReload,
+  MAPS, SKINS, Settings, selectMap, nav, findPath, buildMap, placeTargets,
   get time() { return time; }, get state() { return state; } };
 };
 </script>
