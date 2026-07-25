@@ -95,7 +95,41 @@
   #perf{position:absolute;right:14px;top:12px;font-size:11px;letter-spacing:1px;
     color:var(--dim);font-variant-numeric:tabular-nums;text-align:right}
 
-  #bottomleft{position:absolute;left:26px;bottom:26px}
+  /* Gesundheit */
+  #healthbox{position:absolute;left:34px;bottom:30px;width:190px}
+  #hprow{display:flex;align-items:flex-end;gap:8px}
+  #hpval{font-size:40px;font-weight:600;line-height:1;color:#e9f0f7;
+    text-shadow:0 2px 10px #000;font-variant-numeric:tabular-nums}
+  #hplabel{font-size:10px;letter-spacing:4px;color:var(--dim);padding-bottom:5px;
+    text-shadow:0 1px 4px rgba(0,0,0,.9)}
+  #hptrack{height:3px;background:rgba(255,255,255,.13);margin-top:8px;border-radius:2px}
+  #hpbar{height:100%;width:100%;background:#7dfcc4;border-radius:2px;transition:width .18s}
+  #healthbox.low #hpval{color:var(--bad)}
+  #healthbox.low #hpbar{background:var(--bad)}
+
+  /* Gegnerzähler */
+  #enemybox{position:absolute;left:50%;top:22px;transform:translateX(-50%);text-align:center}
+  #enemies{font-size:22px;font-weight:600;color:#e9f0f7;text-shadow:0 2px 8px #000;
+    font-variant-numeric:tabular-nums}
+  #enemybox div:last-child{font-size:9px;letter-spacing:4px;color:var(--dim);
+    text-shadow:0 1px 4px rgba(0,0,0,.9)}
+
+  /* Treffer am Spieler */
+  #hurt{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:4;
+    background:radial-gradient(ellipse at center,rgba(180,20,20,0) 35%,rgba(150,12,12,.75) 100%)}
+  .dmgdir{position:absolute;left:50%;top:50%;width:0;height:0}
+  .dmgdir i{position:absolute;left:-34px;top:-124px;width:68px;height:22px;
+    background:linear-gradient(180deg,rgba(255,70,60,.85),rgba(255,70,60,0));
+    clip-path:polygon(50% 0,100% 100%,0 100%)}
+
+  /* Todesanzeige */
+  #deadmsg{position:absolute;left:50%;top:38%;transform:translateX(-50%);text-align:center;
+    opacity:0;transition:opacity .25s}
+  #deadmsg b{display:block;font-size:26px;letter-spacing:6px;color:var(--bad);
+    text-shadow:0 3px 14px #000}
+  #deadmsg span{font-size:11px;letter-spacing:4px;color:var(--dim)}
+
+  #bottomleft{position:absolute;left:26px;bottom:96px}
   #maptag{font-size:10px;letter-spacing:4px;color:var(--dim);text-shadow:0 1px 4px rgba(0,0,0,.9)}
   #maptag b{color:var(--acc);font-weight:600}
 
@@ -198,11 +232,20 @@
     <div id="slots"><div id="slot1">1</div><div id="slot2">2</div><div id="slot3">3</div></div>
   </div>
   <div id="reloadbar"><div id="reloadfill"></div><div id="reloadtxt">NACHLADEN</div></div>
+  <div id="healthbox">
+    <div id="hprow"><div id="hpval">100</div><div id="hplabel">LEBEN</div></div>
+    <div id="hptrack"><div id="hpbar"></div></div>
+  </div>
+  <div id="enemybox"><div id="enemies">4</div><div>GEGNER</div></div>
+  <div id="dirs"></div>
+  <div id="deadmsg"><b>AUSGESCHALTET</b><span>DU KEHRST GLEICH ZURÜCK</span></div>
   <div id="hitlog"></div>
   <div id="pops"></div>
   <div id="perf">-- FPS</div>
   <div id="bottomleft"><div id="maptag">ANLAGE <b>07</b> · SCHIESSTRAINING</div></div>
 </div>
+
+<div id="hurt"></div>
 
 <div id="scope">
   <div class="lens"></div><div class="ring"></div>
@@ -212,8 +255,9 @@
 <div class="screen on" id="menu">
   <div class="card">
     <div class="brand">B L A C K S I T E</div>
-    <h1>ANLAGE 07 <span>/ Schießtraining</span></h1>
-    <p class="sub">Taktischer Rundenshooter. Stehend triffst du, laufend und springend nicht.
+    <h1>BLACKSITE <span>/ Gefecht</span></h1>
+    <p class="sub">Vier Gegner patrouillieren, hören deine Schüsse und Schritte, suchen Deckung
+      und zielen mit menschlicher Reaktionszeit. Stehend triffst du, laufend und springend nicht.
       Die Rückstoßmuster sind fest — wer sie kennt, hält den Spray auf dem Ziel.
       Kopf 4× Schaden, Beine 0,75×, und über Entfernung wird jeder Schuss schwächer.</p>
     <div class="keys">
@@ -226,6 +270,8 @@
       <b>Shift</b><span>Schleichen (leise &amp; langsam)</span>
       <b>Esc</b><span>Pause / Einstellungen</span>
     </div>
+    <p class="sub" style="margin:14px 0 0;font-size:11.5px">Schwierigkeit stellt zwei Werte:
+      Reaktionszeit der Gegner und ihre Zielungenauigkeit.</p>
     <div class="rule"></div>
     <div class="row">
       <div class="grow"></div>
@@ -291,6 +337,12 @@
       <input type="range" id="sFov" min="70" max="110" step="1">
       <output id="oFov"></output>
     </div>
+    <div class="set">
+      <label>SCHWIERIGKEIT</label>
+      <input type="range" id="sDiff" min="0" max="3" step="1">
+      <output id="oDiff"></output>
+    </div>
+    <p class="sub" id="diffinfo" style="margin:2px 0 0;font-size:11.5px"></p>
     <div class="rule"></div>
     <div class="row">
       <div class="grow"></div>
@@ -320,7 +372,8 @@ let time = 0;                    // Spielzeit in Sekunden, läuft nur im Spiel
 /* --------------------------------------------------------------------------
    1 · Einstellungen (überleben den Reload, wenn der Browser es erlaubt)
    -------------------------------------------------------------------------- */
-const Settings = { sens: 2.2, fov: 90, map: 'anlage', skins: { rifle: 0, pistol: 0, sniper: 0 } };
+const Settings = { sens: 2.2, fov: 90, difficulty: 1, map: 'anlage',
+                   skins: { rifle: 0, pistol: 0, sniper: 0 } };
 try {
   const raw = localStorage.getItem('blacksite.settings');
   if (raw) Object.assign(Settings, JSON.parse(raw));
@@ -1061,6 +1114,7 @@ function canStand(x, y, z, h, r) {
    6 · Spieler
    -------------------------------------------------------------------------- */
 const player = {
+  hp: 100, alive: true, diedAt: 0,
   pos: new THREE.Vector3(MAP.spawnPlayer.x, 0, MAP.spawnPlayer.z),
   vel: new THREE.Vector3(),
   radius: PLAYER.radius,
@@ -1077,10 +1131,45 @@ const player = {
 };
 
 function resetPlayer() {
-  player.pos.set(MAP.spawnPlayer.x, 0, MAP.spawnPlayer.z);
+  player.pos.set(MAP.spawnPlayer.x, groundHeightAt(MAP.spawnPlayer.x, MAP.spawnPlayer.z),
+                 MAP.spawnPlayer.z);
   player.vel.set(0, 0, 0);
   player.yaw = MAP.spawnPlayer.yaw; player.pitch = 0;
   player.crouch = 0; player.height = PLAYER.standH;
+  player.hp = 100; player.alive = true;
+  playerFighter.alive = true;
+  hurtFlash = 0; deathTilt = 0;
+  hurtMarks.length = 0;
+  updateHealthHUD();
+}
+
+/* Treffer am Spieler: Blitz, Richtungsanzeige, Tod */
+let hurtFlash = 0, deathTilt = 0;
+const hurtMarks = [];
+
+function damagePlayer(dmg, attacker, head) {
+  if (!player.alive) return;
+  player.hp -= dmg;
+  hurtFlash = Math.min(1, hurtFlash + dmg / 55 + .25);
+  if (attacker && attacker.pos)
+    hurtMarks.push({ x: attacker.pos.x, z: attacker.pos.z, t: time });
+  if (hurtMarks.length > 4) hurtMarks.shift();
+  updateHealthHUD();
+  if (player.hp <= 0) {
+    player.hp = 0;
+    player.alive = false;
+    playerFighter.alive = false;
+    player.diedAt = time;
+    gun.triggerHeld = false;
+    unscope();
+    updateHealthHUD();
+  }
+}
+
+function updateHealthHUD() {
+  $('hpval').textContent = Math.max(0, Math.round(player.hp));
+  $('hpbar').style.width = clamp(player.hp, 0, 100) + '%';
+  $('healthbox').classList.toggle('low', player.hp <= 35);
 }
 
 const _wish = new THREE.Vector3();
@@ -1104,6 +1193,18 @@ function applyFriction(vel, dt) {
 }
 
 function updatePlayer(dt) {
+  if (!player.alive) {
+    /* Todeskamera: der Blick sackt zu Boden */
+    deathTilt = Math.min(1, deathTilt + dt * 2.2);
+    player.vel.x *= Math.max(0, 1 - dt * 6); player.vel.z *= Math.max(0, 1 - dt * 6);
+    player.vel.y -= PLAYER.gravity * dt;
+    moveBody(player, dt);
+    camera.position.set(player.pos.x, player.pos.y + lerp(1.64, .34, deathTilt), player.pos.z);
+    camera.rotation.set(clamp(player.pitch - deathTilt * .5, -1.5, 1.5),
+                        player.yaw, deathTilt * .55);
+    if (respawnDelay > 0 && time - player.diedAt > respawnDelay * .8) resetPlayer();
+    return;
+  }
   /* --- Ducken (weiche Höhenänderung, Aufstehen nur wenn Platz ist) --- */
   player.wantCrouch = keys.crouch;
   const target = player.wantCrouch ? 1 : 0;
@@ -1173,6 +1274,12 @@ function updatePlayer(dt) {
   player.bobAmp = lerp(player.bobAmp, bobTarget, dt * 8);
   player.bobT += dt * (6.6 + hspeed * 0.9);
   player.stepDist += hspeed * dt;
+  if (player.stepDist > 2.2 && player.onGround) {
+    player.stepDist = 0;
+    /* Schleichen und Ducken sind leise, Rennen ist weit zu hören */
+    const loud = player.walking || player.crouch > .5 ? 5 : 17;
+    makeNoise(player.pos.x, player.pos.z, loud, 0);
+  }
 
   /* Kamera setzen */
   const eye = lerp(PLAYER.eyeStand, PLAYER.eyeCrouch, player.crouch);
@@ -1302,12 +1409,12 @@ function buildFighterMesh() {
   return g;
 }
 
-function makeFighter(x, z, yaw) {
+function makeFighter(x, z, yaw, team) {
   const f = {
     pos: new THREE.Vector3(x, 0, z),
     vel: new THREE.Vector3(),
     radius: 0.32, height: PLAYER.standH,
-    onGround: false, yaw: yaw || 0, crouch: 0,
+    onGround: false, yaw: yaw || 0, crouch: 0, team: team || 1,
     hp: 100, alive: true, deadAt: 0, deathTilt: 0,
     mesh: buildFighterMesh(),
     boxes: HITZONES.map(z2 => ({ min: {}, max: {}, part: z2.part, mult: z2.mult }))
@@ -1317,6 +1424,15 @@ function makeFighter(x, z, yaw) {
   updateFighterBoxes(f);
   return f;
 }
+
+/* Der Spieler ist für Kugeln dasselbe wie jede andere Figur — gleiche
+   Trefferzonen, gleiche Multiplikatoren, nur ohne sichtbares Modell. */
+const playerFighter = {
+  isPlayer: true, team: 0, pos: null, crouch: 0, hp: 100, alive: true,
+  mesh: null, radius: PLAYER.radius,
+  boxes: HITZONES.map(z => ({ min: {}, max: {}, part: z.part, mult: z.mult }))
+};
+fighters.push(playerFighter);
 
 function updateFighterBoxes(f) {
   const s = lerp(1, 0.72, f.crouch);
@@ -1330,7 +1446,7 @@ function updateFighterBoxes(f) {
 }
 
 function respawnFighter(f, x, z) {
-  f.pos.set(x, 0, z); f.vel.set(0, 0, 0);
+  f.pos.set(x, groundHeightAt(x, z), z); f.vel.set(0, 0, 0);
   f.hp = 100; f.alive = true; f.deathTilt = 0; f.crouch = 0;
   f.mesh.visible = true;
   f.mesh.rotation.set(0, f.yaw, 0);
@@ -1338,13 +1454,24 @@ function respawnFighter(f, x, z) {
   updateFighterBoxes(f);
 }
 
-function killFighter(f) {
+function killFighter(f, attacker) {
   f.alive = false;
   f.deadAt = time;
+  f.vel.set(0, 0, 0);
+  if (f.bot) f.bot.state = 'patrol';
+  onFighterKilled(f, attacker);
 }
 
+let respawnDelay = 4.0;      // Schritt 4 schaltet das auf Rundenlogik um
+
 function updateFighters(dt) {
+  playerFighter.pos = player.pos;
+  playerFighter.crouch = player.crouch;
+  playerFighter.alive = player.alive;
+  updateFighterBoxes(playerFighter);
+
   for (const f of fighters) {
+    if (f.isPlayer || !f.mesh) continue;
     if (f.alive) {
       f.mesh.position.copy(f.pos);
       f.mesh.rotation.y = f.yaw;
@@ -1355,9 +1482,380 @@ function updateFighters(dt) {
       f.deathTilt = Math.min(1, f.deathTilt + dt * 3.4);
       f.mesh.rotation.x = -f.deathTilt * Math.PI * 0.47;
       f.mesh.position.set(f.pos.x, f.pos.y + f.deathTilt * 0.05, f.pos.z);
-      if (time - f.deadAt > 2.6) respawnFighter(f, f.pos.x, f.pos.z);
+      if (respawnDelay > 0 && time - f.deadAt > respawnDelay) {
+        const h = f.home || { x: f.pos.x, z: f.pos.z };
+        respawnFighter(f, h.x, h.z);
+        if (f.bot) resetBrain(f);
+      }
     }
   }
+}
+
+/* --------------------------------------------------------------------------
+   9b · Gegner-KI
+        Wahrnehmung über Sicht und Geräusch, Wegsuche über das Raster,
+        Deckung aus den errechneten Deckungspunkten. Schwierigkeit stellt
+        genau zwei Werte: Reaktionszeit und Zielungenauigkeit.
+   -------------------------------------------------------------------------- */
+const DIFFICULTIES = [
+  { key: 'leicht', name: 'LEICHT',  reaction: [0.42, 0.62], aimErr: 5.0, burst: [2, 4], sight: 34 },
+  { key: 'normal', name: 'NORMAL',  reaction: [0.21, 0.30], aimErr: 2.6, burst: [3, 6], sight: 42 },
+  { key: 'schwer', name: 'SCHWER',  reaction: [0.14, 0.20], aimErr: 1.5, burst: [4, 8], sight: 50 },
+  { key: 'brutal', name: 'BRUTAL',  reaction: [0.09, 0.14], aimErr: 0.8, burst: [5, 10], sight: 58 }
+];
+function difficulty() { return DIFFICULTIES[clamp(Settings.difficulty | 0, 0, 3)]; }
+
+const BOT_WEAPON = {
+  dmg: 26, interval: 60 / 560, magSize: 30, reloadTime: 2.6,
+  falloffStart: 20, falloffEnd: 60, falloffMin: 0.50, noise: 42
+};
+
+const BOT = {
+  fovCos: Math.cos(55 * Math.PI / 180),   // 110° Sichtfeld
+  turnRate: 7.0,                          // rad/s beim Zielen
+  memory: 4.0,                            // Sekunden, die ein Ziel „gemerkt" bleibt
+  runSpeed: 4.9, walkSpeed: 2.7,
+  accel: 10, friction: 6.0,
+  peekTime: [1.2, 2.4]
+};
+
+/* Geräusche: Schüsse und Schritte, die Bots hören können */
+const noises = [];
+function makeNoise(x, z, radius, team) {
+  noises.push({ x, z, r: radius, team, t: time });
+  if (noises.length > 24) noises.shift();
+}
+
+function rnd(a, b) { return a + Math.random() * (b - a); }
+
+function makeBot(x, z, yaw, index) {
+  const f = makeFighter(x, z, yaw, 1);
+  f.bot = {
+    state: 'patrol',                  // patrol | alert | engage | cover
+    target: null, lastSeen: 0, firstSeen: -99, lostAt: -99,
+    known: null,                      // letzte bekannte Position des Ziels
+    reaction: rnd(...difficulty().reaction),
+    aimYaw: yaw, aimPitch: 0,
+    errPhase: [Math.random() * 9, Math.random() * 9], errSeed: Math.random() * 9,
+    ammo: BOT_WEAPON.magSize, reloading: false, reloadEnd: 0,
+    nextShot: 0, burstLeft: 0, burstPause: 0, recoil: 0,
+    path: null, repathAt: 0, goal: null, waitUntil: 0,
+    coverPoint: null, strafe: Math.random() < .5 ? 1 : -1, strafeUntil: 0,
+    index: index || 0
+  };
+  return f;
+}
+
+/* --- Wahrnehmung ------------------------------------------------------- */
+function canSee(bot, targ) {
+  const d = difficulty();
+  const bx = bot.pos.x, by = bot.pos.y + lerp(1.62, 1.15, bot.crouch), bz = bot.pos.z;
+  const dx = targ.pos.x - bx, dz = targ.pos.z - bz;
+  const dist = Math.hypot(dx, dz);
+  if (dist > d.sight) return false;
+  /* Sichtkegel */
+  const fx = -Math.sin(bot.bot.aimYaw), fz = -Math.cos(bot.bot.aimYaw);
+  if (dist > 1.5 && (dx * fx + dz * fz) / dist < BOT.fovCos) return false;
+  /* Freie Linie auf Brust oder Kopf */
+  const ty = targ.pos.y + lerp(1.10, 0.85, targ.crouch);
+  if (lineOfSight(bx, by, bz, targ.pos.x, ty, targ.pos.z)) return true;
+  return lineOfSight(bx, by, bz, targ.pos.x, targ.pos.y + lerp(1.62, 1.15, targ.crouch), targ.pos.z);
+}
+
+function hearNoises(bot) {
+  const b = bot.bot;
+  for (let i = noises.length - 1; i >= 0; i--) {
+    const n = noises[i];
+    if (time - n.t > 0.35) continue;          // nur frische Geräusche
+    if (n.team === bot.team) continue;
+    if (Math.hypot(n.x - bot.pos.x, n.z - bot.pos.z) > n.r) continue;
+    b.known = { x: n.x, z: n.z };
+    if (b.state === 'patrol') { b.state = 'alert'; b.path = null; b.repathAt = 0; }
+    return true;
+  }
+  return false;
+}
+
+/* --- Bewegung ---------------------------------------------------------- */
+function botMoveTo(f, dt, tx, tz, speed) {
+  const b = f.bot;
+  if (time > b.repathAt || !b.path || !b.path.length) {
+    b.path = findPath(f.pos.x, f.pos.z, tx, tz) || null;
+    b.repathAt = time + 0.7;
+    if (b.path) trimPath(f.pos.x, f.pos.z, b.path);
+  }
+  let wx = 0, wz = 0;
+  if (b.path && b.path.length) {
+    const wp = b.path[0];
+    const dx = wp.x - f.pos.x, dz = wp.z - f.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.75) { b.path.shift(); }
+    else { wx = dx / d; wz = dz / d; }
+  } else {
+    const dx = tx - f.pos.x, dz = tz - f.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.5) { wx = dx / d; wz = dz / d; }
+  }
+  botSteer(f, dt, wx, wz, speed);
+  return !b.path || !b.path.length;
+}
+
+function botSteer(f, dt, wx, wz, speed) {
+  f.height = lerp(PLAYER.standH, PLAYER.crouchH, f.crouch);
+  if (f.onGround) {
+    const sp = Math.hypot(f.vel.x, f.vel.z);
+    if (sp > 0.001) {
+      const drop = Math.max(sp, 1.7) * BOT.friction * dt;
+      const sc = Math.max(0, sp - drop) / sp;
+      f.vel.x *= sc; f.vel.z *= sc;
+    }
+    if (wx || wz) accelerate(f.vel, wx, wz, speed, BOT.accel, dt);
+  }
+  f.vel.y -= PLAYER.gravity * dt;
+  moveBody(f, dt);
+
+  /* Schrittgeräusche */
+  const sp = Math.hypot(f.vel.x, f.vel.z);
+  f.stepDist = (f.stepDist || 0) + sp * dt;
+  if (f.stepDist > 2.3) {
+    f.stepDist = 0;
+    if (sp > 3.5) makeNoise(f.pos.x, f.pos.z, 15, f.team);
+  }
+}
+
+/* --- Deckung ----------------------------------------------------------- */
+function findCover(f, threat) {
+  let best = null, bestScore = -1e9;
+  const ex = threat.pos.x, ey = threat.pos.y + 1.5, ez = threat.pos.z;
+  for (const c of nav.cover) {
+    const dB = Math.hypot(c.x - f.pos.x, c.z - f.pos.z);
+    if (dB > 16 || dB < 1.2) continue;
+    const dT = Math.hypot(c.x - ex, c.z - ez);
+    if (dT < 6) continue;                                  // nicht in den Gegner hinein
+    if (lineOfSight(ex, ey, ez, c.x, c.y + 1.0, c.z)) continue;   // bringt nichts
+    const score = -dB * 1.4 + dT * 0.25;
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  return best;
+}
+
+/* --- Schießen ---------------------------------------------------------- */
+function botShoot(f, targ) {
+  const b = f.bot, d = difficulty();
+  b.ammo--;
+  b.nextShot = time + BOT_WEAPON.interval;
+  b.burstLeft--;
+
+  const ox = f.pos.x, oy = f.pos.y + lerp(1.55, 1.10, f.crouch), oz = f.pos.z;
+  /* Zielfehler: Streukegel um die Blickrichtung, dazu eine langsam wandernde
+     Drift. Direkt nach dem Erfassen zielt der Bot deutlich schlechter und
+     wird über gut eine Sekunde ruhiger — das gibt dem Spieler eine Chance. */
+  const settle = 1 + 1.3 * (1 - clamp((time - b.firstSeen - b.reaction) / 1.2, 0, 1));
+  const err = d.aimErr * DEG * settle * (Math.hypot(f.vel.x, f.vel.z) > 1.5 ? 1.45 : 1);
+  const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * err;
+  const ey = b.aimYaw + Math.cos(a) * rr + Math.sin(b.errPhase[0]) * err * .35;
+  const ep = b.aimPitch + Math.sin(a) * rr + Math.sin(b.errPhase[1]) * err * .35 + b.recoil;
+  const dx = -Math.sin(ey) * Math.cos(ep);
+  const dy = Math.sin(ep);
+  const dz = -Math.cos(ey) * Math.cos(ep);
+
+  if (castRay(ox, oy, oz, dx, dy, dz, 200, 'all', f)) {
+    addTracer(ox + dx * .5, oy + dy * .5, oz + dz * .5, RAY.px, RAY.py, RAY.pz);
+    if (RAY.fighter) {
+      const dmg = Math.round(BOT_WEAPON.dmg * RAY.part.mult * damageFalloff(BOT_WEAPON, RAY.dist));
+      damageFighter(RAY.fighter, dmg, RAY.part.part, RAY.dist, f);
+    } else {
+      addDecal(RAY.px, RAY.py, RAY.pz, RAY.nx, RAY.ny, RAY.nz);
+      addSpark(RAY.px + RAY.nx * .02, RAY.py + RAY.ny * .02, RAY.pz + RAY.nz * .02);
+    }
+  }
+  b.recoil += 0.35 * DEG;
+  makeNoise(f.pos.x, f.pos.z, BOT_WEAPON.noise, f.team);
+  muzzleFlashAt(ox, oy, oz);
+}
+
+/* --- Hauptschleife der KI ---------------------------------------------- */
+function updateBots(dt) {
+  const diff = difficulty();
+  for (const f of fighters) {
+    if (!f.bot) continue;
+    const b = f.bot;
+    if (!f.alive || b.frozen) { f.vel.set(0, 0, 0); continue; }
+
+    /* Nachladen */
+    if (b.reloading && time >= b.reloadEnd) { b.reloading = false; b.ammo = BOT_WEAPON.magSize; }
+    if (b.ammo <= 0 && !b.reloading) {
+      b.reloading = true; b.reloadEnd = time + BOT_WEAPON.reloadTime;
+    }
+
+    /* Wahrnehmung */
+    let targ = null, seen = false;
+    for (const o of fighters) {
+      if (o === f || !o.alive || o.team === f.team) continue;
+      if (canSee(f, o)) { targ = o; seen = true; break; }
+    }
+    if (seen) {
+      if (b.target !== targ || time - b.lastSeen > 0.6) b.firstSeen = time;
+      b.target = targ; b.lastSeen = time;
+      b.known = { x: targ.pos.x, z: targ.pos.z };
+      if (b.state !== 'cover') b.state = 'engage';
+    } else {
+      hearNoises(f);
+      if (b.state === 'engage' && time - b.lastSeen > BOT.memory) {
+        b.state = 'alert'; b.path = null; b.repathAt = 0;
+      }
+    }
+
+    /* Zielverfolgung: der Lauf dreht mit begrenzter Geschwindigkeit nach */
+    const aimT = b.target && (seen || time - b.lastSeen < BOT.memory) ? b.target : null;
+    if (aimT) {
+      const tx = aimT.pos.x, tz = aimT.pos.z;
+      const ty = aimT.pos.y + lerp(1.25, 0.95, aimT.crouch);
+      const ox = f.pos.x, oy = f.pos.y + lerp(1.55, 1.10, f.crouch), oz = f.pos.z;
+      const wantYaw = Math.atan2(-(tx - ox), -(tz - oz));
+      const dist = Math.hypot(tx - ox, tz - oz);
+      const wantPitch = Math.atan2(ty - oy, dist);
+      let dy2 = wantYaw - b.aimYaw;
+      while (dy2 > Math.PI) dy2 -= Math.PI * 2;
+      while (dy2 < -Math.PI) dy2 += Math.PI * 2;
+      const k = Math.min(1, BOT.turnRate * dt);
+      b.aimYaw += dy2 * k;
+      b.aimPitch += (wantPitch - b.aimPitch) * k;
+    }
+    /* Zielfehler wandert langsam, damit er menschlich wirkt */
+    b.errPhase[0] += dt * (1.4 + b.errSeed * .5);
+    b.errPhase[1] += dt * (1.1 + b.errSeed * .4);
+    b.recoil = Math.max(0, b.recoil - dt * 2.4 * DEG);
+    f.yaw = b.aimYaw;
+
+    /* Zustände */
+    switch (b.state) {
+
+      case 'patrol': {
+        f.crouch = 0;
+        if (!b.goal || time > b.waitUntil && botMoveTo(f, dt, b.goal.x, b.goal.z, BOT.walkSpeed)) {
+          if (!b.goal) { b.goal = randomPatrolGoal(f); b.path = null; b.repathAt = 0; }
+          else if (time > b.waitUntil) {
+            b.waitUntil = time + rnd(0.6, 1.8);
+            b.goal = randomPatrolGoal(f);
+            b.path = null; b.repathAt = 0;
+          }
+        }
+        if (b.goal) botMoveTo(f, dt, b.goal.x, b.goal.z, BOT.walkSpeed);
+        /* beim Gehen umsehen */
+        const sp = Math.hypot(f.vel.x, f.vel.z);
+        if (sp > 0.3) b.aimYaw = lerp(b.aimYaw, Math.atan2(-f.vel.x, -f.vel.z), dt * 4);
+        else b.aimYaw += Math.sin(time * 0.7 + b.errSeed) * dt * 0.9;
+        b.aimPitch = lerp(b.aimPitch, 0, dt * 3);
+        break;
+      }
+
+      case 'alert': {
+        f.crouch = 0;
+        const k = b.known;
+        if (!k) { b.state = 'patrol'; b.goal = null; break; }
+        const done = botMoveTo(f, dt, k.x, k.z, BOT.runSpeed * .82);
+        if (done && Math.hypot(k.x - f.pos.x, k.z - f.pos.z) < 2.5) {
+          if (!b.waitUntil || time > b.waitUntil + 3) {
+            b.waitUntil = time;
+          }
+          b.aimYaw += Math.sin(time * 1.6 + b.errSeed) * dt * 2.2;   // Umgebung absuchen
+          if (time - b.waitUntil > 2.6) { b.state = 'patrol'; b.known = null; b.goal = null; }
+        }
+        break;
+      }
+
+      case 'engage': {
+        const t = b.target;
+        if (!t || !t.alive) { b.state = 'patrol'; b.goal = null; b.target = null; break; }
+        const dist = Math.hypot(t.pos.x - f.pos.x, t.pos.z - f.pos.z);
+
+        /* Nachladen oder angeschlagen → in Deckung */
+        if ((b.reloading || f.hp < 42) && !b.coverPoint) {
+          const c = findCover(f, t);
+          if (c) { b.coverPoint = c; b.state = 'cover'; b.path = null; b.repathAt = 0; break; }
+        }
+
+        if (seen) {
+          /* Auf Distanz halten und dabei seitlich versetzen */
+          if (time > b.strafeUntil) { b.strafe = -b.strafe; b.strafeUntil = time + rnd(0.5, 1.4); }
+          let wx = 0, wz = 0;
+          const fx = -Math.sin(b.aimYaw), fz = -Math.cos(b.aimYaw);
+          if (dist > 16)      { wx = fx; wz = fz; }
+          else if (dist < 7)  { wx = -fx; wz = -fz; }
+          else { wx = -fz * b.strafe; wz = fx * b.strafe; }
+          botSteer(f, dt, wx, wz, BOT.walkSpeed * 1.15);
+          f.crouch = lerp(f.crouch, dist > 22 ? 1 : 0, dt * 5);
+
+          /* Feuern, sobald die Reaktionszeit um ist und der Lauf sitzt */
+          const aimed = Math.abs(angleDiff(b.aimYaw, Math.atan2(
+            -(t.pos.x - f.pos.x), -(t.pos.z - f.pos.z)))) < 0.12;
+          if (!b.reloading && time > b.firstSeen + b.reaction && aimed && time > b.nextShot) {
+            if (b.burstLeft <= 0) {
+              if (time > b.burstPause) {
+                b.burstLeft = Math.round(rnd(diff.burst[0], diff.burst[1]));
+                b.burstPause = 0;
+              }
+            }
+            if (b.burstLeft > 0) {
+              botShoot(f, t);
+              if (b.burstLeft <= 0) b.burstPause = time + rnd(0.28, 0.7);
+            }
+          }
+        } else {
+          /* Sicht verloren → zur letzten bekannten Stelle */
+          if (b.known) botMoveTo(f, dt, b.known.x, b.known.z, BOT.runSpeed * .8);
+          f.crouch = lerp(f.crouch, 0, dt * 5);
+        }
+        break;
+      }
+
+      case 'cover': {
+        const c = b.coverPoint;
+        const t = b.target;
+        if (!c) { b.state = t ? 'engage' : 'patrol'; break; }
+        const d2 = Math.hypot(c.x - f.pos.x, c.z - f.pos.z);
+        if (d2 > 0.55) {
+          botMoveTo(f, dt, c.x, c.z, BOT.runSpeed);
+          f.crouch = lerp(f.crouch, 0, dt * 5);
+        } else {
+          botSteer(f, dt, 0, 0, 0);
+          f.crouch = lerp(f.crouch, 1, dt * 5);
+          if (!b.waitUntil || b.waitUntil < time - 30) b.waitUntil = time + rnd(...BOT.peekTime);
+          if (!b.reloading && time > b.waitUntil && f.hp > 20) {
+            b.coverPoint = null; b.waitUntil = 0;
+            b.state = t && t.alive ? 'engage' : 'alert';
+            b.path = null; b.repathAt = 0;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  /* alte Geräusche verwerfen */
+  while (noises.length && time - noises[0].t > 1) noises.shift();
+}
+
+function angleDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+/** Zufälliges Patrouillenziel: bevorzugt Deckungen in der Nähe. */
+function randomPatrolGoal(f) {
+  if (!nav.cover.length) return null;
+  let best = null, bestScore = -1e9;
+  for (let i = 0; i < 14; i++) {
+    const c = nav.cover[(Math.random() * nav.cover.length) | 0];
+    const d = Math.hypot(c.x - f.pos.x, c.z - f.pos.z);
+    if (d < 5) continue;
+    const score = -Math.abs(d - 16) + Math.random() * 8;
+    if (score > bestScore) { bestScore = score; best = c; }
+  }
+  return best || nav.cover[(Math.random() * nav.cover.length) | 0];
 }
 
 /* --------------------------------------------------------------------------
@@ -1387,7 +1885,7 @@ const WEAPONS = [
     falloffStart: 22, falloffEnd: 62, falloffMin: 0.55,
     spreadBase: 0.30, spreadMove: 2.60, spreadShot: 0.30, spreadShotMax: 1.10, spreadMax: 6.5,
     pattern: PAT_RIFLE, recoilScale: 1.35, recoilReset: 0.32,
-    kickPos: 0.030, kickRot: 0.048, flash: 0.052, scopeFov: 0
+    kickPos: 0.030, kickRot: 0.048, flash: 0.052, scopeFov: 0, noise: 46
   },
   {
     id: 'pistol', name: 'P-12', kind: 'PISTOLE', auto: false, rpm: 420,
@@ -1395,7 +1893,7 @@ const WEAPONS = [
     falloffStart: 12, falloffEnd: 40, falloffMin: 0.45,
     spreadBase: 0.42, spreadMove: 2.20, spreadShot: 0.50, spreadShotMax: 1.60, spreadMax: 7,
     pattern: PAT_PISTOL, recoilScale: 1.10, recoilReset: 0.28,
-    kickPos: 0.026, kickRot: 0.060, flash: 0.042, scopeFov: 0
+    kickPos: 0.026, kickRot: 0.060, flash: 0.042, scopeFov: 0, noise: 34
   },
   {
     id: 'sniper', name: 'M-70', kind: 'SCHARFSCHÜTZE', auto: false, rpm: 48,
@@ -1403,7 +1901,7 @@ const WEAPONS = [
     falloffStart: 90, falloffEnd: 150, falloffMin: 0.85,
     spreadBase: 2.40, spreadScoped: 0.03, spreadMove: 9.0, spreadShot: 1.4, spreadShotMax: 3.00, spreadMax: 12,
     pattern: PAT_SNIPER, recoilScale: 2.30, recoilReset: 0.55,
-    kickPos: 0.075, kickRot: 0.150, flash: 0.070, scopeFov: 22
+    kickPos: 0.075, kickRot: 0.150, flash: 0.070, scopeFov: 22, noise: 62
   }
 ];
 for (const w of WEAPONS) { w.ammo = w.magSize; w.reserve = w.reserveMax; w.interval = 60 / w.rpm; }
@@ -1922,7 +2420,35 @@ function addTracer(ax, ay, az, bx, by, bz) {
   t.visible = true;
 }
 
+/* Mündungsfeuer der Gegner in der Welt */
+const worldFlashes = [];
+for (let i = 0; i < 6; i++) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(.5, .5), new THREE.MeshBasicMaterial({
+    map: texFlash, color: 0xffd8a0, transparent: true, opacity: 0, depthWrite: false,
+    blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+  }));
+  m.visible = false; m.userData.t = 0;
+  scene.add(m);
+  worldFlashes.push(m);
+}
+let flashNext = 0;
+function muzzleFlashAt(x, y, z) {
+  const m = worldFlashes[flashNext = (flashNext + 1) % worldFlashes.length];
+  m.position.set(x, y, z);
+  m.userData.t = 0.05;
+  m.scale.setScalar(.8 + Math.random() * .4);
+  m.rotation.z = Math.random() * 6.28;
+  m.visible = true;
+}
+
 function updateEffects(dt) {
+  for (const m of worldFlashes) {
+    if (!m.visible) continue;
+    m.userData.t -= dt;
+    if (m.userData.t <= 0) { m.visible = false; continue; }
+    m.material.opacity = clamp(m.userData.t / .05, 0, 1);
+    m.lookAt(camera.position);
+  }
   for (const s of sparks) {
     if (!s.visible) continue;
     s.userData.t -= dt;
@@ -1983,7 +2509,7 @@ function fireShot() {
   const dl = Math.hypot(dx, dy, dz);
 
   const ex = camera.position.x, ey = camera.position.y, ez = camera.position.z;
-  const hit = castRay(ex, ey, ez, dx / dl, dy / dl, dz / dl, 220, 'all');
+  const hit = castRay(ex, ey, ez, dx / dl, dy / dl, dz / dl, 220, 'all', playerFighter);
 
   /* Leuchtspur startet an der Mündung, nicht am Auge */
   const mz = new THREE.Vector3(0.16, -0.16, -0.5).applyQuaternion(camera.quaternion).add(camera.position);
@@ -1992,7 +2518,7 @@ function fireShot() {
     if (RAY.fighter) {
       const mult = RAY.part.mult;
       const dmg = Math.round(w.dmg * mult * damageFalloff(w, RAY.dist));
-      applyDamage(RAY.fighter, dmg, RAY.part.part, RAY.dist);
+      damageFighter(RAY.fighter, dmg, RAY.part.part, RAY.dist, playerFighter);
       addSpark(RAY.px, RAY.py, RAY.pz, 0xd8412f);
     } else {
       addDecal(RAY.px, RAY.py, RAY.pz, RAY.nx, RAY.ny, RAY.nz);
@@ -2001,6 +2527,8 @@ function fireShot() {
   } else {
     addTracer(mz.x, mz.y, mz.z, ex + dx / dl * 90, ey + dy / dl * 90, ez + dz / dl * 90);
   }
+
+  makeNoise(camera.position.x, camera.position.z, w.noise, 0);
 
   /* Rückstoß nach festem Muster */
   const p = w.pattern[Math.min(recoil.index, w.pattern.length - 1)];
@@ -2018,13 +2546,17 @@ function fireShot() {
   if (gun.scoped) unscope();
 }
 
-function applyDamage(f, dmg, partName, dist) {
-  f.hp -= dmg;
+function damageFighter(f, dmg, partName, dist, attacker) {
+  if (!f.alive) return;
   const head = partName === 'KOPF';
-  showHitmarker(head);
-  addDamagePopup(f, dmg, head);
-  pushHitLog(partName, dmg, dist, f.hp <= 0);
-  if (f.hp <= 0) killFighter(f);
+  if (f.isPlayer) { damagePlayer(dmg, attacker, head); return; }
+  f.hp -= dmg;
+  if (attacker && attacker.isPlayer) {
+    showHitmarker(head);
+    addDamagePopup(f, dmg, head);
+    pushHitLog(partName, dmg, dist, f.hp <= 0);
+  }
+  if (f.hp <= 0) killFighter(f, attacker);
 }
 
 function startReload() {
@@ -2182,6 +2714,7 @@ function show(which) {
 }
 
 function startGame() {
+  spawnBots();
   resetPlayer();
   resetWeapons();
   state = 'play'; show(null);
@@ -2245,7 +2778,7 @@ function selectMap(id) {
   const m = MAPS.find(x => x.id === id) || MAPS[0];
   Settings.map = m.id; saveSettings();
   buildMap(m);
-  placeTargets();
+  spawnBots();
   resetPlayer();
 }
 
@@ -2287,14 +2820,24 @@ function renderSkinMenu() {
 }
 
 /* Einstellungen */
-const sSens = $('sSens'), sFov = $('sFov');
+const sSens = $('sSens'), sFov = $('sFov'), sDiff = $('sDiff');
 function syncSettings() {
   sSens.value = Settings.sens; $('oSens').textContent = (+Settings.sens).toFixed(1);
   sFov.value  = Settings.fov;  $('oFov').textContent  = Settings.fov;
-  camera.fov = Settings.fov; camera.updateProjectionMatrix();
+  sDiff.value = Settings.difficulty;
+  const d = DIFFICULTIES[clamp(Settings.difficulty | 0, 0, 3)];
+  $('oDiff').textContent = d.name;
+  $('diffinfo').textContent =
+    'Reaktionszeit ' + Math.round(d.reaction[0] * 1000) + '–' + Math.round(d.reaction[1] * 1000) +
+    ' ms · Zielfehler ' + d.aimErr.toFixed(1) + '° · Sichtweite ' + d.sight + ' m';
+  if (!gun.scoped) { camera.fov = Settings.fov; camera.updateProjectionMatrix(); }
 }
 sSens.oninput = () => { Settings.sens = +sSens.value; syncSettings(); saveSettings(); };
 sFov.oninput  = () => { Settings.fov  = +sFov.value;  syncSettings(); saveSettings(); };
+sDiff.oninput = () => {
+  Settings.difficulty = +sDiff.value; syncSettings(); saveSettings();
+  for (const f of fighters) if (f.bot) f.bot.reaction = rnd(...difficulty().reaction);
+};
 syncSettings();
 
 /* --------------------------------------------------------------------------
@@ -2379,8 +2922,31 @@ function updateAmmoHUD() {
 }
 let lastAmmoKey = '';
 
+/* Richtungspfeile für einschlagende Treffer */
+const dirPool = [];
+for (let i = 0; i < 4; i++) {
+  const d = document.createElement('div');
+  d.className = 'dmgdir'; d.style.opacity = 0;
+  d.innerHTML = '<i></i>';
+  $('dirs').appendChild(d);
+  dirPool.push(d);
+}
+function updateHurt(dt) {
+  hurtFlash = Math.max(0, hurtFlash - dt * 1.6);
+  $('hurt').style.opacity = hurtFlash * .85;
+  for (let i = 0; i < dirPool.length; i++) {
+    const m = hurtMarks[i];
+    if (!m || time - m.t > 1.4) { dirPool[i].style.opacity = 0; continue; }
+    const a = Math.atan2(m.x - player.pos.x, -(m.z - player.pos.z));
+    dirPool[i].style.transform = 'rotate(' + (a - player.yaw) + 'rad)';
+    dirPool[i].style.opacity = Math.max(0, 1 - (time - m.t) / 1.4);
+  }
+  $('deadmsg').style.opacity = player.alive ? 0 : 1;
+}
+
 let fpsAcc = 0, fpsFrames = 0, fpsShown = 0;
 function updateHUD(dt) {
+  updateHurt(dt);
   updateCrosshair();
   updatePopups(dt);
 
@@ -2460,6 +3026,7 @@ function frame(now) {
     updateWeapons(dt);
     updatePlayer(dt);
     updateFighters(dt);
+    updateBots(dt);
     updateEffects(dt);
     updateCameraFov(dt);
     updateViewModel(dt, mouseDX, mouseDY);
@@ -2490,11 +3057,13 @@ function groundHeightAt(x, z, r) {
 
 /** Entfernt alle Figuren samt Geometrie. */
 function clearFighters() {
-  for (const f of fighters) {
+  for (let i = fighters.length - 1; i >= 0; i--) {
+    const f = fighters[i];
+    if (f.isPlayer) continue;
     scene.remove(f.mesh);
     f.mesh.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+    fighters.splice(i, 1);
   }
-  fighters.length = 0;
 }
 
 /** Wählt n möglichst weit auseinanderliegende Punkte aus einer Liste. */
@@ -2514,17 +3083,39 @@ function spreadPick(list, n) {
   return out;
 }
 
-/** Stellt Trainingsziele an Deckungspunkten der aktuellen Map auf. */
-function placeTargets() {
+/** Setzt die vier Gegner auf ihre Spawnpunkte. */
+function spawnBots() {
   clearFighters();
-  const spots = spreadPick(nav.cover.filter(c => c.x > -MAP.hw * .45), 5);
-  for (const sp of spots) {
-    const f = makeFighter(sp.x, sp.z, Math.atan2(-(MAP.spawnPlayer.x - sp.x), 0));
+  MAP.spawnEnemy.forEach((sp, i) => {
+    const f = makeBot(sp.x, sp.z, Math.PI / 2, i);
     f.pos.y = groundHeightAt(sp.x, sp.z);
-    f.home = { x: sp.x, z: sp.z, y: f.pos.y };
+    f.home = { x: sp.x, z: sp.z };
     f.mesh.position.copy(f.pos);
     updateFighterBoxes(f);
-  }
+  });
+  updateEnemyCount();
+}
+
+function resetBrain(f) {
+  const b = f.bot;
+  b.state = 'patrol'; b.target = null; b.known = null; b.goal = null;
+  b.path = null; b.repathAt = 0; b.coverPoint = null; b.waitUntil = 0;
+  b.ammo = BOT_WEAPON.magSize; b.reloading = false;
+  b.burstLeft = 0; b.burstPause = 0; b.recoil = 0;
+  b.reaction = rnd(...difficulty().reaction);
+  b.aimYaw = f.yaw; b.aimPitch = 0; b.firstSeen = -99; b.lastSeen = -99;
+}
+
+function aliveEnemies() {
+  let n = 0;
+  for (const f of fighters) if (f.bot && f.alive) n++;
+  return n;
+}
+function updateEnemyCount() {
+  $('enemies').textContent = aliveEnemies();
+}
+function onFighterKilled(f, attacker) {
+  updateEnemyCount();
 }
 
 function resetWeapons() {
@@ -2544,7 +3135,7 @@ resetWeapons();
    17 · Start: gewählte Map bauen, Skins anlegen, Menüs füllen
    -------------------------------------------------------------------------- */
 buildMap(MAPS.find(m => m.id === Settings.map) || MAPS[0]);
-placeTargets();
+spawnBots();
 resetPlayer();
 applyAllSkins();
 setPreviewWeapon('rifle');
@@ -2555,7 +3146,8 @@ renderSkinMenu();
 window.GAME = { THREE, scene, camera, renderer, player, colliders, MAP,
   startGame, inaccuracy: movementInaccuracy, spread: totalSpread, groundHeightAt,
   fighters, WEAPONS, gun, recoil, castRay, RAY, selectWeapon, startReload,
-  MAPS, SKINS, Settings, selectMap, nav, findPath, buildMap, placeTargets,
+  MAPS, SKINS, Settings, selectMap, nav, findPath, buildMap, spawnBots,
+  DIFFICULTIES, updateBots, playerFighter, noises,
   get time() { return time; }, get state() { return state; } };
 };
 </script>
