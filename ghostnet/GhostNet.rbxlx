@@ -1,0 +1,3547 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Meta name="ExplicitAutoJoints">true</Meta>
+	<External>null</External>
+	<External>nil</External>
+	<Item class="Workspace" referent="RBX0">
+		<Properties>
+			<string name="Name">Workspace</string>
+			<float name="Gravity">196.2</float>
+		</Properties>
+		<Item class="Part" referent="RBX20">
+			<Properties>
+				<string name="Name">Baseplate</string>
+				<bool name="Anchored">true</bool>
+				<bool name="CanCollide">true</bool>
+				<CoordinateFrame name="CFrame">
+					<X>0</X><Y>-8</Y><Z>0</Z>
+					<R00>1</R00><R01>0</R01><R02>0</R02>
+					<R10>0</R10><R11>1</R11><R12>0</R12>
+					<R20>0</R20><R21>0</R21><R22>1</R22>
+				</CoordinateFrame>
+				<Vector3 name="size"><X>512</X><Y>16</Y><Z>512</Z></Vector3>
+				<Color3uint8 name="Color3uint8">4279374874</Color3uint8>
+				<token name="TopSurface">0</token>
+				<token name="BottomSurface">0</token>
+			</Properties>
+		</Item>
+		<Item class="SpawnLocation" referent="RBX21">
+			<Properties>
+				<string name="Name">SpawnLocation</string>
+				<bool name="Anchored">true</bool>
+				<bool name="CanCollide">true</bool>
+				<CoordinateFrame name="CFrame">
+					<X>0</X><Y>0.5</Y><Z>10</Z>
+					<R00>1</R00><R01>0</R01><R02>0</R02>
+					<R10>0</R10><R11>1</R11><R12>0</R12>
+					<R20>0</R20><R21>0</R21><R22>1</R22>
+				</CoordinateFrame>
+				<Vector3 name="size"><X>16</X><Y>1</Y><Z>16</Z></Vector3>
+				<Color3uint8 name="Color3uint8">4278213225</Color3uint8>
+				<token name="TopSurface">0</token>
+				<token name="BottomSurface">0</token>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="Lighting" referent="RBX22">
+		<Properties>
+			<string name="Name">Lighting</string>
+			<token name="Technology">4</token>
+			<string name="TimeOfDay">00:00:00</string>
+			<bool name="GlobalShadows">true</bool>
+			<float name="Brightness">1</float>
+			<float name="EnvironmentDiffuseScale">0.35</float>
+			<float name="EnvironmentSpecularScale">0.6</float>
+			<float name="ShadowSoftness">0.3</float>
+			<Color3 name="Ambient"><R>0.05</R><G>0.06</G><B>0.08</B></Color3>
+			<Color3 name="OutdoorAmbient"><R>0.08</R><G>0.09</G><B>0.13</B></Color3>
+			<Color3 name="FogColor"><R>0.03</R><G>0.04</G><B>0.07</B></Color3>
+			<float name="FogEnd">420</float>
+		</Properties>
+		<Item class="BloomEffect" referent="RBX23">
+			<Properties>
+				<string name="Name">Bloom</string>
+				<bool name="Enabled">true</bool>
+				<float name="Intensity">0.6</float>
+				<float name="Size">28</float>
+				<float name="Threshold">0.9</float>
+			</Properties>
+		</Item>
+		<Item class="ColorCorrectionEffect" referent="RBX24">
+			<Properties>
+				<string name="Name">ColorCorrection</string>
+				<bool name="Enabled">true</bool>
+				<float name="Brightness">0</float>
+				<float name="Contrast">0.12</float>
+				<float name="Saturation">0.08</float>
+				<Color3 name="TintColor"><R>0.9</R><G>0.97</G><B>1</B></Color3>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="ReplicatedStorage" referent="RBX25">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="Folder" referent="RBX5">
+			<Properties>
+				<string name="Name">Shared</string>
+			</Properties>
+					<Item class="ModuleScript" referent="RBX1">
+						<Properties>
+							<string name="Name">Config</string>
+							<ProtectedString name="Source">-- ReplicatedStorage/Shared/Config.lua
+					--!strict
+					-- GHOSTNET :: Zentrale Balancing-Datei.
+					-- Regel: Jede Zahl, die man zum Austarieren anfassen will, steht HIER und
+					-- nirgendwo sonst. Server und Client lesen dieselbe Datei.
+
+					local Config = {}
+
+					Config.Version = "0.1.0"
+
+					-- CollectionService-Tag, der einen Part zu einem Hack-Ziel macht.
+					Config.HackableTag = "GhostNetHackable"
+
+					--==========================================================================
+					-- 1. REICHWEITE (Netzwerkkarte)
+					--==========================================================================
+					Config.Range = {
+						Base = 18, -- Studs auf NetCard 1
+						PerNetCard = 6, -- pro weiterer Stufe
+						Tolerance = 4, -- Lag-Puffer bei der Serverpruefung
+					}
+
+					function Config.GetRange(netCardLevel: number): number
+						return Config.Range.Base + Config.Range.PerNetCard * (netCardLevel - 1)
+					end
+
+					--==========================================================================
+					-- 2. ZEIT (CPU)
+					--==========================================================================
+					Config.Time = {
+						Base = 25, -- Sekunden auf CPU 1
+						PerCPU = 4, -- pro weiterer Stufe
+						PerDifficulty = 3, -- Zuschlag pro Schwierigkeitsgrad
+					}
+
+					function Config.GetTimeLimit(cpuLevel: number, difficulty: number): number
+						return Config.Time.Base + Config.Time.PerCPU * (cpuLevel - 1) + Config.Time.PerDifficulty * difficulty
+					end
+
+					--==========================================================================
+					-- 3. VERSUCHE (RAM)
+					--==========================================================================
+					Config.Attempts = {
+						Base = 3, -- auf RAM 1
+						PerRAM = 1,
+						Cap = 7,
+					}
+
+					function Config.GetAttempts(ramLevel: number): number
+						return math.min(Config.Attempts.Cap, Config.Attempts.Base + Config.Attempts.PerRAM * (ramLevel - 1))
+					end
+
+					--==========================================================================
+					-- 4. TRACE (Kuehlung)  -- angewendet ab Phase 2, Zahl wird schon berechnet
+					--==========================================================================
+					Config.Trace = {
+						GainPerDifficulty = 4.0, -- Default, wenn der Part kein TraceGain-Attribut hat
+						CoolingReduction = 0.08, -- -8% Trace-Gewinn pro Kuehlungsstufe
+						AbortFactor = 0.5, -- Abbruch kostet halben Trace, damit er kein Free-Retry ist
+						FailFactor = 0.75, -- Fehlschlag kostet 75% Trace
+					}
+
+					function Config.GetTraceGain(baseGain: number, coolingLevel: number): number
+						local reduction = 1 - Config.Trace.CoolingReduction * (coolingLevel - 1)
+						return baseGain * math.max(0.2, reduction)
+					end
+
+					--==========================================================================
+					-- 5. BELOHNUNG
+					--==========================================================================
+					Config.Reward = {
+						Base = 40,
+						Exponent = 1.35,
+					}
+
+					function Config.GetReward(difficulty: number): number
+						return math.floor(Config.Reward.Base * difficulty ^ Config.Reward.Exponent)
+					end
+
+					--==========================================================================
+					-- 6. COOLDOWN
+					--==========================================================================
+					Config.Cooldown = {
+						Default = 90, -- Sekunden, pro Spieler und Ziel
+						AfterFail = 20, -- kuerzer nach einem Fehlschlag, damit man es nochmal darf
+					}
+
+					--==========================================================================
+					-- 7. RIG
+					--==========================================================================
+					Config.Rig = {
+						MaxLevel = 5,
+						Components = { "CPU", "RAM", "Cooling", "NetCard" },
+						StartLevels = { CPU = 1, RAM = 1, Cooling = 1, NetCard = 1 },
+					}
+
+					--==========================================================================
+					-- 8. DEFAULTS FUER HACK-ZIELE
+					-- Ein Part braucht KEIN einziges Attribut. Alles, was fehlt, kommt von hier.
+					--==========================================================================
+					Config.TargetDefaults = {
+						Difficulty = 1,
+						HackType = "NodeBreach",
+						Reward = -1, -- -1 = aus Difficulty berechnen
+						TraceGain = -1, -- -1 = aus Difficulty berechnen
+						Cooldown = -1, -- -1 = Config.Cooldown.Default
+						RequiredLevel = 1,
+						OnSuccess = "Offline",
+						DisplayName = "", -- "" = Instanzname benutzen
+						DownTime = 30, -- wie lange der Welteffekt haelt
+					}
+
+					--==========================================================================
+					-- 9. RATE-LIMITS (Token-Bucket pro Spieler und Remote)
+					--==========================================================================
+					Config.RateLimits = {
+						HackRequestStart = { Rate = 2, Burst = 3 },
+						HackInput = { Rate = 12, Burst = 20 },
+						HackAbort = { Rate = 4, Burst = 6 },
+					}
+
+					--==========================================================================
+					-- 10. NODE-BREACH
+					--==========================================================================
+					Config.NodeBreach = {
+						-- Pro Schwierigkeitsband: Gittergroesse, Anzahl Relays, Anteil sichtbares
+						-- ICE und Anteil verstecktes ICE (nur DAS kostet Versuche).
+						Tiers = {
+							{ MaxDifficulty = 2, Width = 5, Height = 5, Relays = 1, Ice = 0.15, MaskedIce = 0.06 },
+							{ MaxDifficulty = 4, Width = 6, Height = 6, Relays = 2, Ice = 0.20, MaskedIce = 0.09 },
+							{ MaxDifficulty = 6, Width = 6, Height = 6, Relays = 3, Ice = 0.25, MaskedIce = 0.12 },
+							{ MaxDifficulty = 8, Width = 7, Height = 7, Relays = 3, Ice = 0.30, MaskedIce = 0.15 },
+							{ MaxDifficulty = 10, Width = 8, Height = 8, Relays = 4, Ice = 0.32, MaskedIce = 0.18 },
+						},
+						PathSearchTries = 12, -- so viele Pfade werden erzeugt, der passendste gewinnt
+						PathLengthBonus = 2, -- Wunschlaenge = Width + Height + Bonus
+					}
+
+					--==========================================================================
+					-- SESSION / LAUFZEIT
+					--==========================================================================
+					Config.Session = {
+						TickRate = 0.25, -- Sekunden zwischen Ablauf- und Distanzpruefung
+						GraceAfterStart = 0.5, -- kurze Schonfrist, bevor die Distanz geprueft wird
+					}
+
+					--==========================================================================
+					-- UI-FARBEN (Fake-OS)
+					--==========================================================================
+					Config.Theme = {
+						Background = Color3.fromRGB(6, 8, 11),
+						Panel = Color3.fromRGB(13, 17, 23),
+						PanelLight = Color3.fromRGB(22, 28, 37),
+						Line = Color3.fromRGB(38, 48, 62),
+						Cyan = Color3.fromRGB(0, 229, 255),
+						CyanDim = Color3.fromRGB(0, 120, 140),
+						Magenta = Color3.fromRGB(255, 45, 149),
+						Amber = Color3.fromRGB(255, 176, 0),
+						Text = Color3.fromRGB(198, 214, 226),
+						TextDim = Color3.fromRGB(96, 116, 134),
+						Ice = Color3.fromRGB(64, 78, 96),
+					}
+
+					table.freeze(Config.Theme)
+
+					return Config
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX2">
+						<Properties>
+							<string name="Name">Remotes</string>
+							<ProtectedString name="Source">-- ReplicatedStorage/Shared/Remotes.lua
+					--!strict
+					-- GHOSTNET :: Erzeugt (Server) bzw. wartet auf (Client) alle Netzwerkobjekte.
+					-- Neue Remotes werden ausschliesslich in den Listen unten eingetragen.
+
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+					local RunService = game:GetService("RunService")
+
+					local FOLDER_NAME = "GhostNetRemotes"
+
+					-- C-&gt;S : Client schickt ausschliesslich Eingaben, niemals Ergebnisse.
+					-- S-&gt;C : Server schickt Zustand und Ergebnisse.
+					local EVENT_NAMES = {
+						"HackRequestStart", -- C-&gt;S  { targetId }
+						"HackInput", -- C-&gt;S  { sessionId, step, payload }
+						"HackAbort", -- C-&gt;S  { sessionId }
+						"HackSessionStarted", -- S-&gt;C  { sessionId, hackType, public, deadline, attempts, ... }
+						"HackDenied", -- S-&gt;C  { targetId, reason, seconds }  Start abgelehnt
+						"HackFeedback", -- S-&gt;C  { sessionId, step, ok, reason, ... }
+						"HackResolved", -- S-&gt;C  { sessionId, success, reason, reward, traceDelta, effect }
+						"EconomySync", -- S-&gt;C  { unsold, banked }
+					}
+
+					local FUNCTION_NAMES: { string } = {
+						-- Phase 3: ShopPurchase, QuestAction
+					}
+
+					local Remotes = {}
+
+					local folder: Folder
+					if RunService:IsServer() then
+						local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+						if existing then
+							folder = existing :: Folder
+						else
+							folder = Instance.new("Folder")
+							folder.Name = FOLDER_NAME
+							folder.Parent = ReplicatedStorage
+						end
+
+						for _, name in EVENT_NAMES do
+							if not folder:FindFirstChild(name) then
+								local ev = Instance.new("RemoteEvent")
+								ev.Name = name
+								ev.Parent = folder
+							end
+						end
+						for _, name in FUNCTION_NAMES do
+							if not folder:FindFirstChild(name) then
+								local fn = Instance.new("RemoteFunction")
+								fn.Name = name
+								fn.Parent = folder
+							end
+						end
+					else
+						folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, 30) :: Folder
+						if not folder then
+							error("[GHOSTNET] Remotes-Ordner nicht gefunden - laeuft der Server-Bootstrap?")
+						end
+					end
+
+					-- Zugriff: Remotes.HackInput usw.
+					setmetatable(Remotes, {
+						__index = function(_, key: string): any
+							local inst = folder:FindFirstChild(key)
+							if not inst then
+								if RunService:IsClient() then
+									inst = folder:WaitForChild(key, 15)
+								end
+							end
+							if not inst then
+								error(("[GHOSTNET] Unbekanntes Remote '%s'"):format(key), 2)
+							end
+							return inst
+						end,
+					})
+
+					return Remotes
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX3">
+						<Properties>
+							<string name="Name">Types</string>
+							<ProtectedString name="Source">-- ReplicatedStorage/Shared/Types.lua
+					--!strict
+					-- GHOSTNET :: Gemeinsame Luau-Typen fuer Server und Client.
+
+					export type RigLevels = {
+						CPU: number,
+						RAM: number,
+						Cooling: number,
+						NetCard: number,
+					}
+
+					-- Ein registriertes Hack-Ziel in der Welt.
+					export type HackTarget = {
+						Id: string,
+						Part: BasePart,
+						DisplayName: string,
+						Difficulty: number,
+						HackType: string,
+						Reward: number,
+						TraceGain: number,
+						Cooldown: number,
+						RequiredLevel: number,
+						OnSuccess: string,
+						DownTime: number,
+						DownUntil: number, -- 0 = einsatzbereit
+					}
+
+					-- Was der Client ueber ein Node-Breach-Gitter erfahren darf.
+					-- Verstecktes ICE ist hier als OPEN (0) getarnt.
+					export type NodeBreachPublic = {
+						Width: number,
+						Height: number,
+						Cells: { number }, -- 0 Open, 1 Ice, 2 Relay, 3 Start, 4 Exit
+						Start: number,
+						Exit: number,
+						Relays: number,
+					}
+
+					-- Serverseitiger Rätselzustand. Verlaesst den Server NIE.
+					export type NodeBreachState = {
+						Width: number,
+						Height: number,
+						Cells: { number }, -- inkl. 5 = MaskedIce
+						Start: number,
+						Exit: number,
+						RelayTotal: number,
+						RelaysVisited: number,
+						Path: { number },
+						InPath: { [number]: boolean },
+						Revealed: { [number]: boolean },
+						Solution: { number }, -- fuer den Auto-Solver in Phase 3
+					}
+
+					-- Ergebnis einer einzelnen Spielereingabe, vom Minispiel zurueckgegeben.
+					export type InputResult = {
+						Ok: boolean,
+						Reason: string,
+						CostsAttempt: boolean,
+						Solved: boolean,
+						Feedback: { [string]: any },
+					}
+
+					-- Eine laufende Hack-Session auf dem Server.
+					export type Session = {
+						Id: string,
+						Player: Player,
+						TargetId: string,
+						HackType: string,
+						Difficulty: number,
+						Range: number,
+						ExpectedStep: number,
+						AttemptsLeft: number,
+						Deadline: number, -- workspace:GetServerTimeNow()
+						StartedAt: number,
+						State: any, -- minispielspezifisch
+						Resolved: boolean,
+					}
+
+					return {}
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX4">
+						<Properties>
+							<string name="Name">UITheme</string>
+							<ProtectedString name="Source">-- ReplicatedStorage/Shared/UITheme.lua
+					--!strict
+					-- GHOSTNET :: Bausteine fuer das Fake-OS-Aussehen.
+					-- Damit HackUI und HUD nicht dreimal dieselben Farben und Rahmen bauen.
+
+					local TweenService = game:GetService("TweenService")
+					local Config = require(script.Parent.Config)
+
+					local UITheme = {}
+
+					UITheme.Color = Config.Theme
+					UITheme.Font = Enum.Font.Code
+
+					UITheme.Tween = {
+						Fast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						Normal = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						Slow = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+					}
+
+					--== Grundbausteine ========================================================
+
+					function UITheme.Frame(props: { [string]: any }): Frame
+						local f = Instance.new("Frame")
+						f.BackgroundColor3 = UITheme.Color.Panel
+						f.BorderSizePixel = 0
+						for k, v in props do
+							(f :: any)[k] = v
+						end
+						return f
+					end
+
+					function UITheme.Label(props: { [string]: any }): TextLabel
+						local l = Instance.new("TextLabel")
+						l.BackgroundTransparency = 1
+						l.Font = UITheme.Font
+						l.TextColor3 = UITheme.Color.Text
+						l.TextSize = 14
+						l.TextXAlignment = Enum.TextXAlignment.Left
+						l.RichText = true
+						for k, v in props do
+							(l :: any)[k] = v
+						end
+						return l
+					end
+
+					function UITheme.Button(props: { [string]: any }): TextButton
+						local b = Instance.new("TextButton")
+						b.BackgroundColor3 = UITheme.Color.PanelLight
+						b.BorderSizePixel = 0
+						b.AutoButtonColor = false
+						b.Font = UITheme.Font
+						b.TextColor3 = UITheme.Color.Text
+						b.TextSize = 14
+						b.Text = ""
+						for k, v in props do
+							(b :: any)[k] = v
+						end
+						return b
+					end
+
+					-- 1px-Rahmen im Terminal-Look.
+					function UITheme.Stroke(parent: GuiObject, color: Color3?, thickness: number?): UIStroke
+						local s = Instance.new("UIStroke")
+						s.Color = color or UITheme.Color.Line
+						s.Thickness = thickness or 1
+						s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						s.Parent = parent
+						return s
+					end
+
+					function UITheme.Corner(parent: GuiObject, radius: number?): UICorner
+						local c = Instance.new("UICorner")
+						c.CornerRadius = UDim.new(0, radius or 3)
+						c.Parent = parent
+						return c
+					end
+
+					function UITheme.Padding(parent: GuiObject, px: number): UIPadding
+						local p = Instance.new("UIPadding")
+						p.PaddingTop = UDim.new(0, px)
+						p.PaddingBottom = UDim.new(0, px)
+						p.PaddingLeft = UDim.new(0, px)
+						p.PaddingRight = UDim.new(0, px)
+						p.Parent = parent
+						return p
+					end
+
+					--== Scanlines =============================================================
+					-- Prozedural aus duennen Frames gebaut, weil hier keine Textur-Asset-ID
+					-- hochgeladen werden kann. Optisch identisch, kostet ein paar Instanzen.
+					-- Liegt oben drauf und schluckt keine Klicks.
+
+					function UITheme.Scanlines(parent: GuiObject, spacing: number?): Frame
+						local gap = spacing or 4
+						local holder = UITheme.Frame({
+							Name = "Scanlines",
+							BackgroundTransparency = 1,
+							Size = UDim2.fromScale(1, 1),
+							ZIndex = 50,
+							ClipsDescendants = true,
+						})
+
+						local lines = math.clamp(math.floor(parent.AbsoluteSize.Y / gap), 20, 220)
+						for i = 0, lines do
+							local line = UITheme.Frame({
+								Name = "L",
+								BackgroundColor3 = Color3.new(0, 0, 0),
+								BackgroundTransparency = 0.88,
+								BorderSizePixel = 0,
+								Size = UDim2.new(1, 0, 0, 1),
+								Position = UDim2.new(0, 0, 0, i * gap),
+								ZIndex = 50,
+							})
+							line.Parent = holder
+						end
+
+						-- langsam wandernder Helligkeitsstreifen
+						local sweep = UITheme.Frame({
+							Name = "Sweep",
+							BackgroundColor3 = UITheme.Color.Cyan,
+							BackgroundTransparency = 0.96,
+							Size = UDim2.new(1, 0, 0, 90),
+							Position = UDim2.new(0, 0, 0, -90),
+							ZIndex = 51,
+						})
+						local grad = Instance.new("UIGradient")
+						grad.Rotation = 90
+						grad.Transparency = NumberSequence.new({
+							NumberSequenceKeypoint.new(0, 1),
+							NumberSequenceKeypoint.new(0.5, 0),
+							NumberSequenceKeypoint.new(1, 1),
+						})
+						grad.Parent = sweep
+						sweep.Parent = holder
+
+						task.spawn(function()
+							while sweep.Parent do
+								sweep.Position = UDim2.new(0, 0, 0, -90)
+								local t = TweenService:Create(sweep, TweenInfo.new(3.2, Enum.EasingStyle.Linear), {
+									Position = UDim2.new(0, 0, 1, 0),
+								})
+								t:Play()
+								t.Completed:Wait()
+								task.wait(2.4)
+							end
+						end)
+
+						holder.Parent = parent
+						return holder
+					end
+
+					--== Terminal-Tippanimation ================================================
+					-- Gibt eine Funktion zurueck, die eine Zeile Text zeichenweise ausgibt.
+					-- cancelled() darf true liefern, dann bricht die Ausgabe sofort ab.
+
+					function UITheme.TypeInto(label: TextLabel, text: string, cps: number?, cancelled: (() -&gt; boolean)?)
+						local speed = cps or 90
+						local total = #text
+						label.Text = ""
+						local shown = 0
+						local acc = 0
+						while shown &lt; total do
+							if cancelled and cancelled() then
+								label.Text = text
+								return
+							end
+							acc += task.wait() * speed
+							local step = math.floor(acc)
+							if step &gt;= 1 then
+								acc -= step
+								shown = math.min(total, shown + step)
+								label.Text = string.sub(text, 1, shown)
+							end
+						end
+						label.Text = text
+					end
+
+					--== Kleine Helfer =========================================================
+
+					function UITheme.Flash(obj: GuiObject, color: Color3)
+						local original = obj.BackgroundColor3
+						obj.BackgroundColor3 = color
+						TweenService:Create(obj, UITheme.Tween.Slow, { BackgroundColor3 = original }):Play()
+					end
+
+					function UITheme.Screen(name: string, displayOrder: number): ScreenGui
+						local gui = Instance.new("ScreenGui")
+						gui.Name = name
+						gui.ResetOnSpawn = false
+						gui.IgnoreGuiInset = true
+						gui.DisplayOrder = displayOrder
+						gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+						return gui
+					end
+
+					return UITheme
+					</ProtectedString>
+						</Properties>
+					</Item>
+		</Item>
+	</Item>
+	<Item class="ServerScriptService" referent="RBX26">
+		<Properties>
+			<string name="Name">ServerScriptService</string>
+		</Properties>
+		<Item class="Script" referent="RBX6">
+			<Properties>
+				<string name="Name">GhostNetServer</string>
+				<ProtectedString name="Source">-- ServerScriptService/GhostNetServer.server.lua
+		--!strict
+		-- GHOSTNET :: Server-Bootstrap. Startet die Systeme in fester Reihenfolge.
+
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+		local Config = require(ReplicatedStorage.Shared.Config)
+		-- Das Requiren legt die Remote-Objekte an, bevor irgendein Client sie sucht.
+		require(ReplicatedStorage.Shared.Remotes)
+
+		local Systems = script.Parent:WaitForChild("Systems")
+
+		local EconomyService = require(Systems.EconomyService)
+		local HackTargets = require(Systems.HackTargets)
+		local HackService = require(Systems.HackService)
+
+		EconomyService.Init()
+		HackTargets.Init()
+		HackService.Init()
+
+		print(("[GHOSTNET] Server hochgefahren - Version %s"):format(Config.Version))
+		</ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="Folder" referent="RBX14">
+			<Properties>
+				<string name="Name">Systems</string>
+			</Properties>
+					<Item class="ModuleScript" referent="RBX7">
+						<Properties>
+							<string name="Name">EconomyService</string>
+							<ProtectedString name="Source">-- ServerScriptService/Systems/EconomyService.lua
+					--!strict
+					-- GHOSTNET :: Einzige Stelle, an der sich Crypto und Rig-Werte aendern.
+					--
+					-- Phase 1 haelt den Zustand nur im Serverspeicher. In Phase 2 setzt der
+					-- SaveService das Profil davor, in Phase 3 kommen Shop, Verkauf und
+					-- Upgrades dazu. Die Schnittstelle nach aussen bleibt dieselbe.
+
+					local Players = game:GetService("Players")
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+					local Config = require(ReplicatedStorage.Shared.Config)
+					local Remotes = require(ReplicatedStorage.Shared.Remotes)
+					local Types = require(ReplicatedStorage.Shared.Types)
+
+					type RigLevels = Types.RigLevels
+
+					type Wallet = {
+						Banked: number, -- sicher
+						Unsold: number, -- heiss, geht beim Bust verloren (Phase 2)
+						Rig: RigLevels,
+					}
+
+					local EconomyService = {}
+
+					local wallets: { [Player]: Wallet } = {}
+
+					local function newWallet(): Wallet
+						local start = Config.Rig.StartLevels
+						return {
+							Banked = 0,
+							Unsold = 0,
+							Rig = { CPU = start.CPU, RAM = start.RAM, Cooling = start.Cooling, NetCard = start.NetCard },
+						}
+					end
+
+					local function get(player: Player): Wallet
+						local w = wallets[player]
+						if not w then
+							w = newWallet()
+							wallets[player] = w
+						end
+						return w
+					end
+
+					--==========================================================================
+					-- Lesen
+					--==========================================================================
+
+					function EconomyService.GetRig(player: Player): RigLevels
+						return get(player).Rig
+					end
+
+					-- Tier ist abgeleitet, nicht gekauft: das SCHWAECHSTE Bauteil zaehlt.
+					-- Man kann sich also nicht mit einer einzelnen Komponente in eine hoehere
+					-- Zone schummeln.
+					function EconomyService.GetTier(player: Player): number
+						local rig = get(player).Rig
+						return math.min(rig.CPU, rig.RAM, rig.Cooling, rig.NetCard)
+					end
+
+					function EconomyService.GetRange(player: Player): number
+						return Config.GetRange(get(player).Rig.NetCard)
+					end
+
+					function EconomyService.Snapshot(player: Player): { [string]: any }
+						local w = get(player)
+						return {
+							Banked = w.Banked,
+							Unsold = w.Unsold,
+							Rig = table.clone(w.Rig),
+							Tier = EconomyService.GetTier(player),
+						}
+					end
+
+					--==========================================================================
+					-- Schreiben
+					--==========================================================================
+
+					function EconomyService.Sync(player: Player)
+						if not player.Parent then
+							return
+						end
+						Remotes.EconomySync:FireClient(player, EconomyService.Snapshot(player))
+					end
+
+					-- Belohnung aus einem Hack landet im heissen Wallet, nicht auf der Bank.
+					function EconomyService.AwardUnsold(player: Player, amount: number)
+						if amount &lt;= 0 then
+							return
+						end
+						local w = get(player)
+						w.Unsold += math.floor(amount)
+						EconomyService.Sync(player)
+					end
+
+					-- Wird beim Bust in Phase 2 gebraucht.
+					function EconomyService.WipeUnsold(player: Player): number
+						local w = get(player)
+						local lost = w.Unsold
+						w.Unsold = 0
+						EconomyService.Sync(player)
+						return lost
+					end
+
+					function EconomyService.Init()
+						Players.PlayerAdded:Connect(function(player)
+							wallets[player] = newWallet()
+							EconomyService.Sync(player)
+						end)
+
+						for _, player in Players:GetPlayers() do
+							if not wallets[player] then
+								wallets[player] = newWallet()
+								EconomyService.Sync(player)
+							end
+						end
+
+						Players.PlayerRemoving:Connect(function(player)
+							wallets[player] = nil
+						end)
+					end
+
+					return EconomyService
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX8">
+						<Properties>
+							<string name="Name">HackEffects</string>
+							<ProtectedString name="Source">-- ServerScriptService/Systems/HackEffects.lua
+					--!strict
+					-- GHOSTNET :: Was in der Welt passiert, wenn ein Hack klappt.
+					--
+					-- Das Attribut "OnSuccess" am Part ist ein Schluessel in diese Tabelle.
+					-- Ein neues Verhalten = ein neuer Eintrag hier. Der HackService kennt
+					-- keinen einzigen Objekttyp.
+
+					local TweenService = game:GetService("TweenService")
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+					local Config = require(ReplicatedStorage.Shared.Config)
+					local Types = require(ReplicatedStorage.Shared.Types)
+
+					type HackTarget = Types.HackTarget
+
+					local HackEffects = {}
+
+					--==========================================================================
+					-- Hilfsfunktionen
+					--==========================================================================
+
+					local function setLights(part: BasePart, enabled: boolean)
+						for _, d in part:GetDescendants() do
+							if d:IsA("Light") then
+								d.Enabled = enabled
+							end
+						end
+					end
+
+					local function pulseLight(part: BasePart, color: Color3, duration: number)
+						local existing = part:FindFirstChildOfClass("PointLight")
+						local created = existing == nil
+
+						local l: PointLight
+						if existing then
+							l = existing
+						else
+							l = Instance.new("PointLight")
+							l.Parent = part
+						end
+						local oldColor, oldBright, oldRange = l.Color, l.Brightness, l.Range
+						l.Color = color
+						l.Brightness = 6
+						l.Range = 18
+						l.Enabled = true
+
+						TweenService:Create(l, TweenInfo.new(duration, Enum.EasingStyle.Quad), { Brightness = 0 }):Play()
+						task.delay(duration, function()
+							if created then
+								l:Destroy()
+							else
+								l.Color, l.Brightness, l.Range = oldColor, oldBright, oldRange
+							end
+						end)
+					end
+
+					-- Faerbt einen Part fuer die Dauer der Stoerung um und stellt danach
+					-- den Originalzustand wieder her.
+					local function recolorFor(part: BasePart, color: Color3, duration: number)
+						local originalColor = part.Color
+						TweenService:Create(part, TweenInfo.new(0.3), { Color = color }):Play()
+						task.delay(duration, function()
+							if part.Parent then
+								TweenService:Create(part, TweenInfo.new(0.6), { Color = originalColor }):Play()
+							end
+						end)
+					end
+
+					--==========================================================================
+					-- Effekte
+					--==========================================================================
+
+					type EffectFn = (target: HackTarget, player: Player, duration: number) -&gt; ()
+
+					local Effects: { [string]: EffectFn } = {}
+
+					-- Standard, wenn ein Part keinen bekannten OnSuccess-Wert hat.
+					Effects.Offline = function(target, _player, duration)
+						local part = target.Part
+						setLights(part, false)
+						recolorFor(part, Config.Theme.Ice, duration)
+						task.delay(duration, function()
+							if part.Parent then
+								setLights(part, true)
+							end
+						end)
+					end
+
+					Effects.CameraOffline = function(target, _player, duration)
+						local part = target.Part
+						setLights(part, false)
+						recolorFor(part, Config.Theme.Ice, duration)
+
+						-- Kamera senkt den Kopf, solange sie tot ist.
+						local original = part.CFrame
+						TweenService:Create(part, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+							CFrame = original * CFrame.Angles(math.rad(-55), 0, 0),
+						}):Play()
+
+						task.delay(duration, function()
+							if part.Parent then
+								setLights(part, true)
+								TweenService:Create(part, TweenInfo.new(1.0, Enum.EasingStyle.Quad), { CFrame = original }):Play()
+							end
+						end)
+					end
+
+					Effects.DoorOpen = function(target, _player, duration)
+						local part = target.Part
+						local original = part.CFrame
+						local drop = part.Size.Y + 0.4
+
+						part.CanCollide = false
+						pulseLight(part, Config.Theme.Cyan, 0.8)
+						TweenService:Create(part, TweenInfo.new(0.7, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+							CFrame = original * CFrame.new(0, -drop, 0),
+						}):Play()
+
+						task.delay(duration, function()
+							if not part.Parent then
+								return
+							end
+							local close = TweenService:Create(part, TweenInfo.new(0.9, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+								CFrame = original,
+							})
+							close:Play()
+							close.Completed:Connect(function()
+								if part.Parent then
+									part.CanCollide = true
+								end
+							end)
+						end)
+					end
+
+					Effects.AtmPayout = function(target, _player, duration)
+						local part = target.Part
+						pulseLight(part, Config.Theme.Amber, 1.2)
+						recolorFor(part, Config.Theme.Amber, math.min(duration, 3))
+
+						local sparks = Instance.new("ParticleEmitter")
+						sparks.Color = ColorSequence.new(Config.Theme.Amber)
+						sparks.Lifetime = NumberRange.new(0.4, 0.9)
+						sparks.Rate = 90
+						sparks.Speed = NumberRange.new(6, 12)
+						sparks.SpreadAngle = Vector2.new(35, 35)
+						sparks.Size = NumberSequence.new(0.18)
+						sparks.Parent = part
+
+						task.delay(1.1, function()
+							sparks.Enabled = false
+							task.delay(1.2, function()
+								sparks:Destroy()
+							end)
+						end)
+					end
+
+					--==========================================================================
+					-- Aufruf durch den HackService
+					--==========================================================================
+
+					function HackEffects.Apply(target: HackTarget, player: Player)
+						local fn = Effects[target.OnSuccess]
+						if not fn then
+							warn(("[GHOSTNET] Unbekannter OnSuccess-Effekt '%s' an %s - benutze 'Offline'."):format(
+								target.OnSuccess,
+								target.Part:GetFullName()
+							))
+							fn = Effects.Offline
+						end
+
+						local duration = math.max(1, target.DownTime)
+						local call = table.pack(pcall(fn, target, player, duration))
+						if not call[1] then
+							warn(("[GHOSTNET] Effekt '%s' ist fehlgeschlagen: %s"):format(target.OnSuccess, tostring(call[2])))
+						end
+					end
+
+					function HackEffects.Has(name: string): boolean
+						return Effects[name] ~= nil
+					end
+
+					return HackEffects
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX9">
+						<Properties>
+							<string name="Name">HackService</string>
+							<ProtectedString name="Source">-- ServerScriptService/Systems/HackService.lua
+					--!strict
+					-- GHOSTNET :: Das eine Hack-Modul.
+					--
+					-- Hier laufen alle Hack-Sessions zusammen. Der Service kennt KEINEN
+					-- einzelnen Objekttyp - er liest nur Attribute und ruft ein Minispiel auf.
+					-- Ein neues Ziel in der Welt braucht deshalb keine Zeile Code.
+					--
+					-- SERVER-AUTORITAET
+					--   Der Client schickt ausschliesslich "ich habe X angeklickt". Der Server
+					--   fuehrt den Raetselzustand, die Uhr, die Versuche, die Distanz und den
+					--   Cooldown. Kein Remote nimmt jemals ein Ergebnis, eine Zeit oder einen
+					--   Betrag vom Client entgegen.
+
+					local HttpService = game:GetService("HttpService")
+					local Players = game:GetService("Players")
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+					local RunService = game:GetService("RunService")
+
+					local Config = require(ReplicatedStorage.Shared.Config)
+					local Remotes = require(ReplicatedStorage.Shared.Remotes)
+					local Types = require(ReplicatedStorage.Shared.Types)
+
+					local EconomyService = require(script.Parent.EconomyService)
+					local HackEffects = require(script.Parent.HackEffects)
+					local HackTargets = require(script.Parent.HackTargets)
+					local RateLimiter = require(script.Parent.RateLimiter)
+
+					type Session = Types.Session
+
+					local HackService = {}
+
+					-- Minispiel-Register. Phase 4 traegt SignalMatch / CodeCrack / IceBreaker
+					-- hier ein - sonst aendert sich nichts.
+					local Minigames = {
+						NodeBreach = require(script.Parent.Minigames.NodeBreach),
+					}
+
+					local sessions: { [Player]: Session } = {}
+
+					--==========================================================================
+					-- Hilfsfunktionen
+					--==========================================================================
+
+					local function now(): number
+						return workspace:GetServerTimeNow()
+					end
+
+					local function isTable(v: any): boolean
+						return typeof(v) == "table"
+					end
+
+					local function isCleanString(v: any, maxLen: number): boolean
+						return typeof(v) == "string" and #v &gt; 0 and #v &lt;= maxLen
+					end
+
+					local function isInteger(v: any): boolean
+						return typeof(v) == "number" and v == v and v % 1 == 0 and math.abs(v) &lt; 1e9
+					end
+
+					--==========================================================================
+					-- Abschluss einer Session
+					--==========================================================================
+
+					-- reason: SOLVED | TIMEOUT | NO_ATTEMPTS | OUT_OF_RANGE | ABORTED | TARGET_GONE
+					local function resolve(session: Session, success: boolean, reason: string)
+						if session.Resolved then
+							return
+						end
+						session.Resolved = true
+
+						local player = session.Player
+						if sessions[player] == session then
+							sessions[player] = nil
+						end
+
+						local target = HackTargets.Get(session.TargetId)
+						local reward = 0
+						local traceDelta = 0
+						local cooldown = 0
+
+						if target then
+							-- Trace faellt immer an, nur unterschiedlich stark. Weglaufen oder
+							-- abbrechen ist also billiger, aber nie gratis.
+							local factor = 1.0
+							if not success then
+								factor = if reason == "ABORTED" then Config.Trace.AbortFactor else Config.Trace.FailFactor
+							end
+							local cooling = EconomyService.GetRig(player).Cooling
+							traceDelta = Config.GetTraceGain(target.TraceGain * factor, cooling)
+
+							if success then
+								reward = target.Reward
+								cooldown = target.Cooldown
+								EconomyService.AwardUnsold(player, reward)
+								HackTargets.SetCooldown(player, target.Id, cooldown)
+								HackTargets.MarkDown(target, target.DownTime)
+								HackEffects.Apply(target, player)
+							else
+								cooldown = Config.Cooldown.AfterFail
+								HackTargets.SetCooldown(player, target.Id, cooldown)
+							end
+						end
+
+						-- TraceDelta wird hier bereits korrekt berechnet und mitgeschickt.
+						-- Angewendet wird er ab Phase 2 vom TraceService.
+						if player.Parent then
+							Remotes.HackResolved:FireClient(player, {
+								SessionId = session.Id,
+								Success = success,
+								Reason = reason,
+								Reward = reward,
+								TraceDelta = traceDelta,
+								Cooldown = cooldown,
+								TargetId = session.TargetId,
+								Effect = target and target.OnSuccess or "",
+							})
+						end
+					end
+
+					function HackService.AbortFor(player: Player, reason: string)
+						local session = sessions[player]
+						if session then
+							resolve(session, false, reason)
+						end
+					end
+
+					--==========================================================================
+					-- Start
+					--==========================================================================
+
+					-- Sagt dem Spieler, WARUM ein Start nicht geklappt hat. Ohne das klickt man
+					-- im Spiel ins Leere und haelt es fuer einen Bug.
+					local function deny(player: Player, targetId: string, reason: string, seconds: number?)
+						if player.Parent then
+							Remotes.HackDenied:FireClient(player, {
+								TargetId = targetId,
+								Reason = reason,
+								Seconds = seconds or 0,
+							})
+						end
+					end
+
+					local function onRequestStart(player: Player, payload: any)
+						if not RateLimiter.Check(player, "HackRequestStart") then
+							return
+						end
+						if not isTable(payload) then
+							return
+						end
+
+						local targetId = (payload :: any).TargetId
+						if not isCleanString(targetId, 32) then
+							return
+						end
+
+						if sessions[player] then
+							return -- laeuft schon eine Session
+						end
+
+						local target = HackTargets.Get(targetId)
+						if not target or not target.Part.Parent then
+							deny(player, targetId, "UNKNOWN_TARGET")
+							return
+						end
+
+						if HackTargets.IsDown(target) then
+							deny(player, target.Id, "OFFLINE")
+							return
+						end
+
+						local cooldownLeft = HackTargets.CooldownLeft(player, target.Id)
+						if cooldownLeft &gt; 0 then
+							deny(player, target.Id, "COOLDOWN", math.ceil(cooldownLeft))
+							return
+						end
+
+						if EconomyService.GetTier(player) &lt; target.RequiredLevel then
+							deny(player, target.Id, "LEVEL", target.RequiredLevel)
+							return
+						end
+
+						local minigame = (Minigames :: any)[target.HackType]
+						if not minigame then
+							warn(("[GHOSTNET] %s verlangt HackType '%s', den es nicht gibt."):format(
+								target.Part:GetFullName(),
+								target.HackType
+							))
+							deny(player, target.Id, "INTERNAL")
+							return
+						end
+
+						-- Distanz IMMER serverseitig. Der Client bekommt hier kein Wort.
+						local range = EconomyService.GetRange(player) + Config.Range.Tolerance
+						local distance = HackTargets.DistanceFromPlayer(target, player)
+						if not distance or distance &gt; range then
+							deny(player, target.Id, "RANGE")
+							return
+						end
+
+						local rig = EconomyService.GetRig(player)
+						local timeLimit = Config.GetTimeLimit(rig.CPU, target.Difficulty)
+						local attempts = Config.GetAttempts(rig.RAM)
+
+						local rng = Random.new()
+						local public, state = minigame.Generate(target.Difficulty, rng)
+
+						local session: Session = {
+							Id = HttpService:GenerateGUID(false),
+							Player = player,
+							TargetId = target.Id,
+							HackType = target.HackType,
+							Difficulty = target.Difficulty,
+							Range = range,
+							ExpectedStep = 1,
+							AttemptsLeft = attempts,
+							Deadline = now() + timeLimit,
+							StartedAt = now(),
+							State = state,
+							Resolved = false,
+						}
+						sessions[player] = session
+
+						Remotes.HackSessionStarted:FireClient(player, {
+							SessionId = session.Id,
+							HackType = session.HackType,
+							Label = minigame.Label(),
+							Public = public,
+							Deadline = session.Deadline,
+							TimeLimit = timeLimit,
+							Attempts = attempts,
+							Target = {
+								Id = target.Id,
+								Name = target.DisplayName,
+								Difficulty = target.Difficulty,
+								Reward = target.Reward,
+							},
+						})
+					end
+
+					--==========================================================================
+					-- Eingabe
+					--==========================================================================
+
+					local function onInput(player: Player, payload: any)
+						if not RateLimiter.Check(player, "HackInput") then
+							return
+						end
+						if not isTable(payload) then
+							return
+						end
+
+						local session = sessions[player]
+						if not session or session.Resolved then
+							return
+						end
+
+						local p = payload :: any
+						if not isCleanString(p.SessionId, 64) or p.SessionId ~= session.Id then
+							return
+						end
+						if not isInteger(p.Step) or p.Step ~= session.ExpectedStep then
+							return -- Wiederholung oder Luecke: verwerfen
+						end
+						if not isTable(p.Payload) then
+							return
+						end
+
+						if now() &gt; session.Deadline then
+							resolve(session, false, "TIMEOUT")
+							return
+						end
+
+						local target = HackTargets.Get(session.TargetId)
+						if not target or not target.Part.Parent then
+							resolve(session, false, "TARGET_GONE")
+							return
+						end
+
+						local distance = HackTargets.DistanceFromPlayer(target, player)
+						if not distance or distance &gt; session.Range then
+							resolve(session, false, "OUT_OF_RANGE")
+							return
+						end
+
+						local minigame = (Minigames :: any)[session.HackType]
+						local ok, result = pcall(minigame.Input, session.State, p.Payload)
+						if not ok then
+							warn(("[GHOSTNET] Minispiel '%s' ist abgestuerzt: %s"):format(session.HackType, tostring(result)))
+							resolve(session, false, "ABORTED")
+							return
+						end
+
+						-- Jede verarbeitete Eingabe zaehlt hoch, auch eine ungueltige.
+						-- Damit kann derselbe Step nie zweimal wirken.
+						session.ExpectedStep += 1
+
+						if result.CostsAttempt then
+							session.AttemptsLeft -= 1
+						end
+
+						Remotes.HackFeedback:FireClient(player, {
+							SessionId = session.Id,
+							Step = p.Step,
+							Ok = result.Ok,
+							Reason = result.Reason,
+							AttemptsLeft = session.AttemptsLeft,
+							Feedback = result.Feedback,
+						})
+
+						if result.Solved then
+							resolve(session, true, "SOLVED")
+						elseif session.AttemptsLeft &lt;= 0 then
+							resolve(session, false, "NO_ATTEMPTS")
+						end
+					end
+
+					--==========================================================================
+					-- Abbruch durch den Spieler
+					--==========================================================================
+
+					local function onAbort(player: Player, payload: any)
+						if not RateLimiter.Check(player, "HackAbort") then
+							return
+						end
+						if not isTable(payload) then
+							return
+						end
+						local session = sessions[player]
+						if not session then
+							return
+						end
+						if (payload :: any).SessionId ~= session.Id then
+							return
+						end
+						resolve(session, false, "ABORTED")
+					end
+
+					--==========================================================================
+					-- Wachhund: Zeit und Distanz, unabhaengig davon, ob der Client etwas sendet
+					--==========================================================================
+
+					local function watchdog()
+						local accumulator = 0
+						RunService.Heartbeat:Connect(function(dt)
+							accumulator += dt
+							if accumulator &lt; Config.Session.TickRate then
+								return
+							end
+							accumulator = 0
+
+							local t = now()
+							for player, session in sessions do
+								if session.Resolved then
+									continue
+								end
+
+								if not player.Parent then
+									session.Resolved = true
+									sessions[player] = nil
+									continue
+								end
+
+								if t &gt; session.Deadline then
+									resolve(session, false, "TIMEOUT")
+									continue
+								end
+
+								if t - session.StartedAt &lt; Config.Session.GraceAfterStart then
+									continue
+								end
+
+								local target = HackTargets.Get(session.TargetId)
+								if not target or not target.Part.Parent then
+									resolve(session, false, "TARGET_GONE")
+									continue
+								end
+
+								local distance = HackTargets.DistanceFromPlayer(target, player)
+								if not distance or distance &gt; session.Range then
+									resolve(session, false, "OUT_OF_RANGE")
+								end
+							end
+						end)
+					end
+
+					--==========================================================================
+
+					function HackService.Init()
+						Remotes.HackRequestStart.OnServerEvent:Connect(onRequestStart)
+						Remotes.HackInput.OnServerEvent:Connect(onInput)
+						Remotes.HackAbort.OnServerEvent:Connect(onAbort)
+
+						Players.PlayerRemoving:Connect(function(player)
+							local session = sessions[player]
+							if session then
+								session.Resolved = true
+								sessions[player] = nil
+							end
+						end)
+
+						watchdog()
+
+						local types = {}
+						for name in Minigames do
+							table.insert(types, name)
+						end
+						print(("[GHOSTNET] HackService bereit. Minispiele: %s"):format(table.concat(types, ", ")))
+					end
+
+					return HackService
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX10">
+						<Properties>
+							<string name="Name">HackTargets</string>
+							<ProtectedString name="Source">-- ServerScriptService/Systems/HackTargets.lua
+					--!strict
+					-- GHOSTNET :: Registry aller hackbaren Objekte.
+					--
+					-- Ein Hack-Ziel ist NUR ein BasePart mit dem Tag "GhostNetHackable".
+					-- Alle Eigenschaften kommen aus Attributen, fehlende aus Config.TargetDefaults.
+					-- Ein neues Ziel = neuer Part + Tag. Kein Code.
+
+					local CollectionService = game:GetService("CollectionService")
+					local Players = game:GetService("Players")
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+					local Config = require(ReplicatedStorage.Shared.Config)
+					local Types = require(ReplicatedStorage.Shared.Types)
+
+					type HackTarget = Types.HackTarget
+
+					local HackTargets = {}
+
+					local registry: { [string]: HackTarget } = {}
+					local byPart: { [BasePart]: HackTarget } = {}
+					local idCounter = 0
+
+					-- cooldowns[player][targetId] = os.clock()-Zeitpunkt, ab dem wieder erlaubt
+					local cooldowns: { [Player]: { [string]: number } } = {}
+
+					--==========================================================================
+					-- Attribute lesen
+					--==========================================================================
+
+					local function attrNumber(part: BasePart, name: string, default: number): number
+						local v = part:GetAttribute(name)
+						if typeof(v) == "number" then
+							return v
+						end
+						return default
+					end
+
+					local function attrString(part: BasePart, name: string, default: string): string
+						local v = part:GetAttribute(name)
+						if typeof(v) == "string" and v ~= "" then
+							return v
+						end
+						return default
+					end
+
+					local function readTarget(part: BasePart, id: string): HackTarget
+						local d = Config.TargetDefaults
+
+						local difficulty = math.clamp(math.floor(attrNumber(part, "Difficulty", d.Difficulty)), 1, 10)
+
+						local reward = attrNumber(part, "Reward", d.Reward)
+						if reward &lt; 0 then
+							reward = Config.GetReward(difficulty)
+						end
+
+						local traceGain = attrNumber(part, "TraceGain", d.TraceGain)
+						if traceGain &lt; 0 then
+							traceGain = difficulty * Config.Trace.GainPerDifficulty
+						end
+
+						local cooldown = attrNumber(part, "Cooldown", d.Cooldown)
+						if cooldown &lt; 0 then
+							cooldown = Config.Cooldown.Default
+						end
+
+						local displayName = attrString(part, "DisplayName", d.DisplayName)
+						if displayName == "" then
+							displayName = part.Name
+						end
+
+						local existing = registry[id]
+						return {
+							Id = id,
+							Part = part,
+							DisplayName = displayName,
+							Difficulty = difficulty,
+							HackType = attrString(part, "HackType", d.HackType),
+							Reward = math.floor(reward),
+							TraceGain = traceGain,
+							Cooldown = cooldown,
+							RequiredLevel = math.max(1, math.floor(attrNumber(part, "RequiredLevel", d.RequiredLevel))),
+							OnSuccess = attrString(part, "OnSuccess", d.OnSuccess),
+							DownTime = attrNumber(part, "DownTime", d.DownTime),
+							DownUntil = existing and existing.DownUntil or 0,
+						}
+					end
+
+					--==========================================================================
+					-- Registrierung
+					--==========================================================================
+
+					local function register(inst: Instance)
+						if not inst:IsA("BasePart") then
+							warn(("[GHOSTNET] '%s' hat den Hackable-Tag, ist aber kein BasePart."):format(inst:GetFullName()))
+							return
+						end
+						local part = inst :: BasePart
+						if byPart[part] then
+							return
+						end
+
+						-- Stabile Id: bereits vergebene wiederverwenden, sonst neu.
+						local id = part:GetAttribute("TargetId")
+						if typeof(id) ~= "string" or id == "" or registry[id :: string] then
+							idCounter += 1
+							id = ("T%04d"):format(idCounter)
+							part:SetAttribute("TargetId", id)
+						end
+
+						local target = readTarget(part, id :: string)
+						registry[id :: string] = target
+						byPart[part] = target
+
+						-- Live-Tuning im Studio: Attribut aendern -&gt; sofort uebernommen.
+						part.AttributeChanged:Connect(function(attribute: string)
+							if attribute == "TargetId" then
+								return
+							end
+							local current = byPart[part]
+							if current then
+								local refreshed = readTarget(part, current.Id)
+								registry[current.Id] = refreshed
+								byPart[part] = refreshed
+							end
+						end)
+					end
+
+					local function unregister(inst: Instance)
+						if not inst:IsA("BasePart") then
+							return
+						end
+						local part = inst :: BasePart
+						local target = byPart[part]
+						if target then
+							registry[target.Id] = nil
+							byPart[part] = nil
+						end
+					end
+
+					function HackTargets.Init()
+						for _, inst in CollectionService:GetTagged(Config.HackableTag) do
+							register(inst)
+						end
+						CollectionService:GetInstanceAddedSignal(Config.HackableTag):Connect(register)
+						CollectionService:GetInstanceRemovedSignal(Config.HackableTag):Connect(unregister)
+
+						Players.PlayerRemoving:Connect(function(player)
+							cooldowns[player] = nil
+						end)
+
+						print(("[GHOSTNET] HackTargets: %d Ziele registriert."):format(HackTargets.Count()))
+					end
+
+					function HackTargets.Count(): number
+						local n = 0
+						for _ in registry do
+							n += 1
+						end
+						return n
+					end
+
+					function HackTargets.Get(id: string): HackTarget?
+						return registry[id]
+					end
+
+					function HackTargets.All(): { [string]: HackTarget }
+						return registry
+					end
+
+					--==========================================================================
+					-- Distanz
+					--==========================================================================
+
+					-- Abstand zur Oberflaeche des Parts, nicht zum Mittelpunkt. Sonst waeren
+					-- grosse Objekte (Tueren, Werbetafeln) unfair weit weg.
+					function HackTargets.DistanceTo(target: HackTarget, position: Vector3): number
+						local part = target.Part
+						if not part.Parent then
+							return math.huge
+						end
+						local rel = part.CFrame:PointToObjectSpace(position)
+						local half = part.Size * 0.5
+						local clamped = Vector3.new(
+							math.clamp(rel.X, -half.X, half.X),
+							math.clamp(rel.Y, -half.Y, half.Y),
+							math.clamp(rel.Z, -half.Z, half.Z)
+						)
+						return (rel - clamped).Magnitude
+					end
+
+					-- Liefert Distanz oder nil, wenn der Spieler gerade keinen lebenden Character hat.
+					function HackTargets.DistanceFromPlayer(target: HackTarget, player: Player): number?
+						local character = player.Character
+						if not character then
+							return nil
+						end
+						local root = character:FindFirstChild("HumanoidRootPart")
+						local humanoid = character:FindFirstChildOfClass("Humanoid")
+						if not root or not root:IsA("BasePart") then
+							return nil
+						end
+						if not humanoid or humanoid.Health &lt;= 0 then
+							return nil
+						end
+						return HackTargets.DistanceTo(target, root.Position)
+					end
+
+					--==========================================================================
+					-- Cooldowns (Phase 1 im Speicher, Phase 2 im Profil)
+					--==========================================================================
+
+					function HackTargets.CooldownLeft(player: Player, id: string): number
+						local perPlayer = cooldowns[player]
+						if not perPlayer then
+							return 0
+						end
+						local until_ = perPlayer[id]
+						if not until_ then
+							return 0
+						end
+						return math.max(0, until_ - os.clock())
+					end
+
+					function HackTargets.SetCooldown(player: Player, id: string, seconds: number)
+						local perPlayer = cooldowns[player]
+						if not perPlayer then
+							perPlayer = {}
+							cooldowns[player] = perPlayer
+						end
+						perPlayer[id] = os.clock() + seconds
+					end
+
+					--==========================================================================
+					-- "Down"-Zustand (Kamera aus, Tuer offen, ...)
+					--==========================================================================
+
+					function HackTargets.IsDown(target: HackTarget): boolean
+						return target.DownUntil &gt; os.clock()
+					end
+
+					function HackTargets.MarkDown(target: HackTarget, seconds: number)
+						target.DownUntil = os.clock() + seconds
+						target.Part:SetAttribute("Offline", true)
+						task.delay(seconds, function()
+							if target.DownUntil &lt;= os.clock() and target.Part.Parent then
+								target.Part:SetAttribute("Offline", false)
+							end
+						end)
+					end
+
+					return HackTargets
+					</ProtectedString>
+						</Properties>
+					</Item>
+					<Item class="Folder" referent="RBX12">
+						<Properties>
+							<string name="Name">Minigames</string>
+						</Properties>
+									<Item class="ModuleScript" referent="RBX11">
+										<Properties>
+											<string name="Name">NodeBreach</string>
+											<ProtectedString name="Source">-- ServerScriptService/Systems/Minigames/NodeBreach.lua
+									--!strict
+									-- GHOSTNET :: Minispiel A - NODE-BREACH
+									--
+									-- SCHNITTSTELLE, an die sich JEDES Minispiel haelt (SignalMatch, CodeCrack,
+									-- IceBreaker kommen spaeter mit exakt diesen drei Funktionen):
+									--
+									--   Generate(difficulty, rng) -&gt; publicState, serverState
+									--       publicState  geht an den Client, enthaelt NIE etwas Geheimes.
+									--       serverState  bleibt auf dem Server.
+									--
+									--   Input(serverState, payload) -&gt; InputResult
+									--       Prueft eine einzelne Spielereingabe. Der Server entscheidet, ob sie
+									--       gilt, ob sie einen Versuch kostet und ob das Raetsel geloest ist.
+									--
+									--   Label() -&gt; string   (Anzeigename im Fake-OS)
+									--
+									-- SPIELREGELN
+									--   Vom START-Knoten einen zusammenhaengenden Pfad zum EXIT legen. Unterwegs
+									--   muessen ALLE Relay-Knoten mitgenommen werden. Sichtbares ICE ist
+									--   unpassierbar. Zusaetzlich steckt verstecktes ICE im Gitter - das sieht
+									--   aus wie ein freier Knoten und kostet beim Reintappen einen Versuch.
+									--   Genau dafuer ist das RAM-Upgrade da.
+
+									local ReplicatedStorage = game:GetService("ReplicatedStorage")
+									local Config = require(ReplicatedStorage.Shared.Config)
+									local Types = require(ReplicatedStorage.Shared.Types)
+
+									type InputResult = Types.InputResult
+									type State = Types.NodeBreachState
+
+									local NodeBreach = {}
+
+									-- Zelltypen
+									local OPEN = 0
+									local ICE = 1
+									local RELAY = 2
+									local START = 3
+									local EXIT = 4
+									local MASKED = 5 -- nur serverseitig; der Client sieht hier OPEN
+
+									function NodeBreach.Label(): string
+										return "NODE-BREACH"
+									end
+
+									--==========================================================================
+									-- Gitter-Helfer
+									--==========================================================================
+
+									local function toXY(idx: number, w: number): (number, number)
+										local x = (idx - 1) % w + 1
+										local y = math.floor((idx - 1) / w) + 1
+										return x, y
+									end
+
+									local function toIdx(x: number, y: number, w: number): number
+										return (y - 1) * w + x
+									end
+
+									local function neighbours(idx: number, w: number, h: number): { number }
+										local x, y = toXY(idx, w)
+										local out = {}
+										if x &gt; 1 then
+											table.insert(out, toIdx(x - 1, y, w))
+										end
+										if x &lt; w then
+											table.insert(out, toIdx(x + 1, y, w))
+										end
+										if y &gt; 1 then
+											table.insert(out, toIdx(x, y - 1, w))
+										end
+										if y &lt; h then
+											table.insert(out, toIdx(x, y + 1, w))
+										end
+										return out
+									end
+
+									local function isAdjacent(a: number, b: number, w: number, h: number): boolean
+										for _, n in neighbours(a, w, h) do
+											if n == b then
+												return true
+											end
+										end
+										return false
+									end
+
+									local function manhattan(a: number, b: number, w: number): number
+										local ax, ay = toXY(a, w)
+										local bx, by = toXY(b, w)
+										return math.abs(ax - bx) + math.abs(ay - by)
+									end
+
+									--==========================================================================
+									-- Pfadsuche
+									-- Zufaellige Tiefensuche mit Drang Richtung Exit. Findet immer einen Weg,
+									-- weil zu diesem Zeitpunkt noch jede Zelle frei ist.
+									--==========================================================================
+
+									local function shuffle(t: { number }, rng: Random)
+										for i = #t, 2, -1 do
+											local j = rng:NextInteger(1, i)
+											t[i], t[j] = t[j], t[i]
+										end
+									end
+
+									local function findPath(rng: Random, w: number, h: number, startIdx: number, exitIdx: number): { number }
+										local visited: { [number]: boolean } = { [startIdx] = true }
+										local stack: { number } = { startIdx }
+
+										while #stack &gt; 0 do
+											local cur = stack[#stack]
+											if cur == exitIdx then
+												return table.clone(stack)
+											end
+
+											local options = neighbours(cur, w, h)
+											shuffle(options, rng)
+
+											-- Meistens zuerst den Nachbarn probieren, der naeher am Exit liegt.
+											-- Das haelt die Pfade brauchbar kurz, ohne sie berechenbar zu machen.
+											if rng:NextNumber() &lt; 0.65 then
+												table.sort(options, function(a, b)
+													return manhattan(a, exitIdx, w) &lt; manhattan(b, exitIdx, w)
+												end)
+											end
+
+											local moved = false
+											for _, n in options do
+												if not visited[n] then
+													visited[n] = true
+													table.insert(stack, n)
+													moved = true
+													break
+												end
+											end
+
+											if not moved then
+												table.remove(stack)
+											end
+										end
+
+										return {}
+									end
+
+									local function tierFor(difficulty: number)
+										for _, tier in Config.NodeBreach.Tiers do
+											if difficulty &lt;= tier.MaxDifficulty then
+												return tier
+											end
+										end
+										return Config.NodeBreach.Tiers[#Config.NodeBreach.Tiers]
+									end
+
+									--==========================================================================
+									-- Generierung
+									--==========================================================================
+
+									function NodeBreach.Generate(difficulty: number, rng: Random): (Types.NodeBreachPublic, State)
+										local tier = tierFor(difficulty)
+										local w, h = tier.Width, tier.Height
+
+										local startIdx = toIdx(1, h, w) -- unten links
+										local exitIdx = toIdx(w, 1, w) -- oben rechts
+
+										-- Mehrere Pfade erzeugen, den mit der angenehmsten Laenge behalten.
+										local wanted = w + h + Config.NodeBreach.PathLengthBonus
+										local best: { number } = {}
+										local bestScore = math.huge
+										for _ = 1, Config.NodeBreach.PathSearchTries do
+											local candidate = findPath(rng, w, h, startIdx, exitIdx)
+											if #candidate &gt; 0 then
+												local score = math.abs(#candidate - wanted)
+												if score &lt; bestScore then
+													best, bestScore = candidate, score
+												end
+											end
+										end
+
+										-- Notnagel: gerade Treppe. Kann eigentlich nicht eintreten, aber ein
+										-- leeres Gitter waere ein unloesbares Raetsel - das lassen wir nicht zu.
+										if #best == 0 then
+											best = { startIdx }
+											local x, y = 1, h
+											while x &lt; w do
+												x += 1
+												table.insert(best, toIdx(x, y, w))
+											end
+											while y &gt; 1 do
+												y -= 1
+												table.insert(best, toIdx(x, y, w))
+											end
+										end
+
+										local inPath: { [number]: boolean } = {}
+										for _, idx in best do
+											inPath[idx] = true
+										end
+
+										-- Zellen anlegen
+										local cells: { number } = table.create(w * h, OPEN)
+										for i = 1, w * h do
+											cells[i] = OPEN
+										end
+
+										-- Relays gleichmaessig auf dem Loesungspfad verteilen (ohne Start/Exit).
+										local interior = #best - 2
+										local relayCount = math.clamp(tier.Relays, 0, math.max(0, interior))
+										for r = 1, relayCount do
+											local pos = math.floor(r * (interior + 1) / (relayCount + 1)) + 1
+											pos = math.clamp(pos, 2, #best - 1)
+											local idx = best[pos]
+											if cells[idx] == RELAY then
+												-- Kollision: naechsten freien Pfadknoten nehmen.
+												for k = pos + 1, #best - 1 do
+													if cells[best[k]] ~= RELAY then
+														idx = best[k]
+														break
+													end
+												end
+											end
+											cells[idx] = RELAY
+										end
+										-- tatsaechlich gesetzte Relays zaehlen
+										local relayTotal = 0
+										for _, v in cells do
+											if v == RELAY then
+												relayTotal += 1
+											end
+										end
+
+										-- ICE neben dem Pfad streuen.
+										for i = 1, w * h do
+											if not inPath[i] then
+												local roll = rng:NextNumber()
+												if roll &lt; tier.Ice then
+													cells[i] = ICE
+												elseif roll &lt; tier.Ice + tier.MaskedIce then
+													cells[i] = MASKED
+												end
+											end
+										end
+
+										cells[startIdx] = START
+										cells[exitIdx] = EXIT
+
+										local state: State = {
+											Width = w,
+											Height = h,
+											Cells = cells,
+											Start = startIdx,
+											Exit = exitIdx,
+											RelayTotal = relayTotal,
+											RelaysVisited = 0,
+											Path = { startIdx },
+											InPath = { [startIdx] = true },
+											Revealed = {},
+											Solution = best,
+										}
+
+										-- Oeffentliche Sicht: verstecktes ICE als freier Knoten getarnt.
+										local publicCells = table.create(w * h, OPEN)
+										for i = 1, w * h do
+											publicCells[i] = if cells[i] == MASKED then OPEN else cells[i]
+										end
+
+										local public: Types.NodeBreachPublic = {
+											Width = w,
+											Height = h,
+											Cells = publicCells,
+											Start = startIdx,
+											Exit = exitIdx,
+											Relays = relayTotal,
+										}
+
+										return public, state
+									end
+
+									--==========================================================================
+									-- Eingabe
+									--==========================================================================
+
+									local function result(ok: boolean, reason: string, costs: boolean, solved: boolean, feedback: { [string]: any }): InputResult
+										return { Ok = ok, Reason = reason, CostsAttempt = costs, Solved = solved, Feedback = feedback }
+									end
+
+									function NodeBreach.Input(state: State, payload: any): InputResult
+										-- Payload-Form pruefen. Alles, was nicht exakt passt, fliegt raus.
+										if typeof(payload) ~= "table" then
+											return result(false, "BAD_PAYLOAD", false, false, {})
+										end
+										local node = (payload :: any).Node
+										if typeof(node) ~= "number" or node ~= node or node % 1 ~= 0 then
+											return result(false, "BAD_PAYLOAD", false, false, {})
+										end
+										local total = state.Width * state.Height
+										if node &lt; 1 or node &gt; total then
+											return result(false, "BAD_PAYLOAD", false, false, {})
+										end
+
+										local head = state.Path[#state.Path]
+
+										local function pack(extra: { [string]: any }?): { [string]: any }
+											local f: { [string]: any } = {
+												Path = table.clone(state.Path),
+												RelaysLeft = state.RelayTotal - state.RelaysVisited,
+											}
+											if extra then
+												for k, v in extra do
+													f[k] = v
+												end
+											end
+											return f
+										end
+
+										-- Zurueckgehen: auf den vorletzten Knoten klicken nimmt den letzten weg.
+										if #state.Path &gt;= 2 and node == state.Path[#state.Path - 1] then
+											local removed = table.remove(state.Path) :: number
+											state.InPath[removed] = nil
+											if state.Cells[removed] == RELAY then
+												state.RelaysVisited -= 1
+											end
+											return result(true, "BACKTRACK", false, false, pack())
+										end
+
+										if node == head then
+											return result(false, "ALREADY_HERE", false, false, pack())
+										end
+
+										if not isAdjacent(head, node, state.Width, state.Height) then
+											return result(false, "NOT_ADJACENT", false, false, pack())
+										end
+
+										if state.InPath[node] then
+											return result(false, "REVISIT", false, false, pack())
+										end
+
+										local cell = state.Cells[node]
+
+										if cell == ICE then
+											return result(false, "ICE", false, false, pack())
+										end
+
+										-- Verstecktes ICE: der einzige Fall, der einen Versuch kostet.
+										if cell == MASKED then
+											state.Cells[node] = ICE
+											state.Revealed[node] = true
+											return result(false, "MASKED_ICE", true, false, pack({ Reveal = node }))
+										end
+
+										if cell == EXIT then
+											if state.RelaysVisited &lt; state.RelayTotal then
+												return result(false, "RELAYS_MISSING", false, false, pack())
+											end
+											table.insert(state.Path, node)
+											state.InPath[node] = true
+											return result(true, "SOLVED", false, true, pack())
+										end
+
+										table.insert(state.Path, node)
+										state.InPath[node] = true
+										if cell == RELAY then
+											state.RelaysVisited += 1
+										end
+
+										return result(true, "OK", false, false, pack({ Relay = cell == RELAY }))
+									end
+
+									return NodeBreach
+									</ProtectedString>
+										</Properties>
+									</Item>
+					</Item>
+					<Item class="ModuleScript" referent="RBX13">
+						<Properties>
+							<string name="Name">RateLimiter</string>
+							<ProtectedString name="Source">-- ServerScriptService/Systems/RateLimiter.lua
+					--!strict
+					-- GHOSTNET :: Token-Bucket pro Spieler und Remote.
+					-- Jeder Remote-Handler fragt als ALLERERSTES hier nach.
+
+					local Players = game:GetService("Players")
+					local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+
+					type Bucket = { Tokens: number, Last: number, Rate: number, Burst: number }
+
+					local RateLimiter = {}
+
+					local buckets: { [Player]: { [string]: Bucket } } = {}
+					-- Wer dauerhaft gegen Limits laeuft, wird geloggt statt still verschluckt.
+					local offences: { [Player]: number } = {}
+
+					local function getBucket(player: Player, key: string): Bucket?
+						local limit = (Config.RateLimits :: any)[key]
+						if not limit then
+							warn(("[GHOSTNET] Kein Rate-Limit fuer '%s' konfiguriert - Aufruf wird verworfen."):format(key))
+							return nil
+						end
+
+						local perPlayer = buckets[player]
+						if not perPlayer then
+							perPlayer = {}
+							buckets[player] = perPlayer
+						end
+
+						local b = perPlayer[key]
+						if not b then
+							b = { Tokens = limit.Burst, Last = os.clock(), Rate = limit.Rate, Burst = limit.Burst }
+							perPlayer[key] = b
+						end
+						return b
+					end
+
+					-- true  = Aufruf darf verarbeitet werden
+					-- false = Aufruf wird verworfen
+					function RateLimiter.Check(player: Player, key: string): boolean
+						if not player.Parent then
+							return false
+						end
+
+						local b = getBucket(player, key)
+						if not b then
+							return false
+						end
+
+						local now = os.clock()
+						b.Tokens = math.min(b.Burst, b.Tokens + (now - b.Last) * b.Rate)
+						b.Last = now
+
+						if b.Tokens &lt; 1 then
+							local n = (offences[player] or 0) + 1
+							offences[player] = n
+							if n == 25 or n % 250 == 0 then
+								warn(("[GHOSTNET] %s ueberschreitet Rate-Limit '%s' (%d Verstoesse)"):format(player.Name, key, n))
+							end
+							return false
+						end
+
+						b.Tokens -= 1
+						return true
+					end
+
+					function RateLimiter.Clear(player: Player)
+						buckets[player] = nil
+						offences[player] = nil
+					end
+
+					Players.PlayerRemoving:Connect(RateLimiter.Clear)
+
+					return RateLimiter
+					</ProtectedString>
+						</Properties>
+					</Item>
+		</Item>
+		<Item class="Folder" referent="RBX16">
+			<Properties>
+				<string name="Name">World</string>
+			</Properties>
+					<Item class="Script" referent="RBX15">
+						<Properties>
+							<string name="Name">TestTargets</string>
+							<ProtectedString name="Source">-- ServerScriptService/World/TestTargets.server.lua
+					--!strict
+					-- GHOSTNET :: Drei Testobjekte fuer Phase 1.
+					--
+					-- Wichtig fuer das Gesamtbild: In diesem Skript steht KEINE Hack-Logik.
+					-- Es baut Parts und setzt Attribute. Genau so entstehen spaeter auch alle
+					-- echten Ziele in der Stadt - per Hand im Studio oder per Generator.
+
+					local CollectionService = game:GetService("CollectionService")
+					local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+					local Config = require(ReplicatedStorage.Shared.Config)
+
+					local FOLDER_NAME = "GhostNet_TestTargets"
+
+					if workspace:FindFirstChild(FOLDER_NAME) then
+						return -- schon gebaut (z.B. nach einem Studio-Reload)
+					end
+
+					local folder = Instance.new("Folder")
+					folder.Name = FOLDER_NAME
+					folder.Parent = workspace
+
+					type PartProps = {
+						Name: string,
+						Size: Vector3,
+						CFrame: CFrame,
+						Color: Color3,
+						Material: Enum.Material?,
+						Transparency: number?,
+						CanCollide: boolean?,
+						Parent: Instance?,
+					}
+
+					local function makePart(props: PartProps): Part
+						local p = Instance.new("Part")
+						p.Name = props.Name
+						p.Size = props.Size
+						p.CFrame = props.CFrame
+						p.Color = props.Color
+						p.Material = props.Material or Enum.Material.SmoothPlastic
+						p.Transparency = props.Transparency or 0
+						p.CanCollide = if props.CanCollide == nil then true else props.CanCollide
+						p.Anchored = true
+						p.TopSurface = Enum.SurfaceType.Smooth
+						p.BottomSurface = Enum.SurfaceType.Smooth
+						p.Parent = props.Parent or folder
+						return p
+					end
+
+					-- Macht aus einem beliebigen Part ein Hack-Ziel. Nur Attribute, sonst nichts.
+					local function makeHackable(part: BasePart, attributes: { [string]: any })
+						for key, value in attributes do
+							part:SetAttribute(key, value)
+						end
+						part:SetAttribute("Offline", false)
+						CollectionService:AddTag(part, Config.HackableTag)
+					end
+
+					local function accentLight(part: BasePart, color: Color3, range: number)
+						local light = Instance.new("PointLight")
+						light.Color = color
+						light.Brightness = 2
+						light.Range = range
+						light.Parent = part
+					end
+
+					--==========================================================================
+					-- 1) UEBERWACHUNGSKAMERA  -  Schwierigkeit 2
+					--==========================================================================
+					do
+						local base = Vector3.new(-24, 0, -26)
+
+						makePart({
+							Name = "KameraMast",
+							Size = Vector3.new(0.8, 12, 0.8),
+							CFrame = CFrame.new(base + Vector3.new(0, 6, 0)),
+							Color = Color3.fromRGB(38, 44, 54),
+							Material = Enum.Material.Metal,
+						})
+
+						makePart({
+							Name = "KameraArm",
+							Size = Vector3.new(3.4, 0.5, 0.5),
+							CFrame = CFrame.new(base + Vector3.new(1.7, 11.6, 0)),
+							Color = Color3.fromRGB(38, 44, 54),
+							Material = Enum.Material.Metal,
+						})
+
+						local head = makePart({
+							Name = "Ueberwachungskamera",
+							Size = Vector3.new(1.6, 1.6, 3.2),
+							CFrame = CFrame.new(base + Vector3.new(3.4, 11.2, 0)) * CFrame.Angles(math.rad(-15), 0, 0),
+							Color = Color3.fromRGB(24, 30, 38),
+							Material = Enum.Material.Metal,
+						})
+						accentLight(head, Config.Theme.Magenta, 14)
+
+						makeHackable(head, {
+							DisplayName = "CAM-07 // Kreuzung Nord",
+							Difficulty = 2,
+							HackType = "NodeBreach",
+							RequiredLevel = 1,
+							OnSuccess = "CameraOffline",
+							DownTime = 30,
+						})
+					end
+
+					--==========================================================================
+					-- 2) SICHERHEITSTUER  -  Schwierigkeit 4
+					--==========================================================================
+					do
+						local base = Vector3.new(0, 0, -38)
+
+						makePart({
+							Name = "WandLinks",
+							Size = Vector3.new(10, 12, 1.2),
+							CFrame = CFrame.new(base + Vector3.new(-8, 6, 0)),
+							Color = Color3.fromRGB(30, 34, 42),
+							Material = Enum.Material.Concrete,
+						})
+						makePart({
+							Name = "WandRechts",
+							Size = Vector3.new(10, 12, 1.2),
+							CFrame = CFrame.new(base + Vector3.new(8, 6, 0)),
+							Color = Color3.fromRGB(30, 34, 42),
+							Material = Enum.Material.Concrete,
+						})
+						makePart({
+							Name = "Sturz",
+							Size = Vector3.new(6, 2, 1.2),
+							CFrame = CFrame.new(base + Vector3.new(0, 11, 0)),
+							Color = Color3.fromRGB(30, 34, 42),
+							Material = Enum.Material.Concrete,
+						})
+
+						local door = makePart({
+							Name = "Sicherheitstuer",
+							Size = Vector3.new(6, 10, 0.8),
+							CFrame = CFrame.new(base + Vector3.new(0, 5, 0)),
+							Color = Color3.fromRGB(20, 26, 34),
+							Material = Enum.Material.Metal,
+						})
+						accentLight(door, Config.Theme.Cyan, 12)
+
+						makeHackable(door, {
+							DisplayName = "SEC-DOOR // Lagerhalle B",
+							Difficulty = 4,
+							HackType = "NodeBreach",
+							RequiredLevel = 1,
+							OnSuccess = "DoorOpen",
+							DownTime = 12,
+						})
+					end
+
+					--==========================================================================
+					-- 3) GELDAUTOMAT  -  Schwierigkeit 6
+					--==========================================================================
+					do
+						local base = Vector3.new(24, 0, -26)
+
+						makePart({
+							Name = "AutomatSockel",
+							Size = Vector3.new(5, 1, 3),
+							CFrame = CFrame.new(base + Vector3.new(0, 0.5, 0)),
+							Color = Color3.fromRGB(26, 30, 38),
+							Material = Enum.Material.Concrete,
+						})
+
+						local atm = makePart({
+							Name = "Geldautomat",
+							Size = Vector3.new(4.4, 7, 2.4),
+							CFrame = CFrame.new(base + Vector3.new(0, 4.5, 0)),
+							Color = Color3.fromRGB(34, 40, 50),
+							Material = Enum.Material.Metal,
+						})
+
+						makePart({
+							Name = "AutomatDisplay",
+							Size = Vector3.new(3, 2.2, 0.2),
+							CFrame = CFrame.new(base + Vector3.new(0, 5.6, 1.25)),
+							Color = Config.Theme.Cyan,
+							Material = Enum.Material.Neon,
+							CanCollide = false,
+						})
+						accentLight(atm, Config.Theme.Cyan, 16)
+
+						makeHackable(atm, {
+							DisplayName = "ATM // Nakamura Bank",
+							Difficulty = 6,
+							HackType = "NodeBreach",
+							RequiredLevel = 1,
+							OnSuccess = "AtmPayout",
+							Cooldown = 300,
+							DownTime = 20,
+						})
+					end
+
+					print("[GHOSTNET] Testobjekte gebaut: Kamera (D2), Sicherheitstuer (D4), Geldautomat (D6).")
+					</ProtectedString>
+						</Properties>
+					</Item>
+		</Item>
+	</Item>
+	<Item class="StarterPlayer" referent="RBX27">
+		<Properties>
+			<string name="Name">StarterPlayer</string>
+		</Properties>
+		<Item class="StarterPlayerScripts" referent="RBX28">
+			<Properties>
+				<string name="Name">StarterPlayerScripts</string>
+			</Properties>
+			<Item class="Folder" referent="RBX19">
+				<Properties>
+					<string name="Name">UI</string>
+				</Properties>
+							<Item class="LocalScript" referent="RBX17">
+								<Properties>
+									<string name="Name">HUD</string>
+									<ProtectedString name="Source">-- StarterPlayer/StarterPlayerScripts/UI/HUD.client.lua
+							--!strict
+							-- GHOSTNET :: Dauerhaftes HUD - Wallet, Ziel-Prompt, Meldungen.
+							--
+							-- Der HUD trifft KEINE Entscheidungen. Er zeigt an, was der Server sagt,
+							-- und schickt beim Druck auf [E] eine Bitte los. Ob sie erlaubt ist,
+							-- entscheidet ausschliesslich der Server.
+
+							local CollectionService = game:GetService("CollectionService")
+							local Players = game:GetService("Players")
+							local ReplicatedStorage = game:GetService("ReplicatedStorage")
+							local RunService = game:GetService("RunService")
+							local TweenService = game:GetService("TweenService")
+							local UserInputService = game:GetService("UserInputService")
+
+							local Config = require(ReplicatedStorage.Shared.Config)
+							local Remotes = require(ReplicatedStorage.Shared.Remotes)
+							local UITheme = require(ReplicatedStorage.Shared.UITheme)
+
+							local player = Players.LocalPlayer
+							local playerGui = player:WaitForChild("PlayerGui")
+
+							local C = UITheme.Color
+
+							--==========================================================================
+							-- Zustand
+							--==========================================================================
+
+							local wallet = { Banked = 0, Unsold = 0, Tier = 1 }
+							local rig = table.clone(Config.Rig.StartLevels)
+							local hackOpen = false
+							local cooldownUntil: { [string]: number } = {}
+							local currentTargetId: string? = nil
+
+							--==========================================================================
+							-- Aufbau
+							--==========================================================================
+
+							local gui = UITheme.Screen("GhostNetHUD", 10)
+							gui.Parent = playerGui
+
+							--== Wallet oben rechts ====================================================
+
+							local walletPanel = UITheme.Frame({
+								Name = "Wallet",
+								AnchorPoint = Vector2.new(1, 0),
+								Position = UDim2.new(1, -18, 0, 18),
+								Size = UDim2.fromOffset(226, 58),
+								BackgroundColor3 = C.Panel,
+								BackgroundTransparency = 0.08,
+								Parent = gui,
+							})
+							UITheme.Corner(walletPanel, 4)
+							UITheme.Stroke(walletPanel, C.Line)
+							UITheme.Padding(walletPanel, 10)
+
+							UITheme.Label({
+								Name = "Title",
+								Text = "WALLET",
+								TextColor3 = C.TextDim,
+								TextSize = 11,
+								Size = UDim2.new(1, 0, 0, 12),
+								Parent = walletPanel,
+							})
+
+							local walletValue = UITheme.Label({
+								Name = "Value",
+								Text = "0 CRY",
+								TextColor3 = C.Cyan,
+								TextSize = 20,
+								Position = UDim2.new(0, 0, 0, 14),
+								Size = UDim2.new(1, 0, 0, 24),
+								Parent = walletPanel,
+							})
+
+							local walletSub = UITheme.Label({
+								Name = "Sub",
+								Text = "unverkauft // TIER 1",
+								TextColor3 = C.TextDim,
+								TextSize = 11,
+								Position = UDim2.new(0, 0, 1, -12),
+								Size = UDim2.new(1, 0, 0, 12),
+								Parent = walletPanel,
+							})
+
+							--== Ziel-Prompt unten Mitte ===============================================
+
+							local prompt = UITheme.Button({
+								Name = "TargetPrompt",
+								AnchorPoint = Vector2.new(0.5, 1),
+								Position = UDim2.new(0.5, 0, 1, -46),
+								Size = UDim2.fromOffset(360, 76),
+								BackgroundColor3 = C.Panel,
+								BackgroundTransparency = 0.06,
+								Visible = false,
+								Parent = gui,
+							})
+							UITheme.Corner(prompt, 4)
+							local promptStroke = UITheme.Stroke(prompt, C.CyanDim)
+							UITheme.Padding(prompt, 12)
+
+							local promptName = UITheme.Label({
+								Name = "Name",
+								Text = "",
+								TextColor3 = C.Cyan,
+								TextSize = 16,
+								Size = UDim2.new(1, 0, 0, 18),
+								Parent = prompt,
+							})
+
+							local promptInfo = UITheme.Label({
+								Name = "Info",
+								Text = "",
+								TextColor3 = C.TextDim,
+								TextSize = 12,
+								Position = UDim2.new(0, 0, 0, 22),
+								Size = UDim2.new(1, 0, 0, 14),
+								Parent = prompt,
+							})
+
+							local promptAction = UITheme.Label({
+								Name = "Action",
+								Text = "[E]  BREACH",
+								TextColor3 = C.Text,
+								TextSize = 14,
+								Position = UDim2.new(0, 0, 1, -18),
+								Size = UDim2.new(1, 0, 0, 16),
+								Parent = prompt,
+							})
+
+							--== Meldungen =============================================================
+
+							local toastHolder = UITheme.Frame({
+								Name = "Toasts",
+								AnchorPoint = Vector2.new(0.5, 1),
+								Position = UDim2.new(0.5, 0, 1, -132),
+								Size = UDim2.fromOffset(420, 130),
+								BackgroundTransparency = 1,
+								Parent = gui,
+							})
+							local toastLayout = Instance.new("UIListLayout")
+							toastLayout.SortOrder = Enum.SortOrder.LayoutOrder
+							toastLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+							toastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+							toastLayout.Padding = UDim.new(0, 4)
+							toastLayout.Parent = toastHolder
+
+							local toastOrder = 0
+
+							local function toast(text: string, color: Color3)
+								toastOrder += 1
+								local item = UITheme.Frame({
+									Name = "Toast",
+									Size = UDim2.fromOffset(420, 26),
+									BackgroundColor3 = C.Panel,
+									BackgroundTransparency = 0.15,
+									LayoutOrder = toastOrder,
+									Parent = toastHolder,
+								})
+								UITheme.Corner(item, 3)
+								UITheme.Stroke(item, color)
+
+								local label = UITheme.Label({
+									Text = text,
+									TextColor3 = color,
+									TextSize = 13,
+									TextXAlignment = Enum.TextXAlignment.Center,
+									Size = UDim2.fromScale(1, 1),
+									Parent = item,
+								})
+
+								task.delay(3.2, function()
+									if not item.Parent then
+										return
+									end
+									TweenService:Create(item, UITheme.Tween.Normal, { BackgroundTransparency = 1 }):Play()
+									TweenService:Create(label, UITheme.Tween.Normal, { TextTransparency = 1 }):Play()
+									task.wait(0.3)
+									item:Destroy()
+								end)
+							end
+
+							--== Weltmarkierung des naechsten Ziels ====================================
+
+							local highlight = Instance.new("Highlight")
+							highlight.FillColor = C.Cyan
+							highlight.FillTransparency = 0.86
+							highlight.OutlineColor = C.Cyan
+							highlight.OutlineTransparency = 0.15
+							highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+							highlight.Enabled = false
+							highlight.Parent = gui
+
+							--==========================================================================
+							-- Anzeige aktualisieren
+							--==========================================================================
+
+							local function refreshWallet()
+								walletValue.Text = ("%d CRY"):format(wallet.Unsold)
+								walletSub.Text = ("unverkauft // TIER %d // BANK %d"):format(wallet.Tier, wallet.Banked)
+							end
+
+							-- Gleiche Rechnung wie auf dem Server: Abstand zur Oberflaeche, nicht zum
+							-- Mittelpunkt. Sonst zeigt der HUD etwas anderes an, als der Server erlaubt.
+							local function surfaceDistance(part: BasePart, position: Vector3): number
+								local rel = part.CFrame:PointToObjectSpace(position)
+								local half = part.Size * 0.5
+								local clamped = Vector3.new(
+									math.clamp(rel.X, -half.X, half.X),
+									math.clamp(rel.Y, -half.Y, half.Y),
+									math.clamp(rel.Z, -half.Z, half.Z)
+								)
+								return (rel - clamped).Magnitude
+							end
+
+							local function cooldownLeft(id: string): number
+								local until_ = cooldownUntil[id]
+								if not until_ then
+									return 0
+								end
+								return math.max(0, until_ - os.clock())
+							end
+
+							local function hidePrompt()
+								if prompt.Visible then
+									prompt.Visible = false
+								end
+								currentTargetId = nil
+								highlight.Enabled = false
+								highlight.Adornee = nil
+							end
+
+							local function scan()
+								if hackOpen then
+									hidePrompt()
+									return
+								end
+
+								local character = player.Character
+								local root = character and character:FindFirstChild("HumanoidRootPart")
+								local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+								if not root or not root:IsA("BasePart") or not humanoid or humanoid.Health &lt;= 0 then
+									hidePrompt()
+									return
+								end
+
+								local range = Config.GetRange(rig.NetCard)
+								local best: BasePart? = nil
+								local bestDist = math.huge
+
+								for _, inst in CollectionService:GetTagged(Config.HackableTag) do
+									if inst:IsA("BasePart") and inst:IsDescendantOf(workspace) then
+										local d = surfaceDistance(inst, root.Position)
+										if d &lt;= range and d &lt; bestDist then
+											best, bestDist = inst, d
+										end
+									end
+								end
+
+								if not best then
+									hidePrompt()
+									return
+								end
+
+								local id = best:GetAttribute("TargetId")
+								if typeof(id) ~= "string" then
+									hidePrompt() -- Server hat den Part noch nicht registriert
+									return
+								end
+
+								currentTargetId = id
+								prompt.Visible = true
+								highlight.Adornee = best
+								highlight.Enabled = true
+
+								local name = best:GetAttribute("DisplayName")
+								promptName.Text = if typeof(name) == "string" and name ~= "" then name else best.Name
+
+								local difficulty = best:GetAttribute("Difficulty")
+								local reward = best:GetAttribute("Reward")
+								local diffNum = if typeof(difficulty) == "number" then difficulty else 1
+								local rewardNum = if typeof(reward) == "number" and reward &gt;= 0 then reward else Config.GetReward(diffNum)
+
+								promptInfo.Text = ("SCHWIERIGKEIT %d/10   //   %d CRY   //   %.0fm"):format(diffNum, rewardNum, bestDist)
+
+								local offline = best:GetAttribute("Offline") == true
+								local cd = cooldownLeft(id)
+
+								if offline then
+									promptAction.Text = "ZIEL BEREITS OFFLINE"
+									promptAction.TextColor3 = C.TextDim
+									highlight.OutlineColor = C.Line
+									promptStroke.Color = C.Line
+								elseif cd &gt; 0 then
+									promptAction.Text = ("GESPERRT // %ds"):format(math.ceil(cd))
+									promptAction.TextColor3 = C.Amber
+									highlight.OutlineColor = C.Amber
+									promptStroke.Color = C.Amber
+								else
+									promptAction.Text = "[E]  BREACH"
+									promptAction.TextColor3 = C.Text
+									highlight.OutlineColor = C.Cyan
+									promptStroke.Color = C.CyanDim
+								end
+							end
+
+							--==========================================================================
+							-- Eingabe
+							--==========================================================================
+
+							local function requestHack()
+								if hackOpen or not currentTargetId then
+									return
+								end
+								Remotes.HackRequestStart:FireServer({ TargetId = currentTargetId })
+							end
+
+							UserInputService.InputBegan:Connect(function(input, processed)
+								if processed then
+									return
+								end
+								if input.KeyCode == Enum.KeyCode.E then
+									requestHack()
+								end
+							end)
+
+							prompt.Activated:Connect(requestHack) -- Touch/Klick
+
+							--==========================================================================
+							-- Server-Meldungen
+							--==========================================================================
+
+							Remotes.EconomySync.OnClientEvent:Connect(function(snapshot: any)
+								if typeof(snapshot) ~= "table" then
+									return
+								end
+								wallet.Banked = snapshot.Banked or 0
+								wallet.Unsold = snapshot.Unsold or 0
+								wallet.Tier = snapshot.Tier or 1
+								if typeof(snapshot.Rig) == "table" then
+									rig = snapshot.Rig
+								end
+								refreshWallet()
+							end)
+
+							Remotes.HackSessionStarted.OnClientEvent:Connect(function()
+								hackOpen = true
+								hidePrompt()
+							end)
+
+							Remotes.HackResolved.OnClientEvent:Connect(function(data: any)
+								hackOpen = false
+								if typeof(data) ~= "table" then
+									return
+								end
+
+								if typeof(data.TargetId) == "string" and typeof(data.Cooldown) == "number" and data.Cooldown &gt; 0 then
+									cooldownUntil[data.TargetId] = os.clock() + data.Cooldown
+								end
+
+								if data.Success then
+									toast(("BREACH ERFOLGREICH   +%d CRY   TRACE +%.0f"):format(data.Reward or 0, data.TraceDelta or 0), C.Cyan)
+								else
+									local reasons = {
+										TIMEOUT = "ZEIT ABGELAUFEN",
+										NO_ATTEMPTS = "RIG UEBERLASTET - KEINE VERSUCHE MEHR",
+										OUT_OF_RANGE = "VERBINDUNG ABGERISSEN - ZU WEIT WEG",
+										ABORTED = "ABGEBROCHEN",
+										TARGET_GONE = "ZIEL VERSCHWUNDEN",
+									}
+									local text = reasons[data.Reason] or "BREACH FEHLGESCHLAGEN"
+									toast(("%s   TRACE +%.0f"):format(text, data.TraceDelta or 0), C.Magenta)
+								end
+							end)
+
+							Remotes.HackDenied.OnClientEvent:Connect(function(data: any)
+								if typeof(data) ~= "table" then
+									return
+								end
+								local seconds = tonumber(data.Seconds) or 0
+
+								if data.Reason == "COOLDOWN" then
+									if typeof(data.TargetId) == "string" then
+										cooldownUntil[data.TargetId] = os.clock() + seconds
+									end
+									toast(("ZIEL NOCH GESPERRT // %ds"):format(math.ceil(seconds)), C.Amber)
+								elseif data.Reason == "LEVEL" then
+									toast(("RIG ZU SCHWACH // TIER %d NOETIG"):format(seconds), C.Amber)
+								elseif data.Reason == "RANGE" then
+									toast("AUSSER REICHWEITE - NAEHER RAN", C.Amber)
+								elseif data.Reason == "OFFLINE" then
+									toast("ZIEL IST BEREITS OFFLINE", C.TextDim)
+								else
+									toast("ZUGRIFF VERWEIGERT", C.Magenta)
+								end
+							end)
+
+							--==========================================================================
+							-- Schleife
+							--==========================================================================
+
+							refreshWallet()
+
+							local accumulator = 0
+							RunService.RenderStepped:Connect(function(dt)
+								accumulator += dt
+								if accumulator &lt; 0.15 then
+									return
+								end
+								accumulator = 0
+								scan()
+							end)
+
+							UITheme.Scanlines(walletPanel, 4)
+							</ProtectedString>
+								</Properties>
+							</Item>
+							<Item class="LocalScript" referent="RBX18">
+								<Properties>
+									<string name="Name">HackUI</string>
+									<ProtectedString name="Source">-- StarterPlayer/StarterPlayerScripts/UI/HackUI.client.lua
+							--!strict
+							-- GHOSTNET :: Das Fake-Betriebssystem waehrend eines Hacks.
+							--
+							-- Dieses Skript kennt die Loesung nicht und rechnet nichts aus. Es zeigt,
+							-- was der Server geschickt hat, und meldet Klicks zurueck. Der komplette
+							-- Raetselzustand liegt auf dem Server.
+							--
+							-- Alles hier ist Fiktion: ein stilisiertes Minispiel, keine Darstellung
+							-- realer Technik.
+
+							local Players = game:GetService("Players")
+							local ReplicatedStorage = game:GetService("ReplicatedStorage")
+							local RunService = game:GetService("RunService")
+							local TweenService = game:GetService("TweenService")
+							local UserInputService = game:GetService("UserInputService")
+
+							local Remotes = require(ReplicatedStorage.Shared.Remotes)
+							local UITheme = require(ReplicatedStorage.Shared.UITheme)
+
+							local player = Players.LocalPlayer
+							local playerGui = player:WaitForChild("PlayerGui")
+
+							local C = UITheme.Color
+
+							-- Zelltypen, identisch zu NodeBreach.lua
+							local OPEN, ICE, RELAY, START, EXIT = 0, 1, 2, 3, 4
+
+							local GLYPH = { [OPEN] = "\u{00B7}", [ICE] = "#", [RELAY] = "R", [START] = "S", [EXIT] = "E" }
+
+							--==========================================================================
+							-- Sitzungszustand (nur Anzeige)
+							--==========================================================================
+
+							local session: {
+								Id: string,
+								Deadline: number,
+								TimeLimit: number,
+								Width: number,
+								Height: number,
+								Cells: { number },
+								Path: { number },
+								RelaysLeft: number,
+								AttemptsLeft: number,
+								Attempts: number,
+								NextStep: number,
+								LastAck: number,
+								LastSend: number,
+								Closing: boolean,
+							}? = nil
+
+							local cellButtons: { [number]: TextButton } = {}
+							local connectors: { Frame } = {}
+							local logLines: { TextLabel } = {}
+							local typingToken = 0
+
+							--==========================================================================
+							-- Aufbau
+							--==========================================================================
+
+							local gui = UITheme.Screen("GhostNetHackUI", 20)
+							gui.Enabled = false
+							gui.Parent = playerGui
+
+							local backdrop = UITheme.Frame({
+								Name = "Backdrop",
+								Size = UDim2.fromScale(1, 1),
+								BackgroundColor3 = Color3.new(0, 0, 0),
+								BackgroundTransparency = 1,
+								Parent = gui,
+							})
+
+							local window = UITheme.Frame({
+								Name = "Window",
+								AnchorPoint = Vector2.new(0.5, 0.5),
+								Position = UDim2.fromScale(0.5, 0.5),
+								Size = UDim2.new(0.92, 0, 0.86, 0),
+								BackgroundColor3 = C.Background,
+								ClipsDescendants = true,
+								Parent = backdrop,
+							})
+							UITheme.Corner(window, 5)
+							UITheme.Stroke(window, C.CyanDim)
+
+							local sizeConstraint = Instance.new("UISizeConstraint")
+							sizeConstraint.MaxSize = Vector2.new(820, 580)
+							sizeConstraint.MinSize = Vector2.new(320, 300)
+							sizeConstraint.Parent = window
+
+							--== Titelleiste ===========================================================
+
+							local titleBar = UITheme.Frame({
+								Name = "TitleBar",
+								Size = UDim2.new(1, 0, 0, 30),
+								BackgroundColor3 = C.Panel,
+								Parent = window,
+							})
+
+							local titleText = UITheme.Label({
+								Name = "Title",
+								Text = "GHOSTNET // NODE-BREACH",
+								TextColor3 = C.Cyan,
+								TextSize = 14,
+								Position = UDim2.new(0, 12, 0, 0),
+								Size = UDim2.new(0.5, 0, 1, 0),
+								Parent = titleBar,
+							})
+
+							local targetText = UITheme.Label({
+								Name = "Target",
+								Text = "",
+								TextColor3 = C.TextDim,
+								TextSize = 12,
+								TextXAlignment = Enum.TextXAlignment.Right,
+								Position = UDim2.new(0.5, 0, 0, 0),
+								Size = UDim2.new(0.5, -96, 1, 0),
+								Parent = titleBar,
+							})
+
+							local abortButton = UITheme.Button({
+								Name = "Abort",
+								Text = "ABBRUCH [ESC]",
+								TextSize = 11,
+								TextColor3 = C.Magenta,
+								BackgroundColor3 = C.PanelLight,
+								AnchorPoint = Vector2.new(1, 0.5),
+								Position = UDim2.new(1, -8, 0.5, 0),
+								Size = UDim2.fromOffset(86, 20),
+								Parent = titleBar,
+							})
+							UITheme.Corner(abortButton, 3)
+							UITheme.Stroke(abortButton, C.Magenta)
+
+							--== Linke Spalte: Terminal + Status =======================================
+
+							local sidebar = UITheme.Frame({
+								Name = "Sidebar",
+								Position = UDim2.new(0, 0, 0, 30),
+								Size = UDim2.new(0, 220, 1, -38),
+								BackgroundColor3 = C.Background,
+								Parent = window,
+							})
+							UITheme.Padding(sidebar, 12)
+
+							local statusBox = UITheme.Frame({
+								Name = "Status",
+								Size = UDim2.new(1, 0, 0, 74),
+								BackgroundColor3 = C.Panel,
+								Parent = sidebar,
+							})
+							UITheme.Corner(statusBox, 3)
+							UITheme.Stroke(statusBox, C.Line)
+							UITheme.Padding(statusBox, 8)
+
+							local relayLabel = UITheme.Label({
+								Name = "Relays",
+								Text = "RELAYS   -",
+								TextSize = 12,
+								Size = UDim2.new(1, 0, 0, 16),
+								Parent = statusBox,
+							})
+
+							local attemptsLabel = UITheme.Label({
+								Name = "AttemptsText",
+								Text = "RAM",
+								TextSize = 12,
+								TextColor3 = C.TextDim,
+								Position = UDim2.new(0, 0, 0, 20),
+								Size = UDim2.new(1, 0, 0, 14),
+								Parent = statusBox,
+							})
+
+							local chipHolder = UITheme.Frame({
+								Name = "Chips",
+								BackgroundTransparency = 1,
+								Position = UDim2.new(0, 0, 0, 38),
+								Size = UDim2.new(1, 0, 0, 12),
+								Parent = statusBox,
+							})
+							local chipLayout = Instance.new("UIListLayout")
+							chipLayout.FillDirection = Enum.FillDirection.Horizontal
+							chipLayout.Padding = UDim.new(0, 4)
+							chipLayout.Parent = chipHolder
+
+							local terminal = UITheme.Frame({
+								Name = "Terminal",
+								Position = UDim2.new(0, 0, 0, 84),
+								Size = UDim2.new(1, 0, 1, -84),
+								BackgroundColor3 = C.Panel,
+								ClipsDescendants = true,
+								Parent = sidebar,
+							})
+							UITheme.Corner(terminal, 3)
+							UITheme.Stroke(terminal, C.Line)
+							UITheme.Padding(terminal, 8)
+
+							local termLayout = Instance.new("UIListLayout")
+							termLayout.SortOrder = Enum.SortOrder.LayoutOrder
+							termLayout.Padding = UDim.new(0, 2)
+							termLayout.Parent = terminal
+
+							--== Rechte Spalte: Gitter =================================================
+
+							local gridArea = UITheme.Frame({
+								Name = "GridArea",
+								Position = UDim2.new(0, 220, 0, 30),
+								Size = UDim2.new(1, -220, 1, -38),
+								BackgroundTransparency = 1,
+								Parent = window,
+							})
+
+							local grid = UITheme.Frame({
+								Name = "Grid",
+								AnchorPoint = Vector2.new(0.5, 0.5),
+								Position = UDim2.fromScale(0.5, 0.5),
+								Size = UDim2.fromScale(0.86, 0.86),
+								BackgroundTransparency = 1,
+								Parent = gridArea,
+							})
+							local gridAspect = Instance.new("UIAspectRatioConstraint")
+							gridAspect.AspectRatio = 1
+							gridAspect.Parent = grid
+
+							--== Timer-Balken ==========================================================
+
+							local timerTrack = UITheme.Frame({
+								Name = "TimerTrack",
+								AnchorPoint = Vector2.new(0, 1),
+								Position = UDim2.new(0, 0, 1, 0),
+								Size = UDim2.new(1, 0, 0, 8),
+								BackgroundColor3 = C.PanelLight,
+								Parent = window,
+							})
+
+							local timerFill = UITheme.Frame({
+								Name = "TimerFill",
+								Size = UDim2.fromScale(1, 1),
+								BackgroundColor3 = C.Cyan,
+								Parent = timerTrack,
+							})
+
+							local timerText = UITheme.Label({
+								Name = "TimerText",
+								Text = "",
+								TextSize = 11,
+								TextColor3 = C.Background,
+								TextXAlignment = Enum.TextXAlignment.Center,
+								Size = UDim2.fromScale(1, 1),
+								ZIndex = 3,
+								Parent = timerTrack,
+							})
+
+							--== Ergebnis-Overlay ======================================================
+
+							local resultOverlay = UITheme.Frame({
+								Name = "Result",
+								Size = UDim2.fromScale(1, 1),
+								BackgroundColor3 = C.Background,
+								BackgroundTransparency = 1,
+								Visible = false,
+								ZIndex = 60,
+								Parent = window,
+							})
+
+							local resultTitle = UITheme.Label({
+								Name = "ResultTitle",
+								Text = "",
+								TextSize = 34,
+								TextXAlignment = Enum.TextXAlignment.Center,
+								AnchorPoint = Vector2.new(0.5, 0.5),
+								Position = UDim2.fromScale(0.5, 0.46),
+								Size = UDim2.new(1, 0, 0, 40),
+								ZIndex = 61,
+								Parent = resultOverlay,
+							})
+
+							local resultSub = UITheme.Label({
+								Name = "ResultSub",
+								Text = "",
+								TextSize = 14,
+								TextColor3 = C.TextDim,
+								TextXAlignment = Enum.TextXAlignment.Center,
+								AnchorPoint = Vector2.new(0.5, 0.5),
+								Position = UDim2.fromScale(0.5, 0.56),
+								Size = UDim2.new(1, 0, 0, 20),
+								ZIndex = 61,
+								Parent = resultOverlay,
+							})
+
+							UITheme.Scanlines(window, 4)
+
+							--==========================================================================
+							-- Terminal
+							--==========================================================================
+
+							local function pushLog(text: string, color: Color3?, instant: boolean?)
+								local line = UITheme.Label({
+									Text = "",
+									TextSize = 11,
+									TextColor3 = color or C.TextDim,
+									TextWrapped = true,
+									Size = UDim2.new(1, 0, 0, 13),
+									LayoutOrder = #logLines + 1,
+									Parent = terminal,
+								})
+								table.insert(logLines, line)
+
+								while #logLines &gt; 16 do
+									local old = table.remove(logLines, 1)
+									if old then
+										old:Destroy()
+									end
+								end
+
+								if instant then
+									line.Text = text
+								else
+									local token = typingToken
+									task.spawn(function()
+										UITheme.TypeInto(line, text, 130, function()
+											return typingToken ~= token or line.Parent == nil
+										end)
+									end)
+								end
+							end
+
+							local function clearLog()
+								typingToken += 1
+								for _, line in logLines do
+									line:Destroy()
+								end
+								table.clear(logLines)
+							end
+
+							--==========================================================================
+							-- Gitter zeichnen
+							--==========================================================================
+
+							local function clearGrid()
+								for _, b in cellButtons do
+									b:Destroy()
+								end
+								table.clear(cellButtons)
+								for _, c in connectors do
+									c:Destroy()
+								end
+								table.clear(connectors)
+							end
+
+							local function cellCenter(idx: number, w: number, h: number): (number, number)
+								local x = (idx - 1) % w + 1
+								local y = math.floor((idx - 1) / w) + 1
+								return (x - 0.5) / w, (y - 0.5) / h
+							end
+
+							local sendInput: (number) -&gt; ()
+
+							local function buildGrid()
+								local s = session
+								if not s then
+									return
+								end
+								clearGrid()
+
+								local w, h = s.Width, s.Height
+								for idx = 1, w * h do
+									local cx, cy = cellCenter(idx, w, h)
+									local btn = UITheme.Button({
+										Name = ("N%d"):format(idx),
+										AnchorPoint = Vector2.new(0.5, 0.5),
+										Position = UDim2.fromScale(cx, cy),
+										Size = UDim2.fromScale(0.78 / w, 0.78 / h),
+										BackgroundColor3 = C.PanelLight,
+										Text = "",
+										TextSize = 13,
+										ZIndex = 2,
+										Parent = grid,
+									})
+									UITheme.Corner(btn, 3)
+									UITheme.Stroke(btn, C.Line)
+									btn.Activated:Connect(function()
+										sendInput(idx)
+									end)
+									cellButtons[idx] = btn
+								end
+							end
+
+							local function redrawGrid()
+								local s = session
+								if not s then
+									return
+								end
+
+								local inPath: { [number]: boolean } = {}
+								for _, idx in s.Path do
+									inPath[idx] = true
+								end
+								local head = s.Path[#s.Path]
+
+								for idx, btn in cellButtons do
+									local cell = s.Cells[idx]
+									local stroke = btn:FindFirstChildOfClass("UIStroke")
+
+									btn.Text = GLYPH[cell] or ""
+									btn.TextColor3 = C.TextDim
+									btn.BackgroundColor3 = C.PanelLight
+									btn.BackgroundTransparency = 0
+									if stroke then
+										stroke.Color = C.Line
+										stroke.Thickness = 1
+									end
+
+									if cell == ICE then
+										btn.BackgroundColor3 = C.Background
+										btn.TextColor3 = C.Ice
+										if stroke then
+											stroke.Color = C.Ice
+										end
+									elseif cell == RELAY then
+										btn.TextColor3 = C.Amber
+										if stroke then
+											stroke.Color = C.Amber
+										end
+									elseif cell == EXIT then
+										btn.TextColor3 = C.Magenta
+										if stroke then
+											stroke.Color = C.Magenta
+										end
+									elseif cell == START then
+										btn.TextColor3 = C.Cyan
+									end
+
+									if inPath[idx] then
+										btn.BackgroundColor3 = C.CyanDim
+										btn.TextColor3 = C.Background
+										if stroke then
+											stroke.Color = C.Cyan
+										end
+									end
+
+									if idx == head then
+										btn.BackgroundColor3 = C.Cyan
+										btn.TextColor3 = C.Background
+										if stroke then
+											stroke.Color = C.Cyan
+											stroke.Thickness = 2
+										end
+									end
+								end
+
+								-- Verbindungslinien zwischen den Pfadknoten
+								for _, c in connectors do
+									c:Destroy()
+								end
+								table.clear(connectors)
+
+								for i = 1, #s.Path - 1 do
+									local ax, ay = cellCenter(s.Path[i], s.Width, s.Height)
+									local bx, by = cellCenter(s.Path[i + 1], s.Width, s.Height)
+									local horizontal = math.abs(ax - bx) &gt; math.abs(ay - by)
+									local link = UITheme.Frame({
+										Name = "Link",
+										AnchorPoint = Vector2.new(0.5, 0.5),
+										Position = UDim2.fromScale((ax + bx) * 0.5, (ay + by) * 0.5),
+										Size = if horizontal
+											then UDim2.new(0.34 / s.Width, 0, 0, 3)
+											else UDim2.new(0, 3, 0.34 / s.Height, 0),
+										BackgroundColor3 = C.Cyan,
+										ZIndex = 1,
+										Parent = grid,
+									})
+									table.insert(connectors, link)
+								end
+							end
+
+							local function redrawChips()
+								local s = session
+								if not s then
+									return
+								end
+								for _, child in chipHolder:GetChildren() do
+									if child:IsA("Frame") then
+										child:Destroy()
+									end
+								end
+								for i = 1, s.Attempts do
+									local chip = UITheme.Frame({
+										Name = "Chip",
+										Size = UDim2.fromOffset(16, 8),
+										BackgroundColor3 = if i &lt;= s.AttemptsLeft then C.Cyan else C.Line,
+										LayoutOrder = i,
+										Parent = chipHolder,
+									})
+									UITheme.Corner(chip, 2)
+								end
+								attemptsLabel.Text = ("RAM   %d / %d VERSUCHE"):format(s.AttemptsLeft, s.Attempts)
+								relayLabel.Text = ("RELAYS   %d OFFEN"):format(s.RelaysLeft)
+								relayLabel.TextColor3 = if s.RelaysLeft &gt; 0 then C.Amber else C.Cyan
+							end
+
+							--==========================================================================
+							-- Eingabe an den Server
+							--==========================================================================
+
+							-- Eigene Drossel knapp unter dem Server-Limit. Damit kann der Client sein
+							-- eigenes Rate-Limit gar nicht erst reissen und aus dem Takt geraten.
+							local MIN_SEND_INTERVAL = 0.09
+
+							sendInput = function(node: number)
+								local s = session
+								if not s or s.Closing then
+									return
+								end
+								local now = os.clock()
+								if now - s.LastSend &lt; MIN_SEND_INTERVAL then
+									return
+								end
+								s.LastSend = now
+
+								local btn = cellButtons[node]
+								if btn then
+									UITheme.Flash(btn, C.Text)
+								end
+
+								Remotes.HackInput:FireServer({
+									SessionId = s.Id,
+									Step = s.NextStep,
+									Payload = { Node = node },
+								})
+								s.NextStep += 1
+							end
+
+							--==========================================================================
+							-- Oeffnen / Schliessen
+							--==========================================================================
+
+							local function open()
+								gui.Enabled = true
+								backdrop.BackgroundTransparency = 1
+								window.Size = UDim2.new(0.92, 0, 0.3, 0)
+								resultOverlay.Visible = false
+								resultOverlay.BackgroundTransparency = 1
+
+								TweenService:Create(backdrop, UITheme.Tween.Normal, { BackgroundTransparency = 0.35 }):Play()
+								TweenService:Create(window, UITheme.Tween.Slow, { Size = UDim2.new(0.92, 0, 0.86, 0) }):Play()
+							end
+
+							local function close()
+								local s = session
+								if s then
+									s.Closing = true
+								end
+								TweenService:Create(backdrop, UITheme.Tween.Normal, { BackgroundTransparency = 1 }):Play()
+								local shrink = TweenService:Create(window, UITheme.Tween.Normal, { Size = UDim2.new(0.92, 0, 0.3, 0) })
+								shrink:Play()
+								shrink.Completed:Connect(function()
+									gui.Enabled = false
+									clearGrid()
+									clearLog()
+									session = nil
+								end)
+							end
+
+							local function abort()
+								local s = session
+								if not s or s.Closing then
+									return
+								end
+								Remotes.HackAbort:FireServer({ SessionId = s.Id })
+							end
+
+							abortButton.Activated:Connect(abort)
+
+							UserInputService.InputBegan:Connect(function(input, processed)
+								if processed then
+									return
+								end
+								if input.KeyCode == Enum.KeyCode.Escape and gui.Enabled then
+									abort()
+								end
+							end)
+
+							--==========================================================================
+							-- Server-Meldungen
+							--==========================================================================
+
+							Remotes.HackSessionStarted.OnClientEvent:Connect(function(data: any)
+								if typeof(data) ~= "table" or typeof(data.Public) ~= "table" then
+									return
+								end
+								local public = data.Public
+
+								session = {
+									Id = data.SessionId,
+									Deadline = data.Deadline,
+									TimeLimit = data.TimeLimit,
+									Width = public.Width,
+									Height = public.Height,
+									Cells = public.Cells,
+									Path = { public.Start },
+									RelaysLeft = public.Relays,
+									AttemptsLeft = data.Attempts,
+									Attempts = data.Attempts,
+									NextStep = 1,
+									LastAck = 0,
+									LastSend = 0,
+									Closing = false,
+								}
+
+								titleText.Text = ("GHOSTNET // %s"):format(data.Label or "BREACH")
+								targetText.Text = ("%s   [D%d]"):format(data.Target and data.Target.Name or "?", data.Target and data.Target.Difficulty or 0)
+
+								clearLog()
+								buildGrid()
+								redrawGrid()
+								redrawChips()
+								open()
+
+								pushLog("&gt; uplink hergestellt", C.Cyan)
+								task.delay(0.35, function()
+									if session and session.Id == data.SessionId then
+										pushLog(("&gt; ziel: %s"):format(string.lower(data.Target and data.Target.Name or "unbekannt")))
+									end
+								end)
+								task.delay(0.8, function()
+									if session and session.Id == data.SessionId then
+										pushLog("&gt; route vom start zum exit legen", C.Text)
+									end
+								end)
+								task.delay(1.2, function()
+									if session and session.Id == data.SessionId then
+										pushLog("&gt; alle relays (R) mitnehmen", C.Amber)
+									end
+								end)
+								task.delay(1.6, function()
+									if session and session.Id == data.SessionId then
+										pushLog("&gt; warnung: getarntes ice im gitter", C.Magenta)
+									end
+								end)
+							end)
+
+							local REASON_TEXT: { [string]: { Text: string, Color: Color3 } } = {
+								OK = { Text = "&gt; knoten uebernommen", Color = C.Cyan },
+								SOLVED = { Text = "&gt; exit erreicht", Color = C.Cyan },
+								BACKTRACK = { Text = "&gt; route zurueckgenommen", Color = C.TextDim },
+								NOT_ADJACENT = { Text = "&gt; kein direkter link", Color = C.TextDim },
+								REVISIT = { Text = "&gt; knoten bereits im pfad", Color = C.TextDim },
+								ALREADY_HERE = { Text = "&gt; du bist hier", Color = C.TextDim },
+								ICE = { Text = "&gt; ice blockiert", Color = C.Ice },
+								RELAYS_MISSING = { Text = "&gt; exit gesperrt - relays fehlen", Color = C.Amber },
+								MASKED_ICE = { Text = "&gt; GETARNTES ICE - rig ueberlastet", Color = C.Magenta },
+								BAD_PAYLOAD = { Text = "&gt; eingabe verworfen", Color = C.Magenta },
+							}
+
+							Remotes.HackFeedback.OnClientEvent:Connect(function(data: any)
+								local s = session
+								if not s or typeof(data) ~= "table" or data.SessionId ~= s.Id then
+									return
+								end
+
+								-- Schritt-Zaehler am Server ausrichten, falls er je auseinanderlaufen sollte.
+								if typeof(data.Step) == "number" then
+									s.LastAck = data.Step
+									s.NextStep = math.max(s.NextStep, data.Step + 1)
+								end
+
+								if typeof(data.AttemptsLeft) == "number" then
+									s.AttemptsLeft = data.AttemptsLeft
+								end
+
+								local fb = data.Feedback
+								if typeof(fb) == "table" then
+									if typeof(fb.Path) == "table" then
+										s.Path = fb.Path
+									end
+									if typeof(fb.RelaysLeft) == "number" then
+										s.RelaysLeft = fb.RelaysLeft
+									end
+									-- Getarntes ICE, das gerade aufgeflogen ist.
+									if typeof(fb.Reveal) == "number" then
+										s.Cells[fb.Reveal] = ICE
+										local btn = cellButtons[fb.Reveal]
+										if btn then
+											UITheme.Flash(btn, C.Magenta)
+										end
+									end
+								end
+
+								local info = REASON_TEXT[data.Reason]
+								if info then
+									pushLog(info.Text, info.Color, true)
+								end
+
+								redrawGrid()
+								redrawChips()
+							end)
+
+							local RESOLVE_TEXT: { [string]: string } = {
+								SOLVED = "zugriff gewaehrt",
+								TIMEOUT = "verbindung zeitueberschreitung",
+								NO_ATTEMPTS = "rig ueberlastet",
+								OUT_OF_RANGE = "signal verloren",
+								ABORTED = "abbruch durch benutzer",
+								TARGET_GONE = "ziel nicht mehr erreichbar",
+							}
+
+							Remotes.HackResolved.OnClientEvent:Connect(function(data: any)
+								local s = session
+								if not s or typeof(data) ~= "table" or data.SessionId ~= s.Id then
+									return
+								end
+								s.Closing = true
+
+								resultOverlay.Visible = true
+								TweenService:Create(resultOverlay, UITheme.Tween.Normal, { BackgroundTransparency = 0.12 }):Play()
+
+								if data.Success then
+									resultTitle.Text = "BREACH OK"
+									resultTitle.TextColor3 = C.Cyan
+									resultSub.Text = ("+%d CRY   //   TRACE +%.0f"):format(data.Reward or 0, data.TraceDelta or 0)
+									resultSub.TextColor3 = C.Text
+								else
+									resultTitle.Text = "BREACH FEHLGESCHLAGEN"
+									resultTitle.TextColor3 = C.Magenta
+									resultSub.Text = ("%s   //   TRACE +%.0f"):format(RESOLVE_TEXT[data.Reason] or "abbruch", data.TraceDelta or 0)
+									resultSub.TextColor3 = C.TextDim
+								end
+
+								task.delay(1.7, close)
+							end)
+
+							--==========================================================================
+							-- Timer
+							--==========================================================================
+
+							RunService.RenderStepped:Connect(function()
+								local s = session
+								if not s or not gui.Enabled then
+									return
+								end
+
+								local remaining = math.max(0, s.Deadline - workspace:GetServerTimeNow())
+								local fraction = if s.TimeLimit &gt; 0 then math.clamp(remaining / s.TimeLimit, 0, 1) else 0
+
+								timerFill.Size = UDim2.fromScale(fraction, 1)
+								timerText.Text = ("%.1fs"):format(remaining)
+
+								if s.Closing then
+									timerFill.BackgroundColor3 = C.Line
+								elseif fraction &lt; 0.25 then
+									-- letzte Sekunden: pulsierendes Warnmagenta
+									local pulse = 0.5 + 0.5 * math.sin(os.clock() * 12)
+									timerFill.BackgroundColor3 = C.Magenta:Lerp(C.Amber, pulse)
+								else
+									timerFill.BackgroundColor3 = C.Cyan
+								end
+							end)
+
+							--==========================================================================
+							-- Notbremse: Sollte eine Eingabe nie beantwortet werden, setzen wir den
+							-- Schrittzaehler zurueck, damit die Session nicht stumm haengen bleibt.
+							--==========================================================================
+
+							task.spawn(function()
+								while true do
+									task.wait(2.5)
+									local s = session
+									if s and not s.Closing and s.NextStep &gt; s.LastAck + 1 and os.clock() - s.LastSend &gt; 2.5 then
+										s.NextStep = s.LastAck + 1
+										pushLog("&gt; resync", C.TextDim, true)
+									end
+								end
+							end)
+							</ProtectedString>
+								</Properties>
+							</Item>
+			</Item>
+		</Item>
+	</Item>
+</roblox>
