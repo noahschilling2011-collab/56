@@ -1,0 +1,43 @@
+{
+  "name": "GHOSTNET",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/ReplicatedStorage/Shared"
+      }
+    },
+
+    "ServerScriptService": {
+      "$path": "src/ServerScriptService"
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      }
+    },
+
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "Gravity": 196.2
+      }
+    },
+
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Ambient": [0.05, 0.06, 0.08],
+        "OutdoorAmbient": [0.08, 0.09, 0.12],
+        "Brightness": 1,
+        "ClockTime": 0,
+        "FogColor": [0.03, 0.04, 0.06],
+        "FogEnd": 420,
+        "GlobalShadows": true
+      }
+    }
+  }
+}
