@@ -1413,8 +1413,8 @@ Object.values(BIKES).forEach(bk => {
 $('note').innerHTML =
   'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen und auf 1,80 m ' +
   'eingemessen. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
-  'Die Datei braucht einen Server (<code>python3 -m http.server</code>), weil ES-Module unter ' +
-  '<code>file://</code> von CORS blockiert werden.';
+  'Doppelklick reicht: Three.js kommt vom CDN mit CORS-Freigabe. Nur die GLB-Datei lässt sich ' +
+  'unter <code>file://</code> nicht laden — dafür <code>python3 -m http.server</code> im Ordner starten.';
 
 $('go').onclick = () => { starte().catch(e => zeigeFehler('Aufbau fehlgeschlagen: ' + e.message)); };
 

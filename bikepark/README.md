@@ -20,9 +20,10 @@ python3 build.py                       # bikepark-pruefstand.html neu bauen
 python3 -m http.server 8000            # dann http://localhost:8000/bikepark-pruefstand.html
 ```
 
-Die HTML **braucht einen Server**. Per Doppelklick öffnet sie sich mit leerem Bild, weil
-ES-Module unter `file://` von der CORS-Regel blockiert werden. Das ist Browser-Verhalten,
-kein Fehler in der Datei.
+Die HTML läuft **per Doppelklick** — geprüft: Three.js wird vom CDN geladen, und unpkg sendet
+`access-control-allow-origin: *`, was Chrome auch von `file://` aus akzeptiert. Nur die
+GLB-Datei daneben lässt sich unter `file://` nicht laden (relative Fetches sind dort
+blockiert); wer das Modell sehen will, startet `python3 -m http.server` im Ordner.
 
 ---
 
