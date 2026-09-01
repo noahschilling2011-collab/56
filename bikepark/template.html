@@ -212,6 +212,9 @@ function baueMittellinie(track){
 /* --------------------------------------------------------- Basis-Höhenprofil */
 function baseHoehe(track, s){
   const hp = track.hoehenprofil;
+  // Fehlt das Profil, bleibt ein gleichmäßiges Gefälle. Lieber eine fahrbare
+  // Strecke als eine leere Seite.
+  if(!hp || hp.length < 2) return track.hoehendifferenz_m * (1 - s/track.laenge_m);
   if(s <= hp[0].s_m) return hp[0].hoehe_m;
   if(s >= hp[hp.length-1].s_m) return hp[hp.length-1].hoehe_m;
   for(let i = 0; i < hp.length-1; i++){

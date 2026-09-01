@@ -212,6 +212,9 @@ function baueMittellinie(track){
 /* --------------------------------------------------------- Basis-Höhenprofil */
 function baseHoehe(track, s){
   const hp = track.hoehenprofil;
+  // Fehlt das Profil, bleibt ein gleichmäßiges Gefälle. Lieber eine fahrbare
+  // Strecke als eine leere Seite.
+  if(!hp || hp.length < 2) return track.hoehendifferenz_m * (1 - s/track.laenge_m);
   if(s <= hp[0].s_m) return hp[0].hoehe_m;
   if(s >= hp[hp.length-1].s_m) return hp[hp.length-1].hoehe_m;
   for(let i = 0; i < hp.length-1; i++){
@@ -519,6 +522,9 @@ function baueStreckenMesh(track, st, hArr, qsArr, bergBei){
         // Wandfläche bekommt Material-Farbe, damit man Holz von Beton sieht
         const hoch = Math.min(1, (p.v - querV(qs, kante*qs.aussen)) / Math.max(qs.wandH, .3));
         c.copy(FARBE.trail).lerp(qs.material === 'beton' ? FARBE.beton : FARBE.holz, Math.min(1, hoch*2.2));
+        // Waagerechte Bänderung: Bohlen beim Holz, Schalungsfugen beim Beton.
+        // Ohne sie sieht die Wand aus wie modellierte Erde, nicht wie gebaut.
+        c.offsetHSL(0, 0, Math.sin(p.v * (qs.material === 'beton' ? 4.2 : 9.5)) * 0.055 * hoch);
       } else if(qs.bank > 0.28 && p.x > kante - 0.6){
         c.copy(FARBE.bank);
       } else {

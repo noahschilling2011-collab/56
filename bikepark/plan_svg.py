@@ -136,10 +136,12 @@ def baue_svg(track):
     L  = track["laenge_m"]
     HM = track["hoehendifferenz_m"]
     el = track["elemente"]
-    hp = track["hoehenprofil"]
+    hp = track.get("hoehenprofil")
+    if not hp or len(hp) < 2:                      # Notfallprofil: gleichmaessiges Gefaelle
+        hp = [{"s_m": round(i*L/12, 1), "hoehe_m": round(HM*(1-i/12), 1)} for i in range(13)]
     pts = mittellinie(track)
 
-    W, H = 1240, 1000
+    W, H = 1240, 1030
     # --- Panel A: Draufsicht ---
     ax0, ay0, aw, ah = 60, 92, W - 120, 508
     xs = [p[1] for p in pts]; zs = [p[2] for p in pts]
@@ -195,7 +197,7 @@ def baue_svg(track):
         o.append(f'<text x="{cx:.1f}" y="{cy-10:.1f}" fill="{LABEL}" font-size="11" text-anchor="middle">{i}</text>')
 
     # --- Hoehenprofil ---
-    o.append(f'<text x="60" y="640" fill="{LABEL}" font-size="11">H&#214;HENPROFIL &#8212; '
+    o.append(f'<text x="60" y="632" fill="{LABEL}" font-size="11">H&#214;HENPROFIL &#8212; '
              f'x: Strecke in m, y: H&#246;he in m</text>')
     for h in range(0, int(HM) + 1, 50):
         o.append(f'<path d="M{bx0},{Y(h):.1f} L{bx0+bw},{Y(h):.1f}" stroke="{GRID}" stroke-width="1"/>')
@@ -222,7 +224,7 @@ def baue_svg(track):
              f'letzte 120 m</text>')
     o.append(f'<path d="M{X(L*0.6):.1f},{by0} L{X(L*0.6):.1f},{by0+bh} L{X(L*0.7):.1f},{by0+bh} '
              f'L{X(L*0.7):.1f},{by0}" fill="none" stroke="{JUMP}" stroke-width="1" stroke-dasharray="3 3"/>'
-             f'<text x="{X(L*0.65):.1f}" y="{by0-6:.1f}" fill="{JUMP}" font-size="11" text-anchor="middle">'
+             f'<text x="{X(L*0.65):.1f}" y="{by0-32:.1f}" fill="{JUMP}" font-size="11" text-anchor="middle">'
              '60&#8211;70 %: gr&#246;&#223;ter Sprung</text>')
 
     # Elemente im Profil
@@ -230,13 +232,13 @@ def baue_svg(track):
         mid = e["start_m"] + e.get("laenge_m", 0) / 2
         cx, cy = X(mid), Y(hoehe_bei(hp, mid))
         col = farbe(e["typ"])
-        yv = cy - 22 if i % 2 else cy - 40
+        yv = max(by0 + 12, cy - 22 if i % 2 else cy - 40)
         o.append(f'<path d="M{cx:.1f},{cy:.1f} L{cx:.1f},{yv+8:.1f}" stroke="{GRID}" stroke-width="1"/>')
         o.append(symbol(e["typ"], cx, yv, col))
         o.append(f'<text x="{cx:.1f}" y="{yv-10:.1f}" fill="{LABEL}" font-size="11" text-anchor="middle">{i}</text>')
 
     # Legende
-    lx, ly = 60, 950
+    lx, ly = 60, 996
     for j, (t, txt) in enumerate([("anlieger","Anlieger"),("wallride","Wallride"),("tabletop","Tabletop"),
                                   ("kicker","Kicker"),("step_up","Step-up"),("step_down","Step-down"),
                                   ("drop","Drop"),("hip","Hip"),("roller","Roller"),
