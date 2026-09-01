@@ -1,0 +1,201 @@
+{
+ "strecken": [
+  {
+   "name": "Rauchtest",
+   "key": "rauchtest",
+   "laenge_m": 900,
+   "hoehendifferenz_m": 150,
+   "elemente": [
+    {
+     "typ": "steilstueck",
+     "start_m": 10,
+     "laenge_m": 70,
+     "gefaelle_prozent": 26,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "anlieger",
+     "start_m": 95,
+     "laenge_m": 28,
+     "richtung": "links",
+     "neigung_grad": 34,
+     "hoehe_m": 1.4,
+     "breite_m": 4.5,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "roller",
+     "start_m": 135,
+     "laenge_m": 30,
+     "anzahl": 5,
+     "hoehe_m": 0.9,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "anlieger",
+     "start_m": 180,
+     "laenge_m": 26,
+     "richtung": "rechts",
+     "neigung_grad": 38,
+     "hoehe_m": 1.5,
+     "breite_m": 4.2,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "tabletop",
+     "start_m": 240,
+     "laenge_m": 8,
+     "hoehe_m": 2.0,
+     "breite_m": 5.5,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "kicker",
+     "start_m": 254,
+     "laenge_m": 16,
+     "absprunghoehe_m": 1.6,
+     "gapweite_m": 8,
+     "grubentiefe_m": 0.9,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "tabletop",
+     "start_m": 276,
+     "laenge_m": 7,
+     "hoehe_m": 1.8,
+     "breite_m": 5.5,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "steinfeld",
+     "start_m": 380,
+     "laenge_m": 30,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "anlieger",
+     "start_m": 420,
+     "laenge_m": 30,
+     "richtung": "links",
+     "neigung_grad": 40,
+     "hoehe_m": 1.6,
+     "breite_m": 4.0,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "wallride",
+     "start_m": 458,
+     "laenge_m": 18,
+     "seite": "links",
+     "hoehe_m": 3.0,
+     "neigung_grad": 78,
+     "material": "holz",
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "anlieger",
+     "start_m": 486,
+     "laenge_m": 24,
+     "richtung": "rechts",
+     "neigung_grad": 32,
+     "hoehe_m": 1.3,
+     "breite_m": 4.5,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "drop",
+     "start_m": 560,
+     "hoehe_m": 0.8,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "step_down",
+     "start_m": 600,
+     "laenge_m": 10,
+     "hoehenversatz_m": 1.6,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "hip",
+     "start_m": 640,
+     "laenge_m": 9,
+     "hoehe_m": 1.8,
+     "seitenversatz_m": 2.0,
+     "richtung": "rechts",
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "step_up",
+     "start_m": 700,
+     "laenge_m": 8,
+     "hoehenversatz_m": 1.2,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    },
+    {
+     "typ": "anlieger",
+     "start_m": 760,
+     "laenge_m": 26,
+     "richtung": "links",
+     "neigung_grad": 30,
+     "hoehe_m": 1.2,
+     "breite_m": 5.0,
+     "notiz": "Rauchtest-Element zur Pruefung der Geometrie an dieser Stelle."
+    }
+   ],
+   "hoehenprofil": [
+    {
+     "s_m": 0.0,
+     "hoehe_m": 150.0
+    },
+    {
+     "s_m": 75.0,
+     "hoehe_m": 137.5
+    },
+    {
+     "s_m": 150.0,
+     "hoehe_m": 125.0
+    },
+    {
+     "s_m": 225.0,
+     "hoehe_m": 112.5
+    },
+    {
+     "s_m": 300.0,
+     "hoehe_m": 100.0
+    },
+    {
+     "s_m": 375.0,
+     "hoehe_m": 87.5
+    },
+    {
+     "s_m": 450.0,
+     "hoehe_m": 75.0
+    },
+    {
+     "s_m": 525.0,
+     "hoehe_m": 62.5
+    },
+    {
+     "s_m": 600.0,
+     "hoehe_m": 50.0
+    },
+    {
+     "s_m": 675.0,
+     "hoehe_m": 37.5
+    },
+    {
+     "s_m": 750.0,
+     "hoehe_m": 25.0
+    },
+    {
+     "s_m": 825.0,
+     "hoehe_m": 12.5
+    },
+    {
+     "s_m": 900.0,
+     "hoehe_m": 0.0
+    }
+   ]
+  }
+ ]
+}
