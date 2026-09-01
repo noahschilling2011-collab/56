@@ -945,8 +945,8 @@ function baueBaeume(w){
    welche Nodes es gäbe.
    =========================================================================== */
 const GLB_PFAD  = 'mtb-emtb-fahrerin.glb';
-const GLB_DREHUNG = Math.PI;   // ungeprüft: Blickrichtung der GLB unbekannt.
-                               // Schaut die Fahrerin rückwärts, hier auf 0 setzen.
+const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
+                         // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
 const RAD_R = 0.36;            // Laufradradius außen (29", Reifen mitgerechnet), m
 
 const _Y = new THREE.Vector3(0, 1, 0);
@@ -1329,9 +1329,12 @@ renderer.setAnimationLoop(() => {
     if(halter){
       animiereFahrzeug(halter, fahrer, dt, ein);
       halter.position.copy(_p);
+      // Fahrtrichtung an der Station ist (sin ψ, 0, cos ψ); Rohrmodell und GLB schauen
+      // lokal nach +z. rotateY(ψ) dreht +z genau dorthin. Vorher stand hier
+      // rotateY(π − ψ): das liefert (sin ψ, −cos ψ), eine z-Spiegelung — Fehler 180°+2ψ.
       halter.rotation.set(0, 0, 0);
-      halter.rotateY(-st.psi + Math.PI);
-      halter.rotateX(-fahrer.tilt);
+      halter.rotateY(st.psi);
+      halter.rotateX(fahrer.tilt);     // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
       halter.rotateZ(-fahrer.roll);
     }
     if(schatten){
@@ -1427,8 +1430,11 @@ if(reduced){
 /* Prüfhaken: erlaubt es, die Geometrie von außen nachzumessen, statt sie
    aus dem Bild zu raten. Kostet nichts und hilft beim Einbau in ein anderes Spiel. */
 window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, baseHoehe,
-                   baueStrecke, neuerFahrer, schritt,
-                   get welt(){ return welt; }, get fahrer(){ return fahrer; }, TRACKS, BIKES};
+                   baueStrecke, neuerFahrer, schritt, stInterp, wechsleRad, renderer,
+                   get welt(){ return welt; }, get fahrer(){ return fahrer; },
+                   get halter(){ return halter; },
+                   get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; },
+                   TRACKS, BIKES};
 
 addEventListener('pagehide', () => {
   renderer.setAnimationLoop(null);
