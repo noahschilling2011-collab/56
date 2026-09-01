@@ -199,10 +199,10 @@
     {
      "typ": "tabletop",
      "start_m": 427,
-     "laenge_m": 8,
-     "hoehe_m": 1.9,
+     "laenge_m": 6,
+     "hoehe_m": 1,
      "breite_m": 5.5,
-     "notiz": "Schliesst die Sektion 13 m hinter der Kicker-Landung ab, weil der flache Absatz bei 435 m endet und danach 148 m Traverse ohne Sprungelement folgen."
+     "notiz": "Schliesst die Sektion 13 m hinter der Kicker-Landung ab, weil der flache Absatz bei 435 m endet und danach 148 m Traverse ohne Sprungelement folgen; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "tabletop",
@@ -215,19 +215,19 @@
     {
      "typ": "hip",
      "start_m": 605,
-     "laenge_m": 8,
-     "hoehe_m": 1.8,
+     "laenge_m": 6.5,
+     "hoehe_m": 0.9,
      "seitenversatz_m": 2.5,
      "richtung": "links",
-     "notiz": "Nutzt die 13 m hinter der Table-Landung nach links wegfallende Gelaendekante und versetzt die Linie seitlich, bevor der Table bei 626 m sie zurueck in die Falllinie holt."
+     "notiz": "Nutzt die 13 m hinter der Table-Landung nach links wegfallende Gelaendekante und versetzt die Linie seitlich, bevor der Table bei 626 m sie zurueck in die Falllinie holt; nachgemessen und angepasst (Höhe 1.8→0.9 m, Länge 8→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "tabletop",
      "start_m": 626,
-     "laenge_m": 8,
-     "hoehe_m": 1.9,
+     "laenge_m": 6,
+     "hoehe_m": 1,
      "breite_m": 6,
-     "notiz": "Holt die Linie 13 m nach dem Hip zurueck in die Falllinie und beendet die Sektion, weil ab 634 m die 148 m lange 18-Prozent-Traverse zur naechsten Gruppe beginnt."
+     "notiz": "Holt die Linie 13 m nach dem Hip zurueck in die Falllinie und beendet die Sektion, weil ab 634 m die 148 m lange 18-Prozent-Traverse zur naechsten Gruppe beginnt; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "tabletop",
@@ -247,10 +247,10 @@
     {
      "typ": "tabletop",
      "start_m": 824,
-     "laenge_m": 8,
-     "hoehe_m": 1.8,
+     "laenge_m": 6.5,
+     "hoehe_m": 1,
      "breite_m": 5.5,
-     "notiz": "Faengt den Versatz des Step-downs 13 m hinter dessen Landung auf und schliesst die Gruppe, bevor die Trasse ab 832 m in die 18-Prozent-Traverse abfaellt."
+     "notiz": "Faengt den Versatz des Step-downs 13 m hinter dessen Landung auf und schliesst die Gruppe, bevor die Trasse ab 832 m in die 18-Prozent-Traverse abfaellt; nachgemessen und angepasst (Höhe 1.8→1 m, Länge 8→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "kicker",
@@ -265,17 +265,17 @@
      "typ": "tabletop",
      "start_m": 1014,
      "laenge_m": 9,
-     "hoehe_m": 2,
+     "hoehe_m": 1.1,
      "breite_m": 6,
-     "notiz": "Liegt 13 m hinter der Kicker-Landung und traegt die Linie weiter zum letzten Table der Sektion, hinter dem ab 1075 m die Steilstufe ansetzt."
+     "notiz": "Liegt 13 m hinter der Kicker-Landung und traegt die Linie weiter zum letzten Table der Sektion, hinter dem ab 1075 m die Steilstufe ansetzt; nachgemessen und angepasst (Höhe 2→1.1 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "tabletop",
      "start_m": 1036,
-     "laenge_m": 8,
-     "hoehe_m": 1.9,
+     "laenge_m": 5.5,
+     "hoehe_m": 1,
      "breite_m": 6,
-     "notiz": "Beendet die Sektion 13 m hinter dem vorigen Table, weil 31 m weiter unten die Steilstufe beginnt und auf ihrer Kante kein Absprung mehr stehen kann."
+     "notiz": "Beendet die Sektion 13 m hinter dem vorigen Table, weil 31 m weiter unten die Steilstufe beginnt und auf ihrer Kante kein Absprung mehr stehen kann; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→5.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "steilstueck",
@@ -285,29 +285,29 @@
      "notiz": "Setzt 31 m hinter dem letzten Table an der markanten Steilstufe an und erzeugt den Speed fuer die Schluesselsektion, die 35 m unter seinem Ende beginnt."
     },
     {
-     "typ": "tabletop",
+     "typ": "kicker",
      "start_m": 1180,
-     "laenge_m": 8,
-     "hoehe_m": 1.8,
-     "breite_m": 6,
-     "notiz": "Vorspann der Schluesselsektion, 35 m unter dem Steilstueck und auf 1,8 m gesenkt, damit er bei der hier real ankommenden Geschwindigkeit sauber geraeumt wird, bevor 13 m weiter der grosse Gap kommt."
+     "laenge_m": 25,
+     "absprunghoehe_m": 0.8,
+     "gapweite_m": 11.5,
+     "grubentiefe_m": 1.2,
+     "notiz": "Größter Sprung der Strecke bei 62 Prozent der Länge, direkt aus dem Steilstück heraus: mit 12 m Gap braucht er 40 km/h am Rampenfuß, und die gibt es nur als erstes Glied der Kette - hinter einem Table käme man mit 29 km/h an (gemessen)."
     },
     {
-     "typ": "kicker",
-     "start_m": 1201,
-     "laenge_m": 25,
-     "absprunghoehe_m": 2.3,
-     "gapweite_m": 12,
-     "grubentiefe_m": 1.2,
-     "notiz": "Groesster Sprung der Strecke bei 63 Prozent der Laenge, 13 m hinter dem Kalibrier-Table; der Fussabdruck aus 8,6 m Rampe, 12 m Gap und 4,4 m Landung endet bei 1226 m, sodass der Table bei 1239 m erst 13 m hinter der Landung beginnt."
+     "typ": "tabletop",
+     "start_m": 1207,
+     "laenge_m": 8,
+     "hoehe_m": 1.5,
+     "breite_m": 6,
+     "notiz": "Table hinter dem großen Kicker als zweites Kettenglied, auf 1,5 m gesetzt, damit er mit dem Landetempo des Kickers ohne Treten erreichbar ist; sein Footprint endet vor dem Table bei 1239 m."
     },
     {
      "typ": "tabletop",
      "start_m": 1239,
-     "laenge_m": 8,
-     "hoehe_m": 2.2,
+     "laenge_m": 6,
+     "hoehe_m": 1,
      "breite_m": 6,
-     "notiz": "Faengt den Fahrer 13 m nach dem grossen Gap wieder ein und schliesst als hoechster Table die Schluesselsektion, bevor ab 1247 m die sprungfreie Anlieger-Wallride-Kombination uebernimmt."
+     "notiz": "Faengt den Fahrer 13 m nach dem grossen Gap wieder ein und schliesst als hoechster Table die Schluesselsektion, bevor ab 1247 m die sprungfreie Anlieger-Wallride-Kombination uebernimmt; nachgemessen und angepasst (Höhe 2.2→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "anlieger",
@@ -350,18 +350,18 @@
     {
      "typ": "tabletop",
      "start_m": 1414,
-     "laenge_m": 7,
-     "hoehe_m": 1.6,
+     "laenge_m": 6,
+     "hoehe_m": 1,
      "breite_m": 5.5,
-     "notiz": "Liegt 13 m hinter dem Eroeffnungstable und nutzt das auf dem Absatz wieder aufgebaute Tempo, bevor 13 m weiter der letzte Table der Gruppe folgt."
+     "notiz": "Liegt 13 m hinter dem Eroeffnungstable und nutzt das auf dem Absatz wieder aufgebaute Tempo, bevor 13 m weiter der letzte Table der Gruppe folgt; nachgemessen und angepasst (Höhe 1.6→1 m, Länge 7→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "tabletop",
      "start_m": 1434,
-     "laenge_m": 7,
-     "hoehe_m": 1.5,
+     "laenge_m": 5,
+     "hoehe_m": 1,
      "breite_m": 5.5,
-     "notiz": "Schliesst die Gruppe 13 m hinter dem vorigen Table, weil 39 m weiter unten der letzte Steilhang der Strecke ansetzt und dort kein Absprung mehr stehen kann."
+     "notiz": "Schliesst die Gruppe 13 m hinter dem vorigen Table, weil 39 m weiter unten der letzte Steilhang der Strecke ansetzt und dort kein Absprung mehr stehen kann; nachgemessen und angepasst (Höhe 1.5→1 m, Länge 7→5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "steilstueck",
@@ -391,9 +391,9 @@
      "typ": "tabletop",
      "start_m": 1639,
      "laenge_m": 8,
-     "hoehe_m": 1.7,
+     "hoehe_m": 1.3,
      "breite_m": 5.5,
-     "notiz": "Letztes Sprungelement der Strecke, 13 m hinter der Kicker-Landung; danach folgen 133 m Erholung bis zum sprung- und wandfreien Schlussdrittel ab 1780 m."
+     "notiz": "Letztes Sprungelement der Strecke, 13 m hinter der Kicker-Landung; danach folgen 133 m Erholung bis zum sprung- und wandfreien Schlussdrittel ab 1780 m; nachgemessen und angepasst (Höhe 1.7→1.3 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "steinfeld",
@@ -539,11 +539,11 @@
     {
      "typ": "kicker",
      "start_m": 412,
-     "laenge_m": 8,
-     "absprunghoehe_m": 1.5,
-     "gapweite_m": 10,
+     "laenge_m": 15,
+     "absprunghoehe_m": 0.8,
+     "gapweite_m": 9,
      "grubentiefe_m": 0.9,
-     "notiz": "Steht elf Meter hinter der Tablelandung bei 401 m und ist mit 10 m Gap auf genau die Restgeschwindigkeit aus der Steilstufe darueber gebaut, bevor der Step-up bei 442 m folgt."
+     "notiz": "Steht elf Meter hinter der Tablelandung bei 401 m und ist mit 10 m Gap auf genau die Restgeschwindigkeit aus der Steilstufe darueber gebaut, bevor der Step-up bei 442 m folgt; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 10→9 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→15 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "step_up",
@@ -563,19 +563,19 @@
     {
      "typ": "kicker",
      "start_m": 560,
-     "laenge_m": 8,
+     "laenge_m": 14,
      "absprunghoehe_m": 1.5,
      "gapweite_m": 8,
      "grubentiefe_m": 0.8,
-     "notiz": "Eroeffnet die zweite Sektion 110 m nach der Landung des Step-ups dort, wo der Hang hinter der Rollerpassage wieder gleichmaessig faellt, und bleibt mit 8 m Gap im Rahmen des dort anliegenden Tempos."
+     "notiz": "Eroeffnet die zweite Sektion 110 m nach der Landung des Step-ups dort, wo der Hang hinter der Rollerpassage wieder gleichmaessig faellt, und bleibt mit 8 m Gap im Rahmen des dort anliegenden Tempos; Länge 8→14 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",
      "start_m": 590,
      "laenge_m": 8,
-     "hoehe_m": 1.6,
+     "hoehe_m": 1.2,
      "breite_m": 4.5,
-     "notiz": "Liegt 14 m hinter dem Landepunkt des Kickers (576 m), sodass vor der Kante ein Lastwechsel bleibt, und traegt den Schwung weiter zum Step-down bei 610 m."
+     "notiz": "Liegt 14 m hinter dem Landepunkt des Kickers (576 m), sodass vor der Kante ein Lastwechsel bleibt, und traegt den Schwung weiter zum Step-down bei 610 m; nachgemessen und angepasst (Höhe 1.6→1.2 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "step_down",
@@ -611,20 +611,20 @@
     {
      "typ": "kicker",
      "start_m": 778,
-     "laenge_m": 8,
-     "absprunghoehe_m": 1.5,
-     "gapweite_m": 7,
+     "laenge_m": 12,
+     "absprunghoehe_m": 0.8,
+     "gapweite_m": 6,
      "grubentiefe_m": 0.8,
-     "notiz": "Liegt elf Meter hinter der Tablelandung bei 767 m und bleibt mit 7 m Gap auf dem nach Steinfeld und Anlieger noch begrenzten Anfahrtstempo, bevor der Hip bei 806 m folgt."
+     "notiz": "Liegt elf Meter hinter der Tablelandung bei 767 m und bleibt mit 7 m Gap auf dem nach Steinfeld und Anlieger noch begrenzten Anfahrtstempo, bevor der Hip bei 806 m folgt; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 7→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→12 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "hip",
      "start_m": 806,
-     "laenge_m": 9,
-     "hoehe_m": 1.5,
+     "laenge_m": 6.5,
+     "hoehe_m": 0.9,
      "seitenversatz_m": 2.5,
      "richtung": "rechts",
-     "notiz": "Beendet die Sektion 13 m hinter dem Landepunkt des Kickers (793 m) an der Gelaendenase und wirft die Linie nach rechts auf das Steinfeld ab 828 m."
+     "notiz": "Beendet die Sektion 13 m hinter dem Landepunkt des Kickers (793 m) an der Gelaendenase und wirft die Linie nach rechts auf das Steinfeld ab 828 m; nachgemessen und angepasst (Höhe 1.5→0.9 m, Länge 9→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "steinfeld",
@@ -653,11 +653,11 @@
     {
      "typ": "kicker",
      "start_m": 980,
-     "laenge_m": 8,
-     "absprunghoehe_m": 1.6,
-     "gapweite_m": 8,
+     "laenge_m": 13.5,
+     "absprunghoehe_m": 0.8,
+     "gapweite_m": 7.5,
      "grubentiefe_m": 0.9,
-     "notiz": "Steht elf Meter hinter der Tablelandung bei 969 m und haelt die vierte Sektion bis zum Drop bei 1010 m zusammen."
+     "notiz": "Steht elf Meter hinter der Tablelandung bei 969 m und haelt die vierte Sektion bis zum Drop bei 1010 m zusammen; nachgemessen und angepasst (Absprunghöhe 1.6→0.8 m, Gap 8→7.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→13.5 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "drop",
@@ -676,11 +676,11 @@
     {
      "typ": "kicker",
      "start_m": 1145,
-     "laenge_m": 10,
+     "laenge_m": 18.6,
      "absprunghoehe_m": 2.3,
      "gapweite_m": 12,
      "grubentiefe_m": 1.3,
-     "notiz": "Sitzt 35 m nach dem Auslauf der grossen Steilstufe (1020-1110 m) an der einzigen Stelle der Strecke, an der das abgebremste Tempo exakt fuer 12 m Gap reicht und der Hang dahinter lang genug flach auslaeuft."
+     "notiz": "Sitzt 35 m nach dem Auslauf der grossen Steilstufe (1020-1110 m) an der einzigen Stelle der Strecke, an der das abgebremste Tempo exakt fuer 12 m Gap reicht und der Hang dahinter lang genug flach auslaeuft; Länge 10→18.6 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",
@@ -707,19 +707,19 @@
     {
      "typ": "kicker",
      "start_m": 1358,
-     "laenge_m": 8,
+     "laenge_m": 16,
      "absprunghoehe_m": 1.6,
      "gapweite_m": 10,
      "grubentiefe_m": 1,
-     "notiz": "Eroeffnet die sechste Sektion 38 m nach dem Auslauf der steilsten Passage und ist mit 10 m Gap weiter gebaut als die Kicker davor, weil selbst nach diesem Bremsweg das hoechste Anfahrtstempo der Strecke anliegt."
+     "notiz": "Eroeffnet die sechste Sektion 38 m nach dem Auslauf der steilsten Passage und ist mit 10 m Gap weiter gebaut als die Kicker davor, weil selbst nach diesem Bremsweg das hoechste Anfahrtstempo der Strecke anliegt; Länge 8→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",
      "start_m": 1390,
-     "laenge_m": 8,
-     "hoehe_m": 1.6,
+     "laenge_m": 7.5,
+     "hoehe_m": 1,
      "breite_m": 4.5,
-     "notiz": "Folgt 14 m hinter dem Landepunkt des Kickers (1376 m), damit die Sektion ohne Bremsen bis zum Step-up bei 1412 m durchlaeuft."
+     "notiz": "Folgt 14 m hinter dem Landepunkt des Kickers (1376 m), damit die Sektion ohne Bremsen bis zum Step-up bei 1412 m durchlaeuft; nachgemessen und angepasst (Höhe 1.6→1 m, Länge 8→7.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "step_up",
@@ -731,19 +731,19 @@
     {
      "typ": "kicker",
      "start_m": 1570,
-     "laenge_m": 8,
+     "laenge_m": 14,
      "absprunghoehe_m": 1.4,
      "gapweite_m": 8,
      "grubentiefe_m": 0.8,
-     "notiz": "Eroeffnet die letzte Sektion 150 m nach dem Step-up auf dem flacheren Hangruecken, damit zwischen ihr und dem sprungfreien Schlussabschnitt ab 1780 m keine Totstrecke entsteht."
+     "notiz": "Eroeffnet die letzte Sektion 150 m nach dem Step-up auf dem flacheren Hangruecken, damit zwischen ihr und dem sprungfreien Schlussabschnitt ab 1780 m keine Totstrecke entsteht; Länge 8→14 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",
      "start_m": 1600,
-     "laenge_m": 8,
-     "hoehe_m": 1.5,
+     "laenge_m": 7,
+     "hoehe_m": 1,
      "breite_m": 4.5,
-     "notiz": "Liegt 14 m hinter dem Landepunkt des Kickers (1586 m) und haelt die Linie bis zum abschliessenden Step-down bei 1622 m unter Zug."
+     "notiz": "Liegt 14 m hinter dem Landepunkt des Kickers (1586 m) und haelt die Linie bis zum abschliessenden Step-down bei 1622 m unter Zug; nachgemessen und angepasst (Höhe 1.5→1 m, Länge 8→7 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "step_down",
@@ -912,11 +912,11 @@
     {
      "typ": "kicker",
      "start_m": 332,
-     "laenge_m": 12,
+     "laenge_m": 16,
      "absprunghoehe_m": 1.3,
      "gapweite_m": 10,
      "grubentiefe_m": 0.8,
-     "notiz": "Erster Sprung der Abfahrt, zehn Meter im Auslauf des Steilstuecks gesetzt, wo das Gelaende auf zehn Prozent abflacht und die Anfahrt ohne Tritt reicht."
+     "notiz": "Erster Sprung der Abfahrt, zehn Meter im Auslauf des Steilstuecks gesetzt, wo das Gelaende auf zehn Prozent abflacht und die Anfahrt ohne Tritt reicht; Länge 12→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",
@@ -930,10 +930,10 @@
      "typ": "kicker",
      "start_m": 372,
      "laenge_m": 12,
-     "absprunghoehe_m": 1.5,
-     "gapweite_m": 10.5,
+     "absprunghoehe_m": 0.8,
+     "gapweite_m": 6,
      "grubentiefe_m": 0.9,
-     "notiz": "Schliesst die erste Sektion mit dem weitesten Gap dieses Abschnitts ab, weil der Fahrer aus Kicker und Tabletop voll beschleunigt ankommt; ab 384 m beginnt die sprungfreie Erholung."
+     "notiz": "Schliesst die erste Sektion mit dem weitesten Gap dieses Abschnitts ab, weil der Fahrer aus Kicker und Tabletop voll beschleunigt ankommt; ab 384 m beginnt die sprungfreie Erholung; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 10.5→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "anlieger",
@@ -1002,11 +1002,11 @@
     {
      "typ": "kicker",
      "start_m": 820,
-     "laenge_m": 12,
+     "laenge_m": 17.3,
      "absprunghoehe_m": 1.8,
      "gapweite_m": 11,
      "grubentiefe_m": 1.1,
-     "notiz": "Letzter Sprung dieser Sektion, zwoelf Meter hinter dem Hip, wo der Fahrer aus Tabletop und Hip am schnellsten ankommt; danach bleibt die Strecke bis 1140 m sprungfrei."
+     "notiz": "Letzter Sprung dieser Sektion, zwoelf Meter hinter dem Hip, wo der Fahrer aus Tabletop und Hip am schnellsten ankommt; danach bleibt die Strecke bis 1140 m sprungfrei; Länge 12→17.3 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "anlieger",
@@ -1038,35 +1038,35 @@
     {
      "typ": "kicker",
      "start_m": 1140,
-     "laenge_m": 12,
+     "laenge_m": 19.3,
      "absprunghoehe_m": 1.8,
-     "gapweite_m": 10.5,
+     "gapweite_m": 12.5,
      "grubentiefe_m": 1,
-     "notiz": "Anlauf-Kicker der Hauptsektion im flacher werdenden Auslauf des Steilstuecks, der das Tempo fuer den grossen Gap zwoelf Meter dahinter aufbaut."
+     "notiz": "Anlauf-Kicker der Hauptsektion im flacher werdenden Auslauf des Steilstuecks, der das Tempo fuer den grossen Gap zwoelf Meter dahinter aufbaut; als erster Kicker der 60-%-Sektion zum größten Sprung der Strecke gemacht (Gap 12,5 m) - der zweite in einer Kette kann es nicht sein, dort fehlt das Tempo; Länge 12→19.2 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "kicker",
      "start_m": 1164,
-     "laenge_m": 14,
-     "absprunghoehe_m": 2.4,
+     "laenge_m": 18.6,
+     "absprunghoehe_m": 0.8,
      "gapweite_m": 12,
      "grubentiefe_m": 1.4,
-     "notiz": "Groesster Gap der Strecke bei 61 Prozent der Laenge, hier weil zwischen 1122 und 1215 m die einzige lange flache Landezone liegt und der Kicker bei 1140 m die noetige Anfahrt liefert."
+     "notiz": "Groesster Gap der Strecke bei 61 Prozent der Laenge, hier weil zwischen 1122 und 1215 m die einzige lange flache Landezone liegt und der Kicker bei 1140 m die noetige Anfahrt liefert; nachgemessen und angepasst (Absprunghöhe 2.4→0.8 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 14→18.6 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet; zweiter Kicker der Kette, deshalb bewusst kleiner als der erste."
     },
     {
      "typ": "tabletop",
      "start_m": 1190,
-     "laenge_m": 9,
-     "hoehe_m": 2.5,
+     "laenge_m": 8.5,
+     "hoehe_m": 1,
      "breite_m": 6,
-     "notiz": "Steht zwoelf Meter hinter der Landung des grossen Gaps als sichere Auffangstufe, bevor die Sektion mit dem Step-down endet."
+     "notiz": "Steht zwoelf Meter hinter der Landung des grossen Gaps als sichere Auffangstufe, bevor die Sektion mit dem Step-down endet; nachgemessen und angepasst (Höhe 2.5→1 m, Länge 9→8.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."
     },
     {
      "typ": "step_down",
-     "start_m": 1210,
+     "start_m": 1212,
      "laenge_m": 8,
      "hoehenversatz_m": 1.8,
-     "notiz": "Nutzt die Gelaendekante bei 1215 m, wo die flache Landezone wieder in die steilere Traverse kippt, als Sektionsabschluss und gibt das Tempo kontrolliert an die Erholung ab."
+     "notiz": "Nutzt die Gelaendekante bei 1215 m, wo die flache Landezone wieder in die steilere Traverse kippt, als Sektionsabschluss und gibt das Tempo kontrolliert an die Erholung ab; um 2 m auf 1212 m geschoben, damit die Landung des Tables davor nicht in den Absprung ragt."
     },
     {
      "typ": "roller",
@@ -1116,11 +1116,11 @@
     {
      "typ": "kicker",
      "start_m": 1522,
-     "laenge_m": 12,
+     "laenge_m": 16,
      "absprunghoehe_m": 1.6,
      "gapweite_m": 10,
      "grubentiefe_m": 1,
-     "notiz": "Erster Sprung der Schluss-Sektion direkt im Auslauf des Steilstuecks, wo die Anfahrt noch aus dem Gefaelle kommt und kein Tritt noetig ist."
+     "notiz": "Erster Sprung der Schluss-Sektion direkt im Auslauf des Steilstuecks, wo die Anfahrt noch aus dem Gefaelle kommt und kein Tritt noetig ist; Länge 12→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."
     },
     {
      "typ": "tabletop",

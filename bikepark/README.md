@@ -98,6 +98,83 @@ talseits ein Abfall. Welche Seite bergseits ist, folgt aus der Falllinie der Ges
 
 ---
 
+## Was `laenge_m` bedeutet — je nach Typ
+
+So, wie es im Bikepark gesagt wird, und so, wie die Elementabstände in den Plänen es verlangen:
+
+| Typ | `laenge_m` ist … | dazu kommen |
+|---|---|---|
+| tabletop, hip | die Länge des **Tisches** (Lippe bis Landungsbeginn) | Absprung `2H/tan 38°` davor, Landung gleich lang dahinter |
+| step_up, step_down | Gap + Landung | Absprung davor |
+| kicker | Anlauf + Gap + Landung, der ganze Footprint | nichts |
+
+Der Grund: eine 2-m-Lippe bei 38° braucht 5,3 m Anlauf. „Tabletop 9 m lang, 2 m hoch" kann
+also kein 9-m-Footprint sein — sonst wäre die Rampe 48° steil und würfe den Fahrer 15 m hoch
+(gemessen, im ersten Durchlauf). Mit Tischlängen-Semantik stoßen die Elemente einer
+Rhythmus-Sektion fast aneinander (2–4 m Luft), genau wie Regel 4 es will; in allen drei
+Strecken gab es dabei genau eine Überlappung von 1,8 m.
+
+`validate.py` und `plan_svg.py` rechnen denselben Footprint wie `sprungGeometrie()` in der HTML.
+
+## Nachgemessen
+
+Test-Fahrer: fährt Vollgas, bremst aber vor jedem Sprung mit 0,7 g auf das Zieltempo am
+Rampenfuß — wie ein Fahrer, der die Strecke kennt. Kein Treten, kein Pumpen. Eine Landung
+zählt als getroffen, wenn sie auf der Landung liegt (bis 1,5 m vor dem Landungsbeginn
+toleriert); „hart" ist eine Normalgeschwindigkeit über 6 m/s beim Aufsetzen.
+
+| Strecke | Zeit | Luftzeit | Sprünge getroffen | zu kurz | zu lang | harte Landungen |
+|---|---|---|---|---|---|---|
+| Downhill Republic | 2:45 | 27,4 s | 21 / 21 | 0 | 0 | 3 |
+| Alpin | 2:46 | 27,8 s | 20 / 20 | 0 | 0 | 8 |
+| Canyon | 2:25 | 20,2 s | 12 / 13 | 1 (2 m) | 0 | 6 |
+
+Vorgabe war „etwa 3 Minuten für einen guten Fahrer". Ein Fahrer, der die Anlieger nicht
+kennt und öfter bremst, liegt darüber.
+
+Die harten Landungen sind fast alle Kicker-Landungen knapp auf dem Knuckle statt auf dem
+Hang dahinter — casen, nicht stürzen.
+
+### Was die Messung an den Strecken geändert hat
+
+21 Elemente wurden nach der Messung angepasst; jede Änderung steht im `notiz`-Satz des
+Elements. Das Muster ist immer dasselbe: **das zweite und dritte Glied einer Kette ist
+kleiner als das erste.** Drei gleich hohe Tables im Abstand von 12 m sind ohne Treten
+nicht zu fahren — die Rampe des zweiten frisst das Landetempo des ersten. Echte Bikeparks
+bauen Ketten deshalb abnehmend.
+
+Ein Element wurde getauscht: der größte Sprung von Downhill Republic (Kicker, 12 m Gap,
+braucht 40 km/h am Rampenfuß) stand als zweites Kettenglied hinter einem 1,8-m-Table und kam
+mit 29 km/h an. Jetzt ist er das erste Glied, direkt aus dem Steilstück, der Table folgt.
+
+Zwei Strecken hatten Kicker mit `laenge_m: 8` bei 9–12 m Gap — die Designer von Alpin und
+Canyon hatten die Länge anders gelesen als bei Downhill Republic. Der Validator prüft das
+jetzt (`laenge_m ≥ 3 + Gap + 0,3·Gap`).
+
+### Was am Modell falsch war und jetzt stimmt
+
+Jeder Punkt kam aus der Messung, keiner aus dem Gefühl:
+
+- **Absprungrampen als Smoothstep** über 38 % der Länge: bei 2,5 m Höhe auf 3,4 m ist die
+  Mitte 48° steil, und der Fahrer löst sich *vor* der Lippe. Jetzt: Parabel, am Fuß flach,
+  an der Lippe exakt der Lippenwinkel (Tables 38°, Kicker 42°, Step-down 22°).
+- **Kicker-Rampen 3–4 m hoch** statt 0,8–2,3: die Parabel lief über den ganzen Anlauf.
+  Jetzt: Rampe nur `2H/tanα` lang, davor flacher Anlauf.
+- **Steigung mit zentraler Differenz** (±0,4 m): einen halben Meter vor der Lippe sah sie
+  schon die Grube dahinter und zog den Fahrer *nach unten*, bevor er abhob. Jetzt rückwärts
+  geschaut — die Fläche, auf der man ist.
+- **Energie aus dem Nichts auf der Rampe**: `vy = tanα·vs` kam zu `vs` dazu, statt aus ihm
+  zu werden. Jetzt ist `vs` die Geschwindigkeit entlang der Fläche, horizontal kommt man mit
+  `vs·cosθ` voran, und beim Abheben wird sie zerlegt. Umgekehrt gibt die Landung Tempo
+  zurück: der ankommende Vektor wird auf den Landehang projiziert.
+- **Keine Federung**: eine Punktmasse hob über jeden 16-cm-Stein ab. Steinfelder liegen jetzt
+  nur noch im Mesh (die Physik sieht erhöhten Rollwiderstand), und Wellen bis 1,5 g und
+  0,48 m Federweg werden „geschluckt".
+- **Anlieger als 17°-Ebene**: die README behauptete die Potenzkurve, der Code hatte sie nur
+  für Wallrides. Jetzt ist der Anlieger derselbe Codepfad. Der Fahrer nutzt die Wangen zu
+  50–70 % statt 5–24 %.
+- **Bremse bei 1,3 g**: mehr, als Schotter hergibt. Jetzt 0,7 g.
+
 ## Die beiden Räder
 
 Der Unterschied ist nicht kosmetisch:
@@ -109,58 +186,31 @@ Der Unterschied ist nicht kosmetisch:
 | Rollwiderstand | 0,016 | 0,019 |
 | Motor | — | 620 W bis 25 km/h |
 | Kontrolle in der Luft | 5,2 m/s² | 3,6 m/s² |
+| schluckt Wellen bis | 0,48 m | 0,42 m |
 
 Das eMTB schiebt aus langsamen Stellen heraus mit, ist aber träger in der Luft und verzeiht
 eine verpasste Landung schlechter. Die Werte sind plausible Größenordnungen, keine Messwerte
 an einem realen Rad.
 
+Ohne GLB-Datei baut sich das Rad aus Rohren: Rahmen, Gabel, Dämpfer, 16 Speichen je
+Laufrad, Kurbel mit Pedalen, Fahrerin in Angriffsposition. Beim eMTB dickes Unterrohr mit
+Akku, Motorgehäuse am Tretlager, Display am Lenker. Animiert werden Räder (mit dem Tempo),
+Kurbel (beim Treten), Federung (Feder-Dämpfer, Stoß bei der Landung, leichtes Ausfedern in
+der Luft) und die Hocke der Fahrerin. Etwa 14 Draw Calls pro Rad.
+
 ## Die GLB-Datei
 
 Liegt `mtb-emtb-fahrerin.glb` neben der HTML, wird sie geladen, eingemessen und auf 1,80 m
 skaliert. Über ihren Inhalt wird **nichts** angenommen: keine Node-Namen, keine Materialien,
-keine Achsenkonvention. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven.
+keine Achsenkonvention. Sie wird deshalb auch nicht animiert — dafür müsste ich wissen, welche
+Nodes Räder und Kurbel sind.
 
 Schaut die Fahrerin nach dem Laden rückwärts, steht die Blickrichtung der Datei anders als
 angenommen — dann `GLB_DREHUNG` in der HTML von `Math.PI` auf `0` setzen.
 
----
+## HUD: Zieltempo
 
-## Nachgemessen
-
-Alle Zahlen aus einem headless gefahrenen Lauf (`window.bikepark.schritt` in festen
-8-ms-Schritten, Vollgas, ohne Bremsen und ohne Lenken — also eine untere Zeitschranke;
-wer in die Anlieger bremst, ist langsamer).
-
-| Strecke | Rad | Zeit | ø | max | Luftzeit | Randkontakte |
-|---|---|---|---|---|---|---|
-| Downhill Republic | MTB | 2:33 | 45 km/h | 77 km/h | 32,9 s | 4 |
-| Downhill Republic | eMTB | 2:27 | 47 km/h | 79 km/h | 32,8 s | 4 |
-| Alpin | MTB | 2:44 | 42 km/h | 79 km/h | 39,6 s | 1 |
-| Alpin | eMTB | 2:37 | 44 km/h | 81 km/h | 37,9 s | 1 |
-| Canyon | MTB | 2:21 | 48 km/h | 76 km/h | 24,7 s | 3 |
-| Canyon | eMTB | 2:13 | 51 km/h | 78 km/h | 23,3 s | 3 |
-
-Vorgabe war „etwa 3 Minuten für einen guten Fahrer". 2:33 bei Vollgas ohne Bremsen passt
-dazu: mit realistischem Bremsen in den Anliegern landet man um 3:00.
-
-Der Alpin-Charakter zeigt sich in der Luftzeit (39,6 s gegen 24,7 s bei Canyon), der
-Canyon-Charakter im Schnitt (48 gegen 42 km/h).
-
-### Der Fund, der die Zahlen erst brauchbar gemacht hat
-
-Im ersten Durchlauf hatte Canyon **29 Randkontakte**, die anderen 1 bis 7. Ursache: die
-Kurvenradien kamen aus einer festen Referenzgeschwindigkeit von 11 m/s.
-
-```
-R = v² / (g · tan φ)
-40°-Anlieger:  bei 11 m/s → R = 14,7 m
-               bei 20 m/s → R = 48,6 m nötig
-```
-
-Jeder Anlieger war also drei- bis viermal zu eng für das Tempo, mit dem der Fahrer
-tatsächlich ankommt — er wurde oben über die Bank getragen. Der Generator schätzt jetzt in
-einem ersten Durchgang das Tempo aus dem Höhenprofil (Schwerkraft, Luft- und Rollwiderstand,
-Steinfelder bremsend) und leitet daraus jeden Radius ab. **29 → 3 Randkontakte.**
-
-Nebeneffekt: die Draufsicht zeigt jetzt Weitkurven statt Haarnadeln — was einer echten
-Lift-Strecke deutlich näher kommt.
+Sobald eine Lippe näher als 70 m ist, zeigt das HUD, welches Tempo am Rampenfuß die Landung
+trifft. Das ist keine Schätzung, sondern die ballistische Rechnung gegen die echte Fläche
+(`zielTempo()`), plus `2·g·H`, weil die Rampe Tempo kostet. Orange = zu schnell, blau = zu
+langsam. Damit ist Bremsen vor dem Sprung ein Spielelement, kein Ratespiel.

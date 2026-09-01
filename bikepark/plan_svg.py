@@ -16,6 +16,21 @@ Aufruf: python3 plan_svg.py strecken.json ausgabeordner/
 """
 import json, math, sys, os
 
+# --- Footprint eines Elements. MUSS mit sprungGeometrie() in template.html uebereinstimmen. ---
+# laenge_m bedeutet je nach Typ:  tabletop/hip = Tischlaenge, step_up/step_down = Gap+Landung,
+# kicker = Rampe+Gap+Landung. Absprung/Landung kommen bei den ersten beiden dazu.
+LIPPE_GRAD = {"tabletop": 38, "kicker": 42, "step_up": 40, "step_down": 22, "hip": 40}
+
+def footprint(e):
+    t, L = e["typ"], e.get("laenge_m", 0) or 0
+    tanA = math.tan(math.radians(LIPPE_GRAD.get(t, 30)))
+    if t in ("tabletop", "hip"): return 2 * (2 * e["hoehe_m"] / tanA) + L
+    if t == "step_up":           return 2 * (0.6 * e["hoehenversatz_m"] + 0.4) / tanA + L
+    if t == "step_down":         return 2 * 0.5 / tanA + L
+    return L
+
+def el_ende(e): return e["start_m"] + footprint(e)
+
 G      = 9.81
 BG     = "#0a0a0c"
 LINE   = "#4fd1c5"
@@ -219,7 +234,7 @@ def baue_svg(track):
 
     # Elementsymbole in der Draufsicht, mit Nummer
     for i, e in enumerate(el, 1):
-        mid = e["start_m"] + e.get("laenge_m", 0) / 2
+        mid = e["start_m"] + footprint(e) / 2
         px, pz = P(*punkt_bei(pts, mid))
         # Versatz senkrecht zur Linie, damit das Symbol die Linie nicht verdeckt
         a, b = punkt_bei(pts, max(mid - 6, 0)), punkt_bei(pts, min(mid + 6, L))
@@ -265,7 +280,7 @@ def baue_svg(track):
 
     # Elemente im Profil
     for i, e in enumerate(el, 1):
-        mid = e["start_m"] + e.get("laenge_m", 0) / 2
+        mid = e["start_m"] + footprint(e) / 2
         cx, cy = X(mid), Y(hoehe_bei(hp, mid))
         col = farbe(e["typ"])
         yv = max(by0 + 12, cy - 22 if i % 2 else cy - 40)

@@ -6,6 +6,21 @@ Exit 0 = keine Fehler, Exit 1 = Fehler gefunden.
 """
 import json, sys, math
 
+# --- Footprint eines Elements. MUSS mit sprungGeometrie() in template.html uebereinstimmen. ---
+# laenge_m bedeutet je nach Typ:  tabletop/hip = Tischlaenge, step_up/step_down = Gap+Landung,
+# kicker = Rampe+Gap+Landung. Absprung/Landung kommen bei den ersten beiden dazu.
+LIPPE_GRAD = {"tabletop": 38, "kicker": 42, "step_up": 40, "step_down": 22, "hip": 40}
+
+def footprint(e):
+    t, L = e["typ"], e.get("laenge_m", 0) or 0
+    tanA = math.tan(math.radians(LIPPE_GRAD.get(t, 30)))
+    if t in ("tabletop", "hip"): return 2 * (2 * e["hoehe_m"] / tanA) + L
+    if t == "step_up":           return 2 * (0.6 * e["hoehenversatz_m"] + 0.4) / tanA + L
+    if t == "step_down":         return 2 * 0.5 / tanA + L
+    return L
+
+def el_ende(e): return e["start_m"] + footprint(e)
+
 SPRUNG = {"kicker", "tabletop", "step_up", "step_down", "drop", "hip"}
 
 # typ -> (pflichtfelder, wertebereiche{feld:(min,max)}, enums{feld:[...]})
@@ -86,18 +101,26 @@ def pruefe(track):
         elif any(x in n.lower() for x in FUELLWORT) and len(n) < 70:
             w(f"#{i} {t} @{e.get('start_m')}m: notiz klingt nach Fuellsatz (Regel 9)")
 
+    # Kicker: laenge_m ist Anlauf + Gap + Landung. Anlauf mindestens 3 m, Landung 0,3·Gap.
+    for i, e in enumerate(el):
+        if e.get("typ") == "kicker" and "gapweite_m" in e and "laenge_m" in e:
+            noetig = 3 + e["gapweite_m"] + max(3, 0.3*e["gapweite_m"])
+            if e["laenge_m"] < noetig - 1e-6:
+                f(f"#{i} kicker @{e['start_m']}m: laenge_m={e['laenge_m']} < Anlauf 3 + Gap {e['gapweite_m']} "
+                  f"+ Landung {max(3, 0.3*e['gapweite_m']):.1f} = {noetig:.1f}")
+
     # Sortierung + Ueberlappung
     for i in range(len(el) - 1):
         a, b = el[i], el[i + 1]
         if b["start_m"] < a["start_m"]:
             f(f"#{i}->#{i+1}: nicht aufsteigend ({a['start_m']} -> {b['start_m']})")
-        ende = a["start_m"] + a.get("laenge_m", 0)
-        if ende > b["start_m"] + 1e-6:
-            f(f"#{i} {a['typ']} endet @{ende:.1f}m, #{i+1} {b['typ']} startet @{b['start_m']}m "
-              f"- Ueberlappung {ende - b['start_m']:.1f}m")
+        ende_a = el_ende(a)
+        if ende_a > b["start_m"] + 1e-6:
+            f(f"#{i} {a['typ']} endet @{ende_a:.1f}m (Footprint), #{i+1} {b['typ']} startet @{b['start_m']}m "
+              f"- Ueberlappung {ende_a - b['start_m']:.1f}m")
     if el:
-        ende = el[-1]["start_m"] + el[-1].get("laenge_m", 0)
-        if ende > L: f(f"letztes Element endet @{ende:.1f}m > Streckenlaenge {L}m")
+        e_l = el_ende(el[-1])
+        if e_l > L: f(f"letztes Element endet @{e_l:.1f}m > Streckenlaenge {L}m")
 
     # --- Regel 3: erste 150 m ohne Sprung ---
     for i, e in enumerate(el):
@@ -107,7 +130,7 @@ def pruefe(track):
     # --- Regel 7: letzte 120 m ohne Sprung/Wallride, aber mit Anlieger ---
     zone = L - 120
     for i, e in enumerate(el):
-        if e["start_m"] + e.get("laenge_m", 0) > zone and e["typ"] in SPRUNG | {"wallride"}:
+        if el_ende(e) > zone and e["typ"] in SPRUNG | {"wallride"}:
             f(f"Regel 7: #{i} {e['typ']} @{e['start_m']}m reicht in die letzten 120 m (ab {zone}m)")
     if not any(e["typ"] == "anlieger" and e["start_m"] >= zone for e in el):
         f(f"Regel 7: kein Anlieger in den letzten 120 m (ab {zone}m)")
@@ -147,7 +170,7 @@ def pruefe(track):
     sekt, akt = [], []
     for e in el:
         if e["typ"] in SPRUNG:
-            if akt and e["start_m"] - (akt[-1]["start_m"] + akt[-1].get("laenge_m", 0)) > SEKTIONSLUECKE:
+            if akt and e["start_m"] - el_ende(akt[-1]) > SEKTIONSLUECKE:
                 sekt.append(akt); akt = []
             akt.append(e)
         elif akt and e["typ"] in {"anlieger", "wallride", "steinfeld", "steilstueck"}:
@@ -161,7 +184,7 @@ def pruefe(track):
         elif len(s) > 6:
             f(f"Regel 4: {len(s)} Sprungelemente am Stueck ab @{s[0]['start_m']}m (max 6)")
     for i in range(len(sekt) - 1):
-        a_ende = sekt[i][-1]["start_m"] + sekt[i][-1].get("laenge_m", 0)
+        a_ende = el_ende(sekt[i][-1])
         pause = sekt[i+1][0]["start_m"] - a_ende
         if pause < 80:
             f(f"Regel 4: nur {pause:.0f}m Erholung zwischen Sektion @{sekt[i][0]['start_m']}m "
@@ -215,7 +238,7 @@ def pruefe(track):
                   f"Profil liefert {g:.0f}%")
 
     # --- Luecken ---
-    grenzen = [0.0] + [e["start_m"] + e.get("laenge_m", 0) for e in el]
+    grenzen = [0.0] + [el_ende(e) for e in el]
     starts  = [e["start_m"] for e in el] + [L]
     for i in range(len(starts)):
         d = starts[i] - grenzen[i]
