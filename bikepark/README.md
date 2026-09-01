@@ -122,3 +122,45 @@ keine Achsenkonvention. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven.
 
 Schaut die Fahrerin nach dem Laden rückwärts, steht die Blickrichtung der Datei anders als
 angenommen — dann `GLB_DREHUNG` in der HTML von `Math.PI` auf `0` setzen.
+
+---
+
+## Nachgemessen
+
+Alle Zahlen aus einem headless gefahrenen Lauf (`window.bikepark.schritt` in festen
+8-ms-Schritten, Vollgas, ohne Bremsen und ohne Lenken — also eine untere Zeitschranke;
+wer in die Anlieger bremst, ist langsamer).
+
+| Strecke | Rad | Zeit | ø | max | Luftzeit | Randkontakte |
+|---|---|---|---|---|---|---|
+| Downhill Republic | MTB | 2:33 | 45 km/h | 77 km/h | 32,9 s | 4 |
+| Downhill Republic | eMTB | 2:27 | 47 km/h | 79 km/h | 32,8 s | 4 |
+| Alpin | MTB | 2:44 | 42 km/h | 79 km/h | 39,6 s | 1 |
+| Alpin | eMTB | 2:37 | 44 km/h | 81 km/h | 37,9 s | 1 |
+| Canyon | MTB | 2:21 | 48 km/h | 76 km/h | 24,7 s | 3 |
+| Canyon | eMTB | 2:13 | 51 km/h | 78 km/h | 23,3 s | 3 |
+
+Vorgabe war „etwa 3 Minuten für einen guten Fahrer". 2:33 bei Vollgas ohne Bremsen passt
+dazu: mit realistischem Bremsen in den Anliegern landet man um 3:00.
+
+Der Alpin-Charakter zeigt sich in der Luftzeit (39,6 s gegen 24,7 s bei Canyon), der
+Canyon-Charakter im Schnitt (48 gegen 42 km/h).
+
+### Der Fund, der die Zahlen erst brauchbar gemacht hat
+
+Im ersten Durchlauf hatte Canyon **29 Randkontakte**, die anderen 1 bis 7. Ursache: die
+Kurvenradien kamen aus einer festen Referenzgeschwindigkeit von 11 m/s.
+
+```
+R = v² / (g · tan φ)
+40°-Anlieger:  bei 11 m/s → R = 14,7 m
+               bei 20 m/s → R = 48,6 m nötig
+```
+
+Jeder Anlieger war also drei- bis viermal zu eng für das Tempo, mit dem der Fahrer
+tatsächlich ankommt — er wurde oben über die Bank getragen. Der Generator schätzt jetzt in
+einem ersten Durchgang das Tempo aus dem Höhenprofil (Schwerkraft, Luft- und Rollwiderstand,
+Steinfelder bremsend) und leitet daraus jeden Radius ab. **29 → 3 Randkontakte.**
+
+Nebeneffekt: die Draufsicht zeigt jetzt Weitkurven statt Haarnadeln — was einer echten
+Lift-Strecke deutlich näher kommt.

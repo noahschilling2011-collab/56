@@ -18,14 +18,16 @@ SPEC = {
                     {"seite":["links","rechts"],"material":["holz","beton"]}),
     "tabletop":    (["laenge_m","hoehe_m","breite_m"],
                     {"laenge_m":(3,9),"hoehe_m":(1.0,3.0),"breite_m":(2.5,6.0)}, {}),
+    # laenge_m beim Kicker ist Rampe + Gap + Landung. Die Aufgabenstellung nennt
+    # dafuer keine Grenze; 28 m deckt einen 14-m-Gap mit Rampe und Landung ab.
     "kicker":      (["laenge_m","absprunghoehe_m","gapweite_m","grubentiefe_m"],
                     {"absprunghoehe_m":(0.6,2.5),"gapweite_m":(2,14),"grubentiefe_m":(0.0,1.5),
-                     "laenge_m":(3,22)}, {}),
+                     "laenge_m":(3,28)}, {}),
     "step_up":     (["laenge_m","hoehenversatz_m"],
                     {"laenge_m":(3,9),"hoehenversatz_m":(0.3,2.5)}, {}),
     "step_down":   (["laenge_m","hoehenversatz_m"],
                     {"laenge_m":(3,14),"hoehenversatz_m":(0.3,3.0)}, {}),
-    "drop":        (["hoehe_m"], {"hoehe_m":(0.2,0.9)}, {}),
+    "drop":        (["hoehe_m"], {"hoehe_m":(0.2,0.9),"laenge_m":(0,0)}, {}),
     "hip":         (["laenge_m","hoehe_m","seitenversatz_m","richtung"],
                     {"laenge_m":(3,12),"hoehe_m":(0.8,2.5),"seitenversatz_m":(0.5,3.0)},
                     {"richtung":["links","rechts"]}),
@@ -76,7 +78,7 @@ def pruefe(track):
         for k, ok in enums.items():
             if k in e and e[k] not in ok:
                 f(f"#{i} {t} @{e.get('start_m')}m: {k}={e[k]!r} nicht in {ok}")
-        erlaubt = set(pflicht) | {"typ", "start_m", "notiz"}
+        erlaubt = set(pflicht) | {"typ", "start_m", "notiz"} | ({"laenge_m"} if t == "drop" else set())
         for k in e:
             if k not in erlaubt: w(f"#{i} {t} @{e.get('start_m')}m: unbekanntes Feld {k!r}")
         n = (e.get("notiz") or "").strip()
@@ -137,10 +139,15 @@ def pruefe(track):
             f(f"Regel 1: Wallride @{e['start_m']}m hat keine Ausleitung dahinter (Element binnen 60 m)")
 
     # --- Regel 4: Rhythmus-Sektionen ---
+    # Ab welchem Abstand endet eine Sektion? Massgeblich ist die Zeit, nicht die
+    # Laenge: bei 40-55 km/h (11-15 m/s) sind 35 m rund 2,5 s - so lange bleibt
+    # man ohne Bremsen und Treten im Rhythmus. Ein engerer Wert (15 m = 1 s)
+    # zerlegt echte Dreier-Ketten faelschlich in Einzelspruenge.
+    SEKTIONSLUECKE = 35
     sekt, akt = [], []
     for e in el:
         if e["typ"] in SPRUNG:
-            if akt and e["start_m"] - (akt[-1]["start_m"] + akt[-1].get("laenge_m", 0)) > 15:
+            if akt and e["start_m"] - (akt[-1]["start_m"] + akt[-1].get("laenge_m", 0)) > SEKTIONSLUECKE:
                 sekt.append(akt); akt = []
             akt.append(e)
         elif akt and e["typ"] in {"anlieger", "wallride", "steinfeld", "steilstueck"}:

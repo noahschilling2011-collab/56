@@ -8,15 +8,15 @@ seiner Neigung ergibt.
     Kurvenradius aus der Querneigung:   R = v^2 / (g * tan(phi))
     Richtungsaenderung ueber die Laenge: dpsi = laenge / R
 
-Bei v = 11 m/s und phi = 30 Grad sind das R = 21 m, bei phi = 45 Grad R = 12 m.
-Ein steilerer Anlieger zieht also enger - so wie in echt.
+v ist dabei das TEMPO AN DIESER STELLE, nicht eine Konstante. Mit einer festen
+Referenzgeschwindigkeit von 11 m/s werden alle Anlieger drei- bis viermal zu eng
+fuer die realen 18-20 m/s, und der Plan zeigt Haarnadeln, wo Weitkurven stehen.
 
 Aufruf: python3 plan_svg.py strecken.json ausgabeordner/
 """
 import json, math, sys, os
 
 G      = 9.81
-V_REF  = 11.0     # Referenzgeschwindigkeit fuer die Kurvenradien, m/s
 BG     = "#0a0a0c"
 LINE   = "#4fd1c5"
 JUMP   = "#ff9d4d"
@@ -41,23 +41,47 @@ def farbe(typ):
 
 
 # ---------------------------------------------------------------- Mittellinie
-def mittellinie(track, schritt=2.0):
+def tempo_profil(track, hp, schritt=2.0):
+    """Grobes Tempo aus dem Hoehenprofil allein - ohne Kurven, ohne Bremsen.
+    Wird gebraucht, bevor die Kurven feststehen."""
+    L = track["laenge_m"]
+    n = int(L/schritt) + 2
+    v = [3.0]
+    m, CdA, rho = 88.0, 0.48, 1.225
+    steinfelder = [(e["start_m"], e["start_m"]+e["laenge_m"])
+                   for e in track["elemente"] if e["typ"] == "steinfeld"]
+    for i in range(1, n):
+        s = i*schritt
+        dh = hoehe_bei(hp, s-schritt) - hoehe_bei(hp, s)
+        th = math.atan(dh/schritt)
+        crr = 0.016 * (3.4 if any(a <= s <= b for a, b in steinfelder) else 1.0)
+        vv = max(v[-1], 2.0)
+        a = G*math.sin(th) - G*math.cos(th)*crr - 0.5*rho*CdA*vv*vv/m
+        v.append(max(2.5, min(28.0, math.sqrt(max(6.25, vv*vv + 2*a*schritt)))))
+    return lambda s: v[max(0, min(int(round(s/schritt)), n-1))]
+
+
+def mittellinie(track, hp, schritt=2.0):
     """Integriert die Strecke in der Draufsicht. Gibt [(s, x, z)] zurueck."""
     L = track["laenge_m"]
+    v_bei = tempo_profil(track, hp)
     # Wachsendes psi dreht nach LINKS (rechts = vorwaerts x oben in einem
     # rechtshaendigen Y-Up-System). Muss mit dem 3D-Generator uebereinstimmen.
     kurven = []          # (start, ende, dpsi_pro_meter)
     for e in track["elemente"]:
         if e["typ"] == "anlieger":
             phi = math.radians(e["neigung_grad"])
-            R   = V_REF**2 / (G * math.tan(phi))
+            v   = v_bei(e["start_m"] + e["laenge_m"]/2)
+            R   = max(10.0, min(65.0, v*v / (G * math.tan(phi))))
             vz  = 1 if e["richtung"] == "links" else -1
             kurven.append((e["start_m"], e["start_m"] + e["laenge_m"], vz / R))
         elif e["typ"] == "wallride":
-            # Ein Wallride zieht weiter als ein Anlieger - die Wand ist steiler,
-            # aber der Fahrer laeuft sie hoch statt eng zu ziehen. R fest 25 m.
+            # Der Wallride zieht weiter als ein Anlieger: der Fahrer laeuft die
+            # Wand hoch, statt eng zu ziehen. Wirksame Neigung deshalb 52 Grad.
+            v  = v_bei(e["start_m"] + e["laenge_m"]/2)
+            R  = max(14.0, min(45.0, v*v / (G * math.tan(math.radians(52)))))
             vz = 1 if e["seite"] == "links" else -1
-            kurven.append((e["start_m"], e["start_m"] + e["laenge_m"], vz / 25.0))
+            kurven.append((e["start_m"], e["start_m"] + e["laenge_m"], vz / R))
 
     pts, psi, x, z, s = [], 0.0, 0.0, 0.0, 0.0
     while s <= L:
@@ -139,15 +163,27 @@ def baue_svg(track):
     hp = track.get("hoehenprofil")
     if not hp or len(hp) < 2:                      # Notfallprofil: gleichmaessiges Gefaelle
         hp = [{"s_m": round(i*L/12, 1), "hoehe_m": round(HM*(1-i/12), 1)} for i in range(13)]
-    pts = mittellinie(track)
+    pts = mittellinie(track, hp)
 
     W, H = 1240, 1030
     # --- Panel A: Draufsicht ---
     ax0, ay0, aw, ah = 60, 92, W - 120, 508
+    # Die Strecke laeuft in einer beliebigen Richtung den Hang hinunter und fuellt
+    # das Panel sonst nur zu einem Viertel. Deshalb der Winkel gesucht, bei dem
+    # der eingepasste Massstab am groessten wird - reine Darstellung, die
+    # Geometrie bleibt unveraendert.
+    best, sc, rot = 0.0, 1.0, 0.0
+    for k in range(72):
+        a_ = k * math.pi / 36
+        ca, sa = math.cos(a_), math.sin(a_)
+        rx = [p[1]*ca - p[2]*sa for p in pts]
+        rz = [p[1]*sa + p[2]*ca for p in pts]
+        c = min((aw - 40) / max(max(rx) - min(rx), 1),
+                (ah - 40) / max(max(rz) - min(rz), 1))
+        if c > best: best, sc, rot = c, c, a_
+    ca, sa = math.cos(rot), math.sin(rot)
+    pts = [(p[0], p[1]*ca - p[2]*sa, p[1]*sa + p[2]*ca) for p in pts]
     xs = [p[1] for p in pts]; zs = [p[2] for p in pts]
-    sx = (aw - 40) / max(max(xs) - min(xs), 1)
-    sz = (ah - 40) / max(max(zs) - min(zs), 1)
-    sc = min(sx, sz)
     ox = ax0 + (aw - (max(xs) - min(xs)) * sc) / 2 - min(xs) * sc
     oz = ay0 + (ah - (max(zs) - min(zs)) * sc) / 2 - min(zs) * sc
     P = lambda x, z: (ox + x * sc, oz + z * sc)
@@ -163,8 +199,8 @@ def baue_svg(track):
          f'<text x="60" y="42" fill="#e6e6ea" font-size="21">{track["name"]}</text>',
          f'<text x="60" y="63" fill="{LABEL}" font-size="11">{L:.0f} m &#183; {HM:.0f} hm &#183; '
          f'{HM/L*100:.1f} % Durchschnittsgef&#228;lle &#183; {len(el)} Elemente</text>',
-         f'<text x="60" y="84" fill="{LABEL}" font-size="11">DRAUFSICHT &#8212; Kurven aus Anliegerneigung gerechnet '
-         f'(R = v&#178;/g&#183;tan&#966;, v = {V_REF:.0f} m/s)</text>']
+         f'<text x="60" y="84" fill="{LABEL}" font-size="11">DRAUFSICHT &#8212; Kurvenradien aus '
+         f'Neigung und &#246;rtlichem Tempo gerechnet (R = v&#178;/g&#183;tan&#966;)</text>']
 
     # Draufsicht: Startmarke, Linie, Zielmarke
     x0, z0 = P(pts[0][1], pts[0][2]); x1, z1 = P(pts[-1][1], pts[-1][2])

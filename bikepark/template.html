@@ -30,10 +30,17 @@
   #bar{height:3px;background:rgba(255,255,255,.09);border-radius:2px;margin-top:11px;overflow:hidden}
   #bar i{display:block;height:100%;width:0;background:var(--line);transition:width .12s linear}
 
-  #elem{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);padding:9px 18px;
-    font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--jump);
-    opacity:0;transition:opacity .3s ease;pointer-events:none;white-space:nowrap;max-width:88vw;
-    overflow:hidden;text-overflow:ellipsis}
+  /* Bleibt rechts vom HUD: bei 1280 px reicht 88vw sonst bis unter den Tacho. */
+  #elem{position:fixed;left:calc(50% + 110px);bottom:26px;transform:translateX(-50%);
+    padding:9px 18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--jump);opacity:0;transition:opacity .3s ease;pointer-events:none;
+    white-space:nowrap;max-width:min(62vw,760px);overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:760px){
+    #elem{left:50%;bottom:14px;max-width:92vw;font-size:11px}
+    #hud{inset:auto auto 58px 12px;padding:10px 12px;min-width:0}
+    #hud .big{font-size:26px}
+    #right{top:12px;right:12px;font-size:10px}
+  }
   #elem.on{opacity:1}
 
   #right{position:fixed;top:18px;right:18px;padding:12px 14px;font-size:11px;color:var(--dim);
@@ -181,20 +188,48 @@ const BIKES = {
    Das gilt für Anlieger und Wallride gleichermaßen, deshalb ist Regel 1
    ("Anlieger in dieselbe Richtung") physikalisch stimmig.
    =========================================================================== */
-const V_REF = 11.0;   // Referenzgeschwindigkeit für die Plangeometrie, m/s
-const DS    = 1.5;    // Stationsabstand, m
+const DS = 1.5;    // Stationsabstand, m
 
 function aussenVon(richtung){ return richtung === 'links' ? 1 : -1; }  // +1 = außen rechts
 
+/* Grobes Tempoprofil aus dem Höhenprofil allein, ohne Kurven und ohne Bremsen.
+   Es wird gebraucht, BEVOR die Kurven feststehen — deshalb dieser erste Durchgang.
+   Ein Anlieger, dessen Radius aus einer festen Referenzgeschwindigkeit kommt, ist
+   bei echten 18-20 m/s drei- bis viermal zu eng; der Fahrer wird oben rausgetragen. */
+function tempoProfil(track){
+  const L = track.laenge_m, SCHRITT = 2.0;
+  const n = Math.ceil(L/SCHRITT) + 2, v = new Float32Array(n);
+  const m = 88, CdA = 0.48, rho = 1.225;
+  v[0] = 3;
+  for(let i = 1; i < n; i++){
+    const s = i*SCHRITT;
+    const dh = baseHoehe(track, s-SCHRITT) - baseHoehe(track, s);
+    const theta = Math.atan(dh/SCHRITT);
+    let crr = 0.016;
+    for(const e of track.elemente){
+      if(e.typ === 'steinfeld' && s >= e.start_m && s <= e.start_m+e.laenge_m) crr *= 3.4;
+    }
+    const vv = Math.max(v[i-1], 2);
+    const a = G*Math.sin(theta) - G*Math.cos(theta)*crr - 0.5*rho*CdA*vv*vv/m;
+    v[i] = Math.max(2.5, Math.min(28, Math.sqrt(Math.max(6.25, vv*vv + 2*a*SCHRITT))));
+  }
+  return s => v[Math.max(0, Math.min(Math.round(s/SCHRITT), n-1))];
+}
+
 function baueMittellinie(track){
   const L = track.laenge_m;
+  const vBei = tempoProfil(track);
   const kurven = [];
   for(const e of track.elemente){
     if(e.typ === 'anlieger'){
-      const R = V_REF*V_REF / (G * Math.tan(e.neigung_grad * Math.PI/180));
+      // Radius aus dem Tempo an DIESER Stelle, nicht aus einer Konstanten.
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(10, Math.min(65, v*v / (G * Math.tan(e.neigung_grad * Math.PI/180))));
       kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.richtung==='links'?1:-1)/R});
     } else if(e.typ === 'wallride'){
-      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.seite==='links'?1:-1)/25});
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(14, Math.min(45, v*v / (G * Math.tan(52 * Math.PI/180))));
+      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.seite==='links'?1:-1)/R});
     }
   }
   const st = [];
@@ -1135,6 +1170,7 @@ if(reduced){
 /* Prüfhaken: erlaubt es, die Geometrie von außen nachzumessen, statt sie
    aus dem Bild zu raten. Kostet nichts und hilft beim Einbau in ein anderes Spiel. */
 window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, baseHoehe,
+                   baueStrecke, neuerFahrer, schritt,
                    get welt(){ return welt; }, get fahrer(){ return fahrer; }, TRACKS, BIKES};
 
 addEventListener('pagehide', () => {
