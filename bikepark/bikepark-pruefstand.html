@@ -68,6 +68,7 @@
   .card:focus-visible{outline:2px solid var(--line);outline-offset:2px}
   .card[aria-pressed=true]{border-color:var(--line);background:rgba(79,209,197,.09)}
   .card .n{font-size:15px;margin-bottom:5px}
+  .card .n .k{display:inline-block;padding:0 6px;border:1px solid var(--stroke);border-radius:4px;color:var(--dim);font-size:12px;margin-right:4px}
   .card .d{font-size:11px;color:var(--dim);line-height:1.55}
   #go{width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
     background:rgba(79,209,197,.13);color:var(--fg);font:inherit;font-size:14px;cursor:pointer;
@@ -127,7 +128,7 @@
   <div><b id="vname">—</b></div>
   <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
   <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
-  <div>Rad wechseln<span class="k">1</span><span class="k">2</span></div>
+  <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
   <div>Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
 </div>
 
@@ -179,6 +180,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const G = 9.81;
 const TRACKS = JSON.parse(document.getElementById('strecken').textContent).strecken;
+const GLB_PFAD_HAUPT = 'mtb-emtb-fahrerin.glb';   // Enduro und eMTB kommen aus derselben Datei
 
 /* ===========================================================================
    RÄDER
@@ -188,8 +190,14 @@ const TRACKS = JSON.parse(document.getElementById('strecken').textContent).strec
    korrigieren — genau der Trade-off, den man auf dem Rad auch spürt.
    =========================================================================== */
 const BIKES = {
+  v10: {
+    id:'v10', name:'Santa Cruz V10 · DH', accent:0xd9a441,
+    masse:92, CdA:0.50, Crr:0.017, bremse:8000, tritt:200, luft:4.4, boden:8.0, grip:1.12, absorb:0.62,
+    modell:{glb:'fahrzeuge/v10.glb', bau:{gabel:'doppel', hinterbau:'coil', motor:false, sattelHoch:false, lenkerBreite:0.80, radR:0.37, radstand:1.0}},
+    d:'Doppelbrücke, Coil-Dämpfer, 200 mm Federweg. Schluckt fast alles, will aber Tempo.'
+  },
   mtb: {
-    id:'mtb', name:'MTB — Enduro', accent:0x4fd1c5,
+    id:'mtb', name:'Enduro 170', accent:0x4fd1c5,
     masse:88,        // Fahrerin + Rad, kg
     CdA:0.48,        // m², aufrechte Abfahrtshaltung
     Crr:0.016,       // Rollwiderstand grober Reifen auf festem Boden
@@ -199,10 +207,17 @@ const BIKES = {
     boden:9.0,       // seitliche Kontrolle am Boden, m/s²
     grip:1.05,       // Reibbeiwert für die Kurvengrenze
     absorb:0.48,     // m, so viel Welle schluckt Federung + Beine, bevor man abhebt
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
     d:'Leichter, wendiger, kürzerer Bremsweg. In der Luft besser zu korrigieren.'
   },
+  dirt: {
+    id:'dirt', name:'Dirt Hardtail', accent:0xc6f24e,
+    masse:84, CdA:0.46, Crr:0.015, bremse:6800, tritt:280, luft:6.2, boden:9.6, grip:0.98, absorb:0.28,
+    modell:{glb:'fahrzeuge/dirt.glb', bau:{gabel:'einfach', hinterbau:'starr', motor:false, sattelHoch:false, lenkerBreite:0.74, radR:0.33, radstand:0.86}},
+    d:'Starrer Hinterbau, 26 Zoll, kurz. Zappelig, geht beim Absprung höher — und das Steinfeld tut weh.'
+  },
   emtb: {
-    id:'emtb', name:'eMTB — Motor', accent:0xff9d4d,
+    id:'emtb', name:'eMTB', accent:0xff9d4d,
     masse:113,       // ca. 25 kg mehr: Motor, Akku, verstärkter Rahmen
     CdA:0.50,
     Crr:0.019,       // breitere Reifen, mehr Auflagedruck
@@ -214,9 +229,52 @@ const BIKES = {
     boden:7.4,
     grip:1.10,       // mehr Auflagedruck → etwas mehr Grip
     absorb:0.42,     // etwas weniger: mehr Masse, die Beine müssen mehr halten
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:true, sattelHoch:true, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
     d:'25 kg schwerer, schiebt bis 25 km/h mit. Träge in der Luft, stabiler am Boden.'
+  },
+  roller: {
+    id:'roller', name:'E-Roller', accent:0xe8e8ee,
+    masse:92, CdA:0.55, Crr:0.022, bremse:5600, tritt:120, motor:500, motorBis:5.56, luft:6.0, boden:8.5, grip:0.85, absorb:0.15,
+    modell:{glb:'fahrzeuge/roller.glb', bau:{radR:0.16, radstand:0.84}},
+    d:'Trittbrett, 16-cm-Räder, 500 W bis 20 km/h. Nichts federt, alles rutscht. Nicht empfehlenswert. Trotzdem drin.'
   }
 };
+const BIKE_IDS = Object.keys(BIKES);   // Reihenfolge = Tasten 1–5
+
+/* Charaktere: Palette + Ausstattung. Die GLB hat kein Rig, also keine Posen
+   oder Körpergrößen — vier Fahrer:innen, die man auf 10 m auseinanderhält. */
+const CHARAKTERE = [
+  { id:'mia',   name:'Mia',   jersey:0x0a7a6a, hose:0x0a0d12, helm:0xff3008, haut:0x945a30, haar:0x0a0503, zopf:true,  schirm:true  },
+  { id:'lenny', name:'Lenny', jersey:0x1b1f27, hose:0x1b1f27, helm:0xd9a441, haut:0xe0b090, haar:0x3a2a18, zopf:false, schirm:true  },
+  { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false },
+  { id:'nora',  name:'Nora',  jersey:0xffffff, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true  },
+];
+let aktCharakterId = 'mia';
+const aktCharakter = () => CHARAKTERE.find(c => c.id === aktCharakterId) || CHARAKTERE[0];
+
+/* Farben auf ein vorhandenes Modell anwenden — nur Materialfarben und zwei
+   Sichtbarkeiten, kein Neuladen. GLB: über Materialnamen (bleiben auch nach
+   dem Merge erhalten) und Node-Namen unter rider_female (vom Merge ausgenommen).
+   Rohrmodell: über die in baueFahrerin abgelegten Referenzen. */
+function wendeCharakterAn(halter, ch){
+  if(!halter || !ch) return;
+  const u = halter.userData;
+  const fahrerin = u.fahrerin || halter;
+  const farbe = {jersey:ch.jersey, kit_pants:ch.hose, helmet:ch.helm, skin:ch.haut, hair:ch.haar};
+  const cd = fahrerin.userData && fahrerin.userData.charakter;
+  if(cd){
+    for(const [n, m] of Object.entries(cd.materialien)) if(farbe[n] !== undefined) m.color.set(farbe[n]);
+    cd.zopf.visible = !!ch.zopf; cd.schirm.visible = !!ch.schirm;
+    return;
+  }
+  fahrerin.traverse(o => {
+    if(o.name === 'ponytail') o.visible = !!ch.zopf;
+    if(o.name === 'helmet_peak') o.visible = !!ch.schirm;
+    if(!o.isMesh) return;
+    for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+      if(m && farbe[m.name] !== undefined) m.color.set(farbe[m.name]);
+  });
+}
 
 /* ===========================================================================
    1. MITTELLINIE
@@ -982,7 +1040,7 @@ function baueBaeume(w){
    wird animiert (Räder, Kurbel, Federung, Hocke); bei der GLB weiß ich nicht,
    welche Nodes es gäbe.
    =========================================================================== */
-const GLB_PFAD  = 'mtb-emtb-fahrerin.glb';
+const GLB_PFAD  = GLB_PFAD_HAUPT;
 const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
                          // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
 const RAD_R = 0.37;            // Laufradradius außen, m — die GLB hat 0,37; Rohrmodell auf denselben Wert
@@ -1014,126 +1072,204 @@ function kasten(p, w, h, d, rx = 0){ const g = new THREE.BoxGeometry(w, h, d); i
 function mesh(geos, mat){ return new THREE.Mesh(mergeGeometries(geos, false), mat); }
 
 /* Laufrad: Reifen, Felge, Speichen, Nabe — ein Mesh pro Material, dreht um x. */
-function laufrad(matReifen, matMetall){
+function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false){
   const g = new THREE.Group();
-  const reifen = new THREE.TorusGeometry(RAD_R - 0.038, 0.038, 10, 28); reifen.rotateY(Math.PI/2);
-  const felge  = new THREE.TorusGeometry(0.29, 0.012, 6, 28);             felge.rotateY(Math.PI/2);
+  const dicke = scheibe ? 0.045 : 0.038;
+  const reifen = new THREE.TorusGeometry(R - dicke, dicke, 10, 28); reifen.rotateY(Math.PI/2);
+  g.add(new THREE.Mesh(reifen, matReifen));
+  if(scheibe){
+    const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 20); disk.rotateZ(Math.PI/2);
+    g.add(new THREE.Mesh(disk, matMetall));
+    return g;
+  }
+  const felge  = new THREE.TorusGeometry(R - 0.08, 0.012, 6, 28);          felge.rotateY(Math.PI/2);
   const nabe   = new THREE.CylinderGeometry(0.03, 0.03, 0.10, 10);         nabe.rotateZ(Math.PI/2);
   const speichen = [];
   for(let i = 0; i < 16; i++){
     const a = i/16 * Math.PI*2, seite = i % 2 ? 0.035 : -0.035;
-    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*0.285, Math.cos(a)*0.285), 0.0035, 4));
+    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*(R - 0.085), Math.cos(a)*(R - 0.085)), 0.0035, 4));
   }
-  g.add(new THREE.Mesh(reifen, matReifen));
   g.add(mesh([felge, nabe, ...speichen], matMetall));
   return g;
 }
 
-function baueRad(bike){
-  const emtb = !!bike.motor;
-  const accent = bike.accent;
-  const matRahmen = new THREE.MeshStandardMaterial({color:accent, roughness:0.32, metalness:0.55});
-  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85});
+/* Fahrerin: eine Funktion für alle Fahrzeuge. `farben` kommt aus CHARAKTERE,
+   `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien und die
+   umschaltbaren Teile (Zopf, Helmschirm) werden in userData abgelegt, damit ein
+   Charakterwechsel nur Farben setzt und nichts neu baut. */
+function baueFahrerin(farben, pose = 'angriff'){
+  const F = farben || CHARAKTERE[0];
+  const matJersey = new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}); matJersey.name = 'jersey';
+  const matHose   = new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9});    matHose.name = 'kit_pants';
+  const matHaut   = new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7});    matHaut.name = 'skin';
+  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}); matHelm.name = 'helmet';
+  const matHaar   = new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9});    matHaar.name = 'hair';
+  const matSchw   = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const g = new THREE.Group(); g.name = 'rider_female';
+
+  let P;   // Gelenkpunkte je Pose
+  if(pose === 'stehend'){
+    P = {huefte:V(0,1.02,-0.05), schulter:V(0,1.42,0.02), kopf:V(0,1.62,0.06),
+         schL:V(-0.19,1.40,0.02), ellL:V(-0.26,1.22,0.18), handL:V(-0.24,1.08,0.32),
+         schR:V( 0.19,1.40,0.02), ellR:V( 0.26,1.22,0.18), handR:V( 0.24,1.08,0.32),
+         hueL:V(-0.09,1.00,-0.05), knieL:V(-0.10,0.60,0.02), fussL:V(-0.10,0.22,0.06),
+         hueR:V( 0.09,1.00,-0.05), knieR:V( 0.10,0.60,-0.10), fussR:V( 0.10,0.22,-0.16),
+         schuhL:V(-0.10,0.19,0.09), schuhR:V(0.10,0.19,-0.13), hals:V(0,1.50,0.04), rumpfR:0.14};
+  } else {
+    P = {huefte:V(0,1.00,-0.14), schulter:V(0,1.24,0.16), kopf:V(0,1.42,0.28),
+         schL:V(-0.20,1.22,0.16), ellL:V(-0.34,1.10,0.28), handL:V(-0.36,1.04,0.40),
+         schR:V( 0.20,1.22,0.16), ellR:V( 0.34,1.10,0.28), handR:V( 0.36,1.04,0.40),
+         hueL:V(-0.09,0.98,-0.12), knieL:V(-0.16,0.72,0.12), fussL:V(-0.16,0.42,0.14),
+         hueR:V( 0.09,0.98,-0.12), knieR:V( 0.17,0.70,-0.02), fussR:V( 0.16,0.42,-0.12),
+         schuhL:V(-0.16,0.37,0.16), schuhR:V(0.16,0.37,-0.12), hals:V(0,1.30,0.20), rumpfR:0.15};
+  }
+  g.add(mesh([glied(P.huefte, P.schulter, P.rumpfR), kugel(P.huefte, 0.135),
+    glied(P.schL, P.ellL, 0.052), glied(P.schR, P.ellR, 0.052)], matJersey));
+  g.add(mesh([glied(P.ellL, P.handL, 0.042), glied(P.ellR, P.handR, 0.042),
+    kugel(P.handL, 0.045), kugel(P.handR, 0.045), glied(P.hals, P.kopf, 0.05)], matHaut));
+  g.add(new THREE.Mesh(kugel(P.kopf, 0.115), matHaut));
+  g.add(mesh([glied(P.hueL, P.knieL, 0.075), glied(P.hueR, P.knieR, 0.075),
+    glied(P.knieL, P.fussL, 0.058), glied(P.knieR, P.fussR, 0.058)], matHose));
+  g.add(mesh([kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
+  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(P.kopf.x, P.kopf.y + 0.01, P.kopf.z);
+  g.add(new THREE.Mesh(helm, matHelm));
+  const schirm = new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.08, P.kopf.z + 0.14), 0.20, 0.012, 0.09, -0.3), matHelm);
+  schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; g.add(schirm);
+  g.add(new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.01, P.kopf.z + 0.12), 0.17, 0.05, 0.04), matSchw));   // Brille
+  const zopf = new THREE.Mesh(glied(V(P.kopf.x, P.kopf.y + 0.02, P.kopf.z - 0.10), V(P.kopf.x, P.kopf.y - 0.22, P.kopf.z - 0.20), 0.032), matHaar);
+  zopf.name = 'ponytail'; zopf.visible = !!F.zopf; g.add(zopf);
+  g.userData.charakter = {materialien:{jersey:matJersey, kit_pants:matHose, helmet:matHelm, skin:matHaut, hair:matHaar}, zopf, schirm};
+  return g;
+}
+
+/* Baukasten für alle Räder. Schalter aus bike.modell.bau:
+   gabel 'einfach'|'doppel', hinterbau 'luft'|'coil'|'starr', motor, sattelHoch,
+   lenkerBreite, radR, radstand. Der Roller ist eine eigene Funktion. */
+function baueRad(bike, farben){
+  const bau = Object.assign({gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}, (bike.modell && bike.modell.bau) || {});
+  const R = bau.radR, RS = bau.radstand, accent = bike.accent;
+  const matRahmen = new THREE.MeshStandardMaterial({color:accent, roughness:0.32, metalness:0.55}); matRahmen.name = 'frame_charcoal';
+  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}); matMetall.name = 'raw_alu';
+  const matGold   = new THREE.MeshStandardMaterial({color:0xd9a441, roughness:0.3, metalness:0.8});  matGold.name = 'anodized_gold';
   const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
-  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95});
+  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}); matReifen.name = 'tire_rubber';
   const matGummi  = new THREE.MeshStandardMaterial({color:0x26282c, roughness:0.9});
 
-  // Geometrie in Metern, Fahrtrichtung +z, Boden bei y = 0
-  const hinten = V(0, RAD_R, -0.60), vorn = V(0, RAD_R, 0.64);
+  // Geometrie in Metern, Fahrtrichtung +z, Boden bei y = 0. Radstand skaliert die Länge.
+  const hinten = V(0, R, -0.60*RS), vorn = V(0, R, 0.64*RS);
   const tret   = V(0, 0.32, -0.02);
-  const sitzO  = V(0, 0.80, -0.20);
-  const kopfO  = V(0, 0.98, 0.42), kopfU = V(0, 0.82, 0.50);
+  const sitzO  = V(0, 0.80, -0.20*RS);
+  const kopfO  = V(0, 0.98, 0.42*RS), kopfU = V(0, 0.82, 0.50*RS);
 
-  const halter = new THREE.Group();          // wird von der Physik gesetzt
-  const koerper = new THREE.Group();          // federt gegenüber den Rädern
+  const halter = new THREE.Group();
+  const koerper = new THREE.Group();
   halter.add(koerper);
 
-  // --- Rahmen (ein Mesh) ---
-  const rUnter = emtb ? 0.048 : 0.022;        // eMTB: Akku sitzt im Unterrohr
+  const rUnter = bau.motor ? 0.048 : 0.022;
   const rahmen = [
-    rohr(sitzO, kopfO, 0.02),                 // Oberrohr
-    rohr(tret, kopfU, rUnter),                // Unterrohr
-    rohr(tret, sitzO, 0.02),                  // Sitzrohr
-    rohr(kopfU, kopfO, 0.028),                // Steuerrohr
-    rohr(V( 0.06, 0.33, -0.02), V( 0.05, RAD_R, -0.58), 0.011),   // Kettenstreben
-    rohr(V(-0.06, 0.33, -0.02), V(-0.05, RAD_R, -0.58), 0.011),
-    rohr(V( 0.03, 0.79, -0.21), V( 0.05, RAD_R, -0.58), 0.010),   // Sitzstreben
-    rohr(V(-0.03, 0.79, -0.21), V(-0.05, RAD_R, -0.58), 0.010),
-    rohr(V(0, 0.74, -0.08), V(0, 0.48, -0.30), 0.016),            // Dämpfer
+    rohr(sitzO, kopfO, 0.02), rohr(tret, kopfU, rUnter), rohr(tret, sitzO, 0.02), rohr(kopfU, kopfO, 0.028),
+    rohr(V( 0.06, 0.33, -0.02), V( 0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V(-0.06, 0.33, -0.02), V(-0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V( 0.03, 0.79, sitzO.z - 0.01), V( 0.05, R, hinten.z + 0.02), 0.010),
+    rohr(V(-0.03, 0.79, sitzO.z - 0.01), V(-0.05, R, hinten.z + 0.02), 0.010),
   ];
-  if(emtb){
+  if(bau.hinterbau === 'luft'){
+    rahmen.push(rohr(V(0, 0.74, -0.08), V(0, 0.48, -0.30*RS), 0.016));                 // Luftdämpfer, schlank
+  } else if(bau.hinterbau === 'coil'){
+    rahmen.push(rohr(V(0, 0.76, -0.06), V(0, 0.46, -0.32*RS), 0.014));
+  }
+  if(bau.motor){
     const motor = new THREE.CylinderGeometry(0.095, 0.095, 0.17, 14); motor.rotateZ(Math.PI/2); motor.translate(0, 0.34, -0.02);
     rahmen.push(motor);
   }
   koerper.add(mesh(rahmen, matRahmen));
-  // Tretlagergehäuse, Sattel, Vorbau, Lenker, Griffe, Kettenblatt
-  const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(0.05, 0.32, -0.02);
+  if(bau.hinterbau === 'coil'){
+    // Stahlfeder: Ringe um den Dämpfer, goldfarben wie am DH-Rad
+    const ringe = [];
+    const a = V(0, 0.74, -0.075), b = V(0, 0.50, -0.30*RS), d = new THREE.Vector3().subVectors(b, a);
+    for(let i = 0; i < 7; i++){
+      const c = a.clone().addScaledVector(d, 0.1 + 0.8*i/6);
+      const t = new THREE.TorusGeometry(0.036, 0.007, 6, 14);
+      t.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), d.clone().normalize()));
+      t.translate(c.x, c.y, c.z); ringe.push(t);
+    }
+    koerper.add(mesh(ringe, matGold));
+  }
+  const sattelY = bau.sattelHoch ? 0.98 : 0.86;
+  const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(-0.05, 0.32, -0.02);
   koerper.add(mesh([
     kettenblatt,
-    kasten(V(0, 0.86, -0.25), 0.09, 0.04, 0.25),                  // Sattel (Dropper unten)
-    rohr(V(0, 0.80, -0.21), V(0, 0.85, -0.24), 0.014),           // Sattelstütze
-    rohr(kopfO, V(0, 1.03, 0.36), 0.014),                         // Vorbau
-    rohr(V(-0.39, 1.04, 0.36), V(0.39, 1.04, 0.36), 0.012),       // Lenker
+    kasten(V(0, sattelY, sitzO.z - 0.05), 0.09, 0.04, 0.25),                  // Sattel
+    rohr(V(0, 0.80, sitzO.z - 0.01), V(0, sattelY - 0.01, sitzO.z - 0.04), 0.014),
+    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.014),                                   // Vorbau
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.012),
   ], matSchwarz));
   koerper.add(mesh([
-    rohr(V(-0.39, 1.04, 0.36), V(-0.26, 1.04, 0.36), 0.016),     // Griffe
-    rohr(V( 0.26, 1.04, 0.36), V( 0.39, 1.04, 0.36), 0.016),
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 + 0.13, 1.04, 0.36*RS), 0.016),
+    rohr(V( bau.lenkerBreite/2 - 0.13, 1.04, 0.36*RS), V( bau.lenkerBreite/2, 1.04, 0.36*RS), 0.016),
   ], matGummi));
-  if(emtb){
-    const display = kasten(V(0.06, 1.07, 0.36), 0.07, 0.012, 0.045);
-    const led = new THREE.Mesh(display, new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
+  if(bau.motor){
+    const led = new THREE.Mesh(kasten(V(0.06, 1.07, 0.36*RS), 0.07, 0.012, 0.045),
+      new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
     koerper.add(led);
   }
-  // Gabel: Krone + zwei Beine, sitzt am Körper (die Standrohre), die Tauchrohre "federn" mit dem Körper mit
-  koerper.add(mesh([
-    kasten(V(0, 0.80, 0.51), 0.15, 0.05, 0.06),
-    rohr(V( 0.055, 0.80, 0.51), V( 0.055, RAD_R, 0.64), 0.017),
-    rohr(V(-0.055, 0.80, 0.51), V(-0.055, RAD_R, 0.64), 0.017),
-  ], matMetall));
+  // Gabel
+  const gabel = [
+    kasten(V(0, 0.80, kopfU.z + 0.01), 0.15, 0.05, 0.06),
+    rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, R, vorn.z), 0.017),
+    rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, R, vorn.z), 0.017),
+  ];
+  if(bau.gabel === 'doppel'){
+    // Doppelbrücke: zweite Brücke über dem Steuerrohr, Standrohre laufen durch
+    gabel.push(kasten(V(0, 1.02, kopfO.z + 0.02), 0.17, 0.045, 0.06));
+    gabel.push(rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, 1.05, kopfO.z + 0.03), 0.019));
+    gabel.push(rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, 1.05, kopfO.z + 0.03), 0.019));
+  }
+  koerper.add(mesh(gabel, bau.gabel === 'doppel' ? matGold : matMetall));
 
-  // --- Kurbel (dreht) ---
+  // Kurbel (dreht). Kettenblatt und rechter Arm bei −x: nach der Yaw-Korrektur ist
+  // lokal −x die rechte Seite der Fahrerin.
   const kurbel = new THREE.Group(); kurbel.position.copy(tret);
-  kurbel.add(mesh([
-    rohr(V( 0.075, 0, 0), V( 0.09, 0, 0.17), 0.012),  // rechter Kurbelarm nach vorn
-    rohr(V(-0.075, 0, 0), V(-0.09, 0, -0.17), 0.012), // linker nach hinten
-    rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014),       // Achse
-  ], matMetall));
-  kurbel.add(mesh([kasten(V( 0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(-0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
+  kurbel.add(mesh([rohr(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.012), rohr(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.012),
+    rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014)], matMetall));
+  kurbel.add(mesh([kasten(V(-0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
   koerper.add(kurbel);
 
-  // --- Räder (fest am Boden, drehen um x) ---
-  const radH = laufrad(matReifen, matMetall); radH.position.copy(hinten);
-  const radV = laufrad(matReifen, matMetall); radV.position.copy(vorn);
+  const radH = laufrad(matReifen, matMetall, R); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R); radV.position.copy(vorn);
   halter.add(radH, radV);
 
-  // --- Fahrerin, Angriffsposition ---
-  const matJersey = new THREE.MeshStandardMaterial({color:0x2a2f38, roughness:0.85});
-  const matHose   = new THREE.MeshStandardMaterial({color:0x15171b, roughness:0.9});
-  const matHaut   = new THREE.MeshStandardMaterial({color:0xc99a76, roughness:0.7});
-  const matHelm   = new THREE.MeshStandardMaterial({color:accent, roughness:0.3, metalness:0.15});
-  const fahrerin = new THREE.Group();
-  const huefte = V(0, 1.00, -0.14), schulter = V(0, 1.24, 0.16), kopf = V(0, 1.42, 0.28);
-  fahrerin.add(mesh([glied(huefte, schulter, 0.15), kugel(huefte, 0.135),
-    glied(V(-0.20, 1.22, 0.16), V(-0.34, 1.10, 0.28), 0.052),           // Oberarme
-    glied(V( 0.20, 1.22, 0.16), V( 0.34, 1.10, 0.28), 0.052)], matJersey));
-  fahrerin.add(mesh([
-    glied(V(-0.34, 1.10, 0.28), V(-0.36, 1.04, 0.40), 0.042),           // Unterarme
-    glied(V( 0.34, 1.10, 0.28), V( 0.36, 1.04, 0.40), 0.042),
-    kugel(V(-0.36, 1.04, 0.38), 0.045), kugel(V(0.36, 1.04, 0.38), 0.045),   // Hände
-    glied(V(0, 1.30, 0.20), kopf, 0.05)], matHaut));                     // Hals
-  fahrerin.add(new THREE.Mesh(kugel(kopf, 0.115), matHaut));
-  fahrerin.add(mesh([
-    glied(V(-0.09, 0.98, -0.12), V(-0.16, 0.72, 0.12), 0.075),          // Oberschenkel
-    glied(V( 0.09, 0.98, -0.12), V( 0.17, 0.70, -0.02), 0.075),
-    glied(V(-0.16, 0.72, 0.12), V(-0.16, 0.42, 0.14), 0.058),           // Unterschenkel
-    glied(V( 0.17, 0.70, -0.02), V( 0.16, 0.42, -0.12), 0.058)], matHose));
-  fahrerin.add(mesh([kasten(V(-0.16, 0.37, 0.16), 0.09, 0.07, 0.24), kasten(V(0.16, 0.37, -0.12), 0.09, 0.07, 0.24)], matSchwarz));
-  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(kopf.x, kopf.y + 0.01, kopf.z);
-  fahrerin.add(mesh([helm, kasten(V(0, 1.50, 0.42), 0.20, 0.012, 0.09, -0.3)], matHelm));
-  fahrerin.add(new THREE.Mesh(kasten(V(0, 1.43, 0.40), 0.17, 0.05, 0.04), matSchwarz));   // Brille
+  const fahrerin = baueFahrerin(farben, 'angriff');
   koerper.add(fahrerin);
 
-  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  return halter;
+}
+
+/* Der E-Roller: andere Topologie, deshalb eigene Funktion. Trittbrett, Lenkstange,
+   zwei kleine Räder, Fahrerin stehend. */
+function baueRoller(bike, farben){
+  const R = (bike.modell && bike.modell.bau && bike.modell.bau.radR) || 0.16;
+  const matRahmen = new THREE.MeshStandardMaterial({color:bike.accent, roughness:0.35, metalness:0.5}); matRahmen.name = 'frame_charcoal';
+  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}); matMetall.name = 'raw_alu';
+  const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}); matReifen.name = 'tire_rubber';
+  const halter = new THREE.Group(), koerper = new THREE.Group(); halter.add(koerper);
+  const hinten = V(0, R, -0.42), vorn = V(0, R, 0.42);
+  koerper.add(mesh([
+    kasten(V(0, 0.12, -0.02), 0.16, 0.05, 0.62),                                   // Trittbrett
+    rohr(V(0, 0.14, 0.28), V(0, 1.02, 0.36), 0.022),                                // Lenkstange
+    rohr(V(0, 0.10, -0.32), V(0, R, hinten.z), 0.016),                              // Hinterradaufnahme
+    rohr(V(0, 0.62, 0.34), V(0, R, vorn.z), 0.018),                                 // Vorderradgabel
+  ], matRahmen));
+  koerper.add(mesh([rohr(V(-0.25, 1.04, 0.36), V(0.25, 1.04, 0.36), 0.012), kasten(V(0, 1.0, 0.40), 0.06, 0.03, 0.05)], matSchwarz));
+  koerper.add(mesh([kasten(V(0, 0.10, -0.02), 0.17, 0.008, 0.64)], matMetall));      // Deckplatte
+  const radH = laufrad(matReifen, matMetall, R, true); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R, true); radV.position.copy(vorn);
+  halter.add(radH, radV);
+  const fahrerin = baueFahrerin(farben, 'stehend'); fahrerin.position.y = 0.15;   // steht auf dem Brett
+  koerper.add(fahrerin);
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel:null, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
   return halter;
 }
 
@@ -1163,14 +1299,30 @@ function ladeGLB(){
   return glbVersprechen;
 }
 
+/* Weitere GLB-Dateien (fahrzeuge/<id>.glb) werden je Pfad einmal geladen. */
+const glbDateien = new Map();
+function ladeGLBDatei(pfad){
+  if(pfad === GLB_PFAD_HAUPT) return ladeGLB();
+  if(!glbDateien.has(pfad)) glbDateien.set(pfad, new Promise((ok, no) => new GLTFLoader().load(pfad, ok, undefined, no)));
+  return glbDateien.get(pfad);
+}
+function baukasten(bike){
+  return bike.id === 'roller' ? baueRoller(bike, aktCharakter()) : baueRad(bike, aktCharakter());
+}
 async function ladeFahrzeug(bike){
+  const pfad = bike.modell && bike.modell.glb;
+  if(!pfad) return baukasten(bike);
   let gltf;
-  try{ gltf = await ladeGLB(); }
+  try{ gltf = await ladeGLBDatei(pfad); }
   catch(e){
-    console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
-    return baueRad(bike);
+    // Die Hauptdatei fehlt: laut sagen. Eine optionale fahrzeuge/<id>.glb fehlt: normal, leise.
+    if(pfad === GLB_PFAD_HAUPT) console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
+    else console.info('Kein ' + pfad + ' — Baukasten für ' + bike.id);
+    return baukasten(bike);
   }
-  return richteGLB(gltf.scene.clone(true), bike);
+  const halter = richteGLB(gltf.scene.clone(true), bike);
+  wendeCharakterAn(halter, aktCharakter());
+  return halter;
 }
 
 /* Alle Nodes eines Namens (getObjectByName liefert nur den ersten). */
@@ -1227,6 +1379,7 @@ function richteGLB(root, bike){
   const drawcalls = verschmelzeNachMaterial(root, ausnahmen);
 
   halter.userData = {quelle:'glb', raeder:[pivotH, pivotV].filter(Boolean), kurbel, koerper, fahrerin,
+                     radR:(bike.modell && bike.modell.bau && bike.modell.bau.radR) || RAD_R,
                      feder:0, federV:0, letzteLandung:null, drawcalls};
   return halter;
 }
@@ -1268,7 +1421,7 @@ function animiereFahrzeug(halter, f, dt, ein){
   const u = halter.userData; if(!u || !u.raeder) return;
   // Rollen nach +z = positive Drehung um die lokale x-Achse: (0,R,0) → (0, R·cos a, R·sin a),
   // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
-  const spin = (f.boden ? f.vs : f.vs*0.92) / RAD_R * dt;
+  const spin = (f.boden ? f.vs : f.vs*0.92) / (u.radR || RAD_R) * dt;
   for(const r of u.raeder) r.rotation.x += spin;
   if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
   if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
@@ -1313,8 +1466,7 @@ addEventListener('keydown', e => {
   taste[k] = true;
   if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
   if(k === 'r' && welt) neustart();
-  if(k === '1' && welt) wechsleRad('mtb');
-  if(k === '2' && welt) wechsleRad('emtb');
+  if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
 });
 addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
@@ -1343,7 +1495,10 @@ function weltPos(w, s, u, y, out){
 
 /* ------------------------------------------------------------------ Zustand */
 let welt = null, fahrer = null, halter = null, schatten = null, laeuft = false;
-let radCache = {}, aktRad = 'mtb', aktStrecke = 0, hudAn = false;
+/* Letzte Wahl merken. localStorage kann fehlen (Private Mode) oder werfen. */
+const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
+const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
+let radCache = {}, aktRad = BIKES[gemerkt('rad', 'mtb')] ? gemerkt('rad', 'mtb') : 'mtb', aktStrecke = 0, hudAn = false;
 const timer = new THREE.Timer();
 
 const $ = id => document.getElementById(id);
@@ -1362,7 +1517,7 @@ async function wechsleRad(id){
   if(!radCache[id]) radCache[id] = await ladeFahrzeug(BIKES[id]);
   halter = radCache[id];
   scene.add(halter);
-  montiert = id;
+  montiert = id; merke('rad', id);
   $('vname').textContent = BIKES[id].name;
   document.querySelectorAll('#bikes .card').forEach(c =>
     c.setAttribute('aria-pressed', String(c.dataset.id === id)));
@@ -1628,11 +1783,13 @@ TRACKS.forEach((t, i) => {
   $('tracks').appendChild(b);
 });
 
-Object.values(BIKES).forEach(bk => {
-  const b = karte(`<div class="n">${bk.name}</div><div class="d">${bk.d}<br>${bk.masse} kg Systemmasse</div>`,
-                  bk.id, bk.id === 'mtb');
+BIKE_IDS.forEach((id, n) => {
+  const bk = BIKES[id];
+  const b = karte(`<div class="n"><span class="k">${n+1}</span> ${bk.name}</div><div class="d">${bk.d}<br>${bk.masse} kg Systemmasse` +
+                  (bk.motor ? ` · Motor bis ${Math.round(bk.motorBis*3.6)} km/h` : '') + `</div>`,
+                  bk.id, bk.id === aktRad);
   b.onclick = () => {
-    aktRad = bk.id;
+    aktRad = bk.id; merke('rad', bk.id);
     document.querySelectorAll('#bikes .card').forEach(c =>
       c.setAttribute('aria-pressed', String(c.dataset.id === bk.id)));
   };

@@ -176,38 +176,46 @@ Jeder Punkt kam aus der Messung, keiner aus dem Gefühl:
   50–70 % statt 5–24 %.
 - **Bremse bei 1,3 g**: mehr, als Schotter hergibt. Jetzt 0,7 g.
 
-## Die beiden Räder
+## Der Fahrzeugpark
 
-Der Unterschied ist nicht kosmetisch:
+Fünf Fahrzeuge, Tasten 1–5, die Wahl bleibt in `localStorage` (`bikepark.rad`):
 
-| | MTB | eMTB |
-|---|---|---|
-| Systemmasse | 88 kg | 113 kg |
-| CdA | 0,48 m² | 0,50 m² |
-| Rollwiderstand | 0,016 | 0,019 |
-| Motor | — | 620 W bis 25 km/h |
-| Kontrolle in der Luft | 5,2 m/s² | 3,6 m/s² |
-| schluckt Wellen bis | 0,48 m | 0,42 m |
+| Taste | Fahrzeug | Masse | CdA | Crr | Motor | Federweg-Schluck | Modell |
+|---|---|---|---|---|---|---|---|
+| 1 | Santa Cruz V10 · DH | 92 kg | 0,50 | 0,017 | — | 0,62 m | Baukasten (Doppelbrücke, Coil) |
+| 2 | Enduro 170 | 88 kg | 0,48 | 0,016 | — | 0,48 m | GLB, Motor/Akku versteckt |
+| 3 | Dirt Hardtail | 84 kg | 0,46 | 0,015 | — | 0,28 m | Baukasten (starr, 26", kurz) |
+| 4 | eMTB | 113 kg | 0,50 | 0,019 | 620 W bis 25 km/h | 0,42 m | GLB |
+| 5 | E-Roller | 92 kg | 0,55 | 0,022 | 500 W bis 20 km/h | 0,15 m | Baukasten (stehende Fahrerin) |
 
-Das eMTB schiebt aus langsamen Stellen heraus mit, ist aber träger in der Luft und verzeiht
-eine verpasste Landung schlechter. Die Werte sind plausible Größenordnungen, keine Messwerte
-an einem realen Rad.
+Was die Physik daraus liest: Masse, CdA, Crr, Bremse, Tritt, Motor, Luft-/Bodenkontrolle,
+Schluck. **`grip` steht in der Tabelle, wird aber von `schritt()` nicht gelesen** — der
+Wert ist reserviert, nicht wirksam. Die Zahlen sind plausible Größenordnungen, keine
+Messwerte an realen Fahrzeugen.
 
-Ohne GLB-Datei baut sich das Rad aus Rohren: Rahmen, Gabel, Dämpfer, 16 Speichen je
-Laufrad, Kurbel mit Pedalen, Fahrerin in Angriffsposition. Beim eMTB dickes Unterrohr mit
-Akku, Motorgehäuse am Tretlager, Display am Lenker. Animiert werden Räder (mit dem Tempo),
-Kurbel (beim Treten), Federung (Feder-Dämpfer, Stoß bei der Landung, leichtes Ausfedern in
-der Luft) und die Hocke der Fahrerin. Etwa 14 Draw Calls pro Rad.
+Jedes Fahrzeug hat einen Modell-Eintrag `modell:{glb, bau}`. Liegt die Datei
+`fahrzeuge/<id>.glb` neben der HTML, wird sie geladen und wie die Hauptdatei eingerichtet
+(gleiche Node-Namen nötig). Fehlt sie — der Normalfall —, baut der Baukasten das Fahrzeug
+aus Rohren nach den `bau`-Schaltern (Gabel einfach/doppel, Hinterbau luft/coil/starr,
+Radradius, Radstand, Lenkerbreite, Sattelhöhe, Motor). Die fehlende Datei erzeugt einen
+404 in der Konsole; das ist der einzige Weg, ohne Manifest zu wissen, ob sie da ist.
+
+Animiert werden Räder (Umfang aus dem Radradius), Kurbel (beim Treten, nicht beim Roller),
+Federung (Feder-Dämpfer, Stoß bei der Landung, Ausfedern in der Luft) und die Hocke der
+Fahrerin. Gemessen: 20–25 Draw Calls für die ganze Szene mit Baukasten-Rad, 48–49 mit der
+(synthetischen) GLB.
 
 ## Die GLB-Datei
 
-Liegt `mtb-emtb-fahrerin.glb` neben der HTML, wird sie geladen, eingemessen und auf 1,80 m
-skaliert. Über ihren Inhalt wird **nichts** angenommen: keine Node-Namen, keine Materialien,
-keine Achsenkonvention. Sie wird deshalb auch nicht animiert — dafür müsste ich wissen, welche
-Nodes Räder und Kurbel sind.
+Liegt `mtb-emtb-fahrerin.glb` neben der HTML, wird sie einmal geladen, je Fahrzeug geklont
+und über Node-Namen eingerichtet: `wheel_front`/`wheel_rear` und die Kurbel bekommen Pivots
+in ihrem Zentrum und drehen sich mit dem Tempo, `rider_female` hockt, `motor_box` und
+`battery_downtube` sind nur beim eMTB sichtbar. Meshes gleichen Materialnamens werden
+verschmolzen. Geprüft ist das an einer synthetischen Datei mit denselben Namen — an der
+echten Datei nicht, sie lag beim Bau nicht vor.
 
-Schaut die Fahrerin nach dem Laden rückwärts, steht die Blickrichtung der Datei anders als
-angenommen — dann `GLB_DREHUNG` in der HTML von `Math.PI` auf `0` setzen.
+Schaut die Fahrerin nach dem Laden rückwärts, `GLB_DREHUNG` in der HTML von `0` auf
+`Math.PI` setzen.
 
 ## HUD: Zieltempo
 
