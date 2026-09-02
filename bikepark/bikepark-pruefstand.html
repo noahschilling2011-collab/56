@@ -1012,7 +1012,8 @@ try{
 renderer.setPixelRatio(Math.min(devicePixelRatio, GRAFIK.hoch ? 1.5 : 1));   // DPR-Deckel: hoch 1,5, niedrig 1
 const SCHATTEN = GRAFIK.hoch && GRAFIK.an('schatten');
 const BEWEGUNG = GRAFIK.an('bewegung');
-if(SCHATTEN){ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
+if(SCHATTEN){ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; }   // PCFSoftShadowMap ist in 0.185 abgekündigt (Warnung, fällt auf PCF zurück)
+renderer.info.autoReset = false;   // sonst zählt info nur den letzten Pass des Composers (Output-Quad: 1 Call)
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -1068,7 +1069,9 @@ if(GRAFIK.an('himmel')){
     renderer.setRenderTarget(rt); renderer.render(skyScene, hc); renderer.setRenderTarget(null);
     const px = new Float32Array(8*8*4); renderer.readRenderTargetPixels(rt, 0, 0, 8, 8, px); rt.dispose();
     let r = 0, g = 0, b = 0; for(let i = 0; i < 64; i++){ r += px[4*i]; g += px[4*i+1]; b += px[4*i+2]; }
-    if(Number.isFinite(r + g + b) && r + g + b > 0) HORIZONT.setRGB(r/64, g/64, b/64);
+    // 0,8 × Horizont: Dunst am Boden liegt etwas unter dem Himmel direkt darüber, sonst stehen
+    // die Fernkegel als Papierdreiecke in Himmelsfarbe vor dem blaueren Himmel.
+    if(Number.isFinite(r + g + b) && r + g + b > 0) HORIZONT.setRGB(r/64*0.8, g/64*0.8, b/64*0.8);
   }catch(e){ console.warn('Umgebungslicht/Horizont nicht erzeugt:', e && e.message); }
   skyScene.remove(sky); scene.add(sky);
   hemi = new THREE.HemisphereLight(0xbcd4ea, 0x2a3320, 0.9);
@@ -1224,7 +1227,8 @@ function baueSchale(w){
 }
 /* Ferngebirge: ein Kamm aus Kegeln im Nebel, auf die Schale gesetzt. */
 function baueFerngebirge(w){
-  const N = 34, g = new THREE.ConeGeometry(1, 1, 6, 1); g.translate(0, 0.5, 0);
+  // 24 Gruppen à 3 überlappende Kegel: ein Kamm, keine Reihe perfekter Dreiecke
+  const N = 72, g = new THREE.ConeGeometry(1, 1, 6, 1); g.translate(0, 0.5, 0);
   const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({color:0xffffff, roughness:1, flatShading:true}), N);
   m.name = 'ferngebirge';
   let cx = 0, cz = 0; for(const p of w.st){ cx += p.x; cz += p.z; } cx /= w.st.length; cz /= w.st.length;
@@ -1233,8 +1237,11 @@ function baueFerngebirge(w){
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), c = new THREE.Color();
   const fels = new THREE.Color(0x3e4048);
   for(let i = 0; i < N; i++){
-    const a = i/N*Math.PI*2 + noise(i*0.9)*0.15, R = weit + 420 + hash(i)*220;
-    const x = cx + Math.cos(a)*R, z = cz + Math.sin(a)*R, rx = 90 + hash(i+50)*90, h = 80 + hash(i+100)*110;
+    const grp = Math.floor(i/3), k = i % 3;
+    const a = grp/(N/3)*Math.PI*2 + noise(grp*0.9)*0.15 + (k-1)*0.055*(0.6 + hash(i+3)*0.8);
+    const R = weit + 420 + hash(grp)*220 + (k-1)*60*hash(i+11);
+    const x = cx + Math.cos(a)*R, z = cz + Math.sin(a)*R;
+    const rx = (k === 1 ? 90 : 55) + hash(i+50)*80, h = (k === 1 ? 90 : 50) + hash(i+100)*100;
     P.set(x, hoehe(x, z).y - 10, z);
     Q.setFromAxisAngle(_Y, hash(i+7)*6.28); S.set(rx, h, rx*(0.8 + hash(i+9)*0.5));
     M.compose(P, Q, S); m.setMatrixAt(i, M);
@@ -2102,6 +2109,7 @@ const stat = {frames:0, ms:0, reset(){ this.frames = 0; this.ms = 0; }};   // Pr
 renderer.setAnimationLoop(() => {
   if(!sichtbar) return;
   const tFrame = performance.now();
+  renderer.info.reset();
   timer.update(performance.now());
   const dt = Math.min(timer.getDelta(), 0.1);
 
@@ -2265,6 +2273,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    get charakter(){ return aktCharakterId; }, wechsleCharakter,
                    GRAFIK, stat, get composer(){ return composer; }, get staub(){ return staub; }, SONNE_DIR, HORIZONT,
                    get texturMs(){ return TEX ? TEX.ms : null; },
+                   get horizontLinear(){ return [HORIZONT.r, HORIZONT.g, HORIZONT.b].map(v => +v.toFixed(3)); },
                    TRACKS, BIKES, CHARAKTERE};
 $('gq').textContent = 'Grafik ' + GRAFIK.stufe + (GRAFIK.hoch ? ' · ?q=niedrig für schwache Rechner' : ' · ?q=hoch erzwingt volle Grafik');
 

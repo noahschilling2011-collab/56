@@ -227,6 +227,35 @@ echten Datei nicht, sie lag beim Bau nicht vor.
 Schaut die Fahrerin nach dem Laden rückwärts, `GLB_DREHUNG` in der HTML von `0` auf
 `Math.PI` setzen.
 
+## Grafik: Qualitätsschalter und was er schaltet
+
+`?q=hoch` oder `?q=niedrig` in der Adresse erzwingt eine Stufe. Ohne Angabe: `niedrig` bei
+höchstens 4 Kernen oder Touch, sonst `hoch`. DPR-Deckel 1,5 (hoch) bzw. 1 (niedrig).
+`?aus=schale,schatten,himmel,textur,wald,material,post,bewegung` schaltet einzelne Schritte
+ab — ein Prüfhaken für Vorher/Nachher-Messungen, kein Nutzer-Feature.
+
+| Schritt | beide Stufen | nur hoch |
+|---|---|---|
+| Geländeschale (25-m-Gitter) + Ferngebirge im Nebel | ✓ | |
+| Sonnenschatten (PCF, 2048², folgt dem Fahrer, ±40 m) | Blob-Schatten | ✓ |
+| Sky-Shader + PMREM-Umgebungslicht, Nebelfarbe aus dem Horizont gelesen | ✓ | |
+| Canvas-Texturen (Erde mit gefahrener Linie, Schotter, Waldboden) + Normal-Map | ✓ | |
+| Wald: dreiteilige Kronen, Farbvarianz, 1500 Grasbüschel + 700 Steine | ✓ | |
+| Fahrzeugmaterialien (Clearcoat-Rahmen, Alu, Reifen-Normal-Map, Visier) | ✓ | |
+| Post-Processing: GTAO → SMAA → Output | | ✓ |
+| Kamera-Shake (2–4 mm) + Staub hinterm Hinterrad (400 Punkte) | ✓ | |
+
+Gemessen (headless, swiftshader, 1280×720): `hoch` 119 Draw Calls / 488 k Dreiecke,
+`niedrig` 34 / 167 k, beide 0 Konsolenfehler. Frame-Zeiten auf echter Hardware sind nicht
+geprüft; headless läuft das mit etwa 1 fps, die Zahlen taugen nur als Relativwerte.
+
+Zwei Abweichungen vom Bauplan, mit Grund: `PCFSoftShadowMap` ist in three 0.185 abgekündigt
+und fällt mit Warnung auf PCF zurück, deshalb steht PCF direkt drin. Die Nebelfarbe ist der
+gerenderte Horizont mal 0,8, weil Dunst in Himmelsfarbe die Fernkegel als flache Dreiecke
+gegen den blaueren Himmel stellt. Die Höhen-Rauschkarte wird als Float-Target gelesen: ein
+8-Bit-Target klemmt den Horizont (linear > 1) auf Weiß, und der Nebel wird linear vor dem
+Tone-Mapping gemischt.
+
 ## HUD: Zieltempo
 
 Sobald eine Lippe näher als 70 m ist, zeigt das HUD, welches Tempo am Rampenfuß die Landung
