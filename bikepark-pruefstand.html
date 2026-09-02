@@ -1,0 +1,1878 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bikepark-Prüfstand</title>
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#101015; --line:#4fd1c5; --jump:#ff9d4d;
+    --wall:#d9a441; --dim:#8b8b95; --fg:#e8e8ee;
+    --glass:rgba(255,255,255,.045); --stroke:rgba(255,255,255,.09);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased}
+  #scene{display:block;width:100%;height:100svh}
+  .glass{background:var(--glass);border:1px solid var(--stroke);border-radius:14px;
+    backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%)}
+
+  /* --- HUD --- */
+  #hud{position:fixed;inset:auto auto 18px 18px;padding:14px 16px;min-width:206px;
+    pointer-events:none;opacity:0;transition:opacity .5s ease}
+  #hud.on{opacity:1}
+  #hud .big{font-size:34px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  #hud .u{font-size:11px;color:var(--dim);margin-left:5px}
+  #hud .row{display:flex;justify-content:space-between;gap:18px;font-size:11px;
+    color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums}
+  #hud .row b{color:var(--fg);font-weight:400}
+  #hud .row[hidden]{display:none}   /* display:flex würde das native hidden überschreiben */
+  #bar{height:3px;background:rgba(255,255,255,.09);border-radius:2px;margin-top:11px;overflow:hidden}
+  #bar i{display:block;height:100%;width:0;background:var(--line);transition:width .12s linear}
+
+  /* Bleibt rechts vom HUD: bei 1280 px reicht 88vw sonst bis unter den Tacho. */
+  #elem{position:fixed;left:calc(50% + 110px);bottom:26px;transform:translateX(-50%);
+    padding:9px 18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--jump);opacity:0;transition:opacity .3s ease;pointer-events:none;
+    white-space:nowrap;max-width:min(62vw,760px);overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:760px){
+    #elem{left:50%;bottom:14px;max-width:92vw;font-size:11px}
+    #hud{inset:auto auto 58px 12px;padding:10px 12px;min-width:0}
+    #hud .big{font-size:26px}
+    #right{top:12px;right:12px;font-size:10px}
+  }
+  #elem.on{opacity:1}
+
+  #right{position:fixed;top:18px;right:18px;padding:12px 14px;font-size:11px;color:var(--dim);
+    opacity:0;transition:opacity .5s ease;pointer-events:none;text-align:right}
+  #right.on{opacity:1}
+  #right b{color:var(--fg);font-weight:400}
+  #right .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;
+    margin-left:4px;color:var(--fg)}
+
+  /* --- Startbildschirm --- */
+  #start{position:fixed;inset:0;display:grid;place-items:center;padding:24px;
+    background:radial-gradient(120% 90% at 50% 0%,#14141b 0%,#0a0a0c 62%);z-index:10;
+    overflow-y:auto}
+  #start.gone{display:none}
+  #panel{width:min(860px,100%);padding:30px}
+  h1{margin:0;font-size:25px;letter-spacing:-.02em;font-weight:500}
+  .sub{color:var(--dim);font-size:12px;margin:8px 0 26px}
+  .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin:0 0 10px}
+  .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:24px}
+  .card{padding:14px 16px;border-radius:12px;border:1px solid var(--stroke);background:var(--glass);
+    cursor:pointer;transition:border-color .2s ease,background .2s ease;text-align:left;
+    color:inherit;font:inherit}
+  .card:hover{border-color:rgba(79,209,197,.4)}
+  .card:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+  .card[aria-pressed=true]{border-color:var(--line);background:rgba(79,209,197,.09)}
+  .card .n{font-size:15px;margin-bottom:5px}
+  .card .n .k{display:inline-block;padding:0 6px;border:1px solid var(--stroke);border-radius:4px;color:var(--dim);font-size:12px;margin-right:4px}
+  .card .d{font-size:11px;color:var(--dim);line-height:1.55}
+  #chars{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .card .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;
+    border:1px solid rgba(255,255,255,.18)}
+  #go{width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(79,209,197,.13);color:var(--fg);font:inherit;font-size:14px;cursor:pointer;
+    transition:background .2s ease}
+  #go:hover{background:rgba(79,209,197,.22)}
+  #go:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+  #note{margin-top:16px;font-size:11px;color:var(--dim);line-height:1.7}
+  #note code{color:var(--line)}
+  #err{margin-top:14px;padding:11px 13px;border-radius:9px;font-size:11px;line-height:1.65;
+    border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a;display:none}
+  #err.on{display:block}
+
+  /* --- Ladebildschirm --- */
+  #lade{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 32px));
+    padding:22px 24px;z-index:11;opacity:1;transition:opacity .35s ease}
+  #lade.weg{opacity:0;pointer-events:none}
+  #lade .lt{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+  #lade .lz{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--dim)}
+  #lade .lz b{font-weight:400;color:var(--dim)}
+  #lade .lz[data-z="läuft"] b{color:var(--line)}
+  #lade .lz[data-z="fertig"]{color:var(--fg)} #lade .lz[data-z="fertig"] b{color:var(--fg)}
+  #lade .lz[data-z="fehler"] b{color:var(--jump)}
+  #ladeBalken{height:4px;background:rgba(255,255,255,.09);border-radius:2px;margin:12px 0 14px;overflow:hidden;position:relative}
+  #ladeBalken i{display:block;height:100%;width:0;background:var(--line);transition:width .25s ease}
+  #ladeBalken.unbestimmt i{width:35%;animation:ladeLauf 1.2s ease-in-out infinite}
+  @keyframes ladeLauf{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+  #lade .ltip{margin:0;font-size:11px;color:var(--dim);line-height:1.7}
+  #lade .ltip .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;color:var(--fg);margin:0 3px 0 1px}
+  #ladeFehler{margin-top:12px;padding:10px 12px;border-radius:9px;font-size:12px;line-height:1.6;
+    border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a}
+  #ladeZurueck{margin-top:12px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--stroke);
+    background:var(--glass);color:var(--fg);font:inherit;cursor:pointer}
+  #ladeZurueck:focus-visible,#lade:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms!important}
+    #ladeBalken.unbestimmt i{animation:none;width:35%;transform:none;
+      background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px)}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-busy="false"></canvas>
+<noscript>Für diese Ansicht wird JavaScript benötigt.</noscript>
+
+<div id="hud" class="glass">
+  <div><span class="big" id="kmh">0</span><span class="u">km/h</span></div>
+  <div class="row"><span>Zeit</span><b id="t">0:00.0</b></div>
+  <div class="row"><span>Strecke</span><b id="d">0 / 0 m</b></div>
+  <div class="row"><span>Höhe</span><b id="h">0 m</b></div>
+  <div class="row"><span>Luft</span><b id="air">0,0 s</b></div>
+  <div class="row" id="nextRow" hidden><span id="nextName">Sprung</span><b id="next">—</b></div>
+  <div id="bar"><i></i></div>
+</div>
+
+<div id="right" class="glass">
+  <div><b id="vname">—</b></div>
+  <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
+  <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
+  <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
+  <div>Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+</div>
+
+<div id="elem" class="glass"></div>
+
+<div id="start">
+  <div id="panel" class="glass">
+    <h1>Bikepark-Prüfstand</h1>
+    <p class="sub">Drei Streckenpläne, aus der Elementliste gebaut — nicht zufällig erzeugt.
+      Bei jedem Run liegt derselbe Sprung an derselben Stelle.</p>
+
+    <p class="lbl">Strecke</p>
+    <div class="grid" id="tracks"></div>
+
+    <p class="lbl">Rad</p>
+    <div class="grid" id="bikes"></div>
+
+    <p class="lbl">Fahrer:in</p>
+    <div class="grid" id="chars"></div>
+
+    <button id="go">Abfahrt</button>
+    <p id="note"></p>
+    <div id="err"></div>
+  </div>
+</div>
+
+<div id="lade" class="glass" role="status" aria-labelledby="ladeTitel" tabindex="-1" hidden>
+  <div class="lt" id="ladeTitel">Wird geladen</div>
+  <div class="lz" data-s="fahrzeug" data-z="offen"><span>Fahrzeug</span><b>offen</b></div>
+  <div class="lz" data-s="strecke"  data-z="offen"><span>Strecke</span><b>offen</b></div>
+  <div class="lz" data-s="wald"     data-z="offen"><span>Wald</span><b>offen</b></div>
+  <div id="ladeBalken"><i></i></div>
+  <p class="ltip">Gas<span class="k">W</span> Bremse<span class="k">S</span> Linie<span class="k">A</span><span class="k">D</span>
+    Kamera<span class="k">C</span> Neustart<span class="k">R</span> Rad<span class="k">1</span>–<span class="k">5</span> Fahrer:in<span class="k">F</span></p>
+  <div id="ladeFehler" hidden></div>
+  <button id="ladeZurueck" type="button" hidden>Zurück</button>
+</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.185.1/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.185.1/examples/jsm/"
+}}
+</script>
+
+<script id="strecken" type="application/json">{"strecken":[{"key":"downhill-republic","name":"Downhill Republic","laenge_m":1900,"hoehendifferenz_m":300,"begruendung":"ALLE 20 BEANSTANDUNGEN SIND EINGEARBEITET. Weil sechs davon (Bremswege, Ballistik, Fussabdruecke, der 581-m-Sektionsbruch) sich gegenseitig blockierten, wurde die Strecke neu geordnet statt punktuell geflickt; Gelaendeanker (Felsnase-Wallride oben, Steilstufe vor dem Schluesselabschnitt, Schlussteil Steilhang-Steinfeld-Zielanlieger) sind erhalten.\n\nMASSKONVENTION (Antwort auf Beanstandung idx26): laenge_m bedeutet ab jetzt einheitlich fuer tabletop und step_down/step_up das Bauwerk nach Vorgabemass (Tabletop 3-9 m), fuer kicker den vollen Fussabdruck aus Rampe + Gap + Landung. Damit die Rampen und Landungen der Tabletops real Platz haben, betraegt der Abstand innerhalb jeder Sektion konsequent 13 m: die tiefste Landung braucht 4,4-4,8 m, die hoechste Rampe (2,2 m bei 15 Grad) 8,2 m, zusammen 12,7 m < 13 m. Kein Tabletop ist mehr hoeher als 2,2 m, der 2,6-m-Table ist ersatzlos entfallen. 13 m ist zugleich kleiner als die von Regel 4 geforderten 15 m Hoechstabstand.\n\nFUSSABDRUECKE STATT UEBERLAPPUNGEN (idx20, idx25, idx12, idx8): jeder Kicker traegt jetzt seinen echten Fussabdruck. 1,5 m Rampe 5,6 + 8 Gap + 4,4 Landung = 18 m (396); 1,8 m: 6,7 + 9,5 + 4,8 = 21 m (980); 2,3 m: 8,6 + 12 + 4,4 = 25 m (1201); 1,3 m: 4,9 + 6,5 + 4,6 = 16 m (1610). Die frueheren Ueberlappungen von 3 bzw. 4 m existieren nicht mehr, die in den Notizen genannten Abstaende sind gerechnet und stimmen.\n\nGROESSTER SPRUNG (idx25, Regel 6): Kicker bei 1201 m = 63,2 Prozent, gapweite 12 m und absprunghoehe 2,3 m sind beide Streckenmaximum, der hoechste Table (2,2 m) liegt bei 1239 m = 65,2 Prozent, also ebenfalls im Fenster - die Regel ist eindeutig erfuellt, egal ob nach gapweite_m oder hoehe_m geprueft wird. Der Pruefer schlug 13 m Gap vor; das Rahmenmass laesst nur 3-12 m zu, deshalb 12 m plus 35 m statt 55 m Anfahrt unter dem Steilstueck und ein auf 1,8 m gesenkter Kalibrier-Table davor (idx24), sodass die reale Anfahrt in der Mitte des Geschwindigkeitsfensters liegt.\n\nBREMSWEGE (idx1, idx10, idx11, idx28, idx32): jede Sektion beginnt jetzt 35-39 m unter dem Ende des vorangehenden Steilstuecks statt 14-30 m, und die Steilstuecke sind auf 60-70 m begrenzt. Startrampe auf 60 m gekuerzt und Steinfeld auf 100 m verschoben: 40 m Bremsweg statt 10. Der frueher kritische Step-up bei 424 m ist entfallen; die Sektion dort beginnt bei 375 m, 35 m unter dem Steilstueck. Der Anlieger vor der zweiten Holzwand folgt keinem Steilstueck mehr, sondern liegt 23 m hinter der Schluesselsektion, ist auf 4 m verbreitert, und der Abstand Anlieger-Wallride ist von 9 auf 16 m gewachsen. Das Schluss-Steinfeld liegt 140 m unter dem Ende des letzten Steilhangs und 43 m hinter dem letzten Table - der Bremsweg ist mehr als verdoppelt.\n\nZU LANGSAME SPRUENGE (idx6, idx8): die erste Jumpline steht nicht mehr 6 m hinter einer Wallride-Ausleitung. Wo eine Gruppe doch aus einem Ausleitungsanlieger heraus anfaehrt (1395 m), sind die Tables auf 1,4-1,6 m verkleinert und der Kicker mit 6,5 m Gap erst 215 m spaeter angesetzt, wo der Absatz wieder Anlauf gibt.\n\nDROP-RAHMENMASS (idx18): Hoehenversatz des Step-downs von 1,5 auf 0,9 m reduziert, damit das Element auch abgerollt unter der 0,9-m-Grenze bleibt; eine Sonderauslegung ist damit nicht mehr noetig.\n\nREGEL 4, DER 581-M-BRUCH (idx26): geloest, nicht kaschiert. Sieben Rhythmus-Sektionen zu je drei Sprungelementen (375, 583, 782, 980, 1180, 1395, 1589), Erholungen dazwischen 148, 148, 148, 136, 148, 148 m - alle im Fenster 80-150. Die letzte Sektion endet bei 1647 m; bis zum Beginn der nach Regel 7 zwingend sprungfreien letzten 120 m (1780 m) sind es 133 m, also wieder eine regelkonforme Erholung. Laengste sprungfreie Strecke ausserhalb der Regel-7-Zone: 148 m statt 581 m. Der frueher fuenf Elemente lange sprungfreie Schlussteil wurde dafuer auf Steilhang - Schlusssektion - Steinfeld - Zielanlieger umgebaut, die Anlieger-Wallride-Kombination ist wie vom Pruefer vorgeschlagen nach oben in die Erholung 1247-1395 gerutscht.\n\nWIDERSPRUCH MIT GEGENRECHNUNG (breite_m bei steinfeld, kicker, hip): der Pruefer verlangt breite_m fuer beide Steinfelder, alle Kicker und den Hip. Die verbindliche Feldliste sieht breite_m ausschliesslich fuer anlieger und tabletop vor; ein zusaetzliches Feld waere ein neuer Regelbruch (\"keine anderen Typen erfinden\"). Die Masse werden deshalb hier festgehalten statt erfunden: beide Steinfelder 3,0 m (unter der 4-m-Grenze fuer technisches Gelaende), alle vier Kicker und der Hip 5,0-6,0 m wie die benachbarten Tabletops derselben Sektion. Die Trassenbreite ist damit ueber die Tabletops jeder Sektion belegbar: 5,0-6,0 m auf der Jumpline, 3,5-4,5 m in den Anliegern.\n\nSTRUKTURPRUEFUNG NACH DER KORREKTUR: 34 Elemente, strikt aufsteigend, jede Pruefung start_m[i]+laenge_m[i] <= start_m[i+1] haelt (engste Stellen 6 m hinter beiden Wallrides). Regel 1: beide Waende haben gleichgerichteten Anlieger davor (145 rechts vor 187 rechts, 1270 links vor 1312 links) und eine Ausleitung dahinter (213, 1340). Regel 2: zwei Waende, 1125 m Abstand. Regel 3: erstes Sprungelement bei 375 m. Regel 5: Steinfeld 100 vor Anlieger 145, Steinfeld 1690 vor Zielanlieger 1790, keines hinter einem Anlieger. Regel 7: zwischen 1780 und 1900 nur der Zielanlieger. Regel 8: alle vier Steilstuecke leiten ein (60 zu Steinfeld 100 = 40 m; 340 zu Sektion 375 = 35 m; 1145 zu 1180 = 35 m; 1550 zu 1589 = 39 m). Rahmenmasse: Tabletops 6-9 m und 1,4-2,2 m; Wallrides 20/22 m, 3,4/3,0 m, 78/76 Grad; Anlieger 1,3-1,7 m und 30-38 Grad; Kicker 1,3-2,3 m Absprung, 6,5-12 m Gap, 0,5-1,2 m Grube. Hoehenprofil monoton von 300,0 auf 0,0, ohne einen einzigen Gegenanstieg: vier Steilstufen mit 26-30 Prozent (270 m Gesamtlaenge, 77 hm), Sprungabsaetze mit 9-10 Prozent, Verbindungstraversen mit 14-18 Prozent, Zielgerade 11,9 Prozent.","hoehenprofil":[{"s_m":0,"hoehe_m":300.0},{"s_m":60,"hoehe_m":283.2},{"s_m":100,"hoehe_m":277.6},{"s_m":145,"hoehe_m":272.2},{"s_m":213,"hoehe_m":265.4},{"s_m":270,"hoehe_m":256.3},{"s_m":340,"hoehe_m":235.3},{"s_m":375,"hoehe_m":230.4},{"s_m":435,"hoehe_m":224.4},{"s_m":583,"hoehe_m":197.7},{"s_m":634,"hoehe_m":193.2},{"s_m":782,"hoehe_m":166.5},{"s_m":832,"hoehe_m":162.0},{"s_m":980,"hoehe_m":135.4},{"s_m":1044,"hoehe_m":129.0},{"s_m":1075,"hoehe_m":124.6},{"s_m":1145,"hoehe_m":103.6},{"s_m":1180,"hoehe_m":98.7},{"s_m":1247,"hoehe_m":92.0},{"s_m":1366,"hoehe_m":75.4},{"s_m":1395,"hoehe_m":71.9},{"s_m":1441,"hoehe_m":67.8},{"s_m":1480,"hoehe_m":61.9},{"s_m":1550,"hoehe_m":43.7},{"s_m":1589,"hoehe_m":38.2},{"s_m":1647,"hoehe_m":33.0},{"s_m":1722,"hoehe_m":24.0},{"s_m":1790,"hoehe_m":13.1},{"s_m":1830,"hoehe_m":8.3},{"s_m":1900,"hoehe_m":0.0}],"elemente":[{"typ":"steilstueck","start_m":0,"laenge_m":60,"gefaelle_prozent":28,"notiz":"Startet direkt unter der Bergstation und ist auf 60 m gekuerzt, damit zwischen seinem Ende bei 60 m und dem Steinfeld bei 100 m 40 m Bremsweg liegen, die die rollende Anfahrt von rund 15,5 m/s wieder auf Steinfeldtempo bringen."},{"typ":"steinfeld","start_m":100,"laenge_m":32,"notiz":"Liegt 40 m unter dem Auslauf der Startrampe und noch vor dem ersten Anlieger bei 145 m, damit die Steine gerade und abgebremst angefahren werden und der Kurvendruck erst dahinter aufgebaut wird."},{"typ":"anlieger","start_m":145,"laenge_m":26,"richtung":"rechts","neigung_grad":38,"hoehe_m":1.6,"breite_m":3.5,"notiz":"Steht 13 m hinter dem Steinfeld und 16 m vor der Holzwand und legt den Fahrer schon vor dem Wandkontakt in dieselbe Rechtskurve, die der Wallride ab 187 m verlangt."},{"typ":"wallride","start_m":187,"laenge_m":20,"seite":"rechts","hoehe_m":3.4,"neigung_grad":78,"material":"holz","notiz":"Ersetzt an der Felsnase am rechten Hangrand die Kurve, fuer die dort kein Platz ist: angefahren aus dem Rechtsanlieger, der 16 m davor endet, verlassen ueber die Ausleitung ab 213 m."},{"typ":"anlieger","start_m":213,"laenge_m":26,"richtung":"links","neigung_grad":30,"hoehe_m":1.3,"breite_m":3.6,"notiz":"Ausleitung der Wand sechs Meter hinter deren Ende: faengt den Fahrer beim Abkippen ab und uebergibt ihn geradegestellt an das Steilstueck, das 31 m weiter unten ansetzt."},{"typ":"steilstueck","start_m":270,"laenge_m":70,"gefaelle_prozent":30,"notiz":"Beginnt 31 m hinter der Wallride-Ausleitung an der Gelaendekante und leitet die erste Rhythmussektion ein, deren erster Table 35 m unter seinem Ende auf dem 10-Prozent-Absatz steht."},{"typ":"tabletop","start_m":375,"laenge_m":8,"hoehe_m":1.8,"breite_m":5.5,"notiz":"Erster Sprung der Strecke, 35 m unter dem Steilstueck gesetzt, wo der Absatz auf 10 Prozent zurueckgeht und der Anlauf abgebaut ist; 13 m weiter uebernimmt der Kicker bei 396 m."},{"typ":"kicker","start_m":396,"laenge_m":18,"absprunghoehe_m":1.5,"gapweite_m":8,"grubentiefe_m":0.7,"notiz":"Sitzt 13 m hinter der Table-Landung; der Fussabdruck aus 5,6 m Rampe, 8 m Gap und 4,4 m Landung endet bei 414 m und laesst 13 m Rollweg bis zum Schlusstable bei 427 m."},{"typ":"tabletop","start_m":427,"laenge_m":6,"hoehe_m":1,"breite_m":5.5,"notiz":"Schliesst die Sektion 13 m hinter der Kicker-Landung ab, weil der flache Absatz bei 435 m endet und danach 148 m Traverse ohne Sprungelement folgen; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"tabletop","start_m":583,"laenge_m":9,"hoehe_m":2,"breite_m":6,"notiz":"Eroeffnet 148 m nach dem letzten Table der ersten Sektion die Jumpline des Mittelteils, dort wo der Hang auf 9 Prozent zurueckgeht, und uebergibt 13 m spaeter an den Hip."},{"typ":"hip","start_m":605,"laenge_m":6.5,"hoehe_m":0.9,"seitenversatz_m":2.5,"richtung":"links","notiz":"Nutzt die 13 m hinter der Table-Landung nach links wegfallende Gelaendekante und versetzt die Linie seitlich, bevor der Table bei 626 m sie zurueck in die Falllinie holt; nachgemessen und angepasst (Höhe 1.8→0.9 m, Länge 8→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"tabletop","start_m":626,"laenge_m":6,"hoehe_m":1,"breite_m":6,"notiz":"Holt die Linie 13 m nach dem Hip zurueck in die Falllinie und beendet die Sektion, weil ab 634 m die 148 m lange 18-Prozent-Traverse zur naechsten Gruppe beginnt; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"tabletop","start_m":782,"laenge_m":8,"hoehe_m":1.9,"breite_m":6,"notiz":"Steht am Ende der 148-m-Traverse auf dem ersten flachen Absatz und eroeffnet die Gruppe, deren natuerliche Kante 13 m weiter den Step-down traegt."},{"typ":"step_down","start_m":803,"laenge_m":8,"hoehenversatz_m":0.9,"notiz":"Nutzt die Gelaendekante 13 m hinter der Table-Landung; der Versatz ist auf 0,9 m begrenzt, damit die Stufe auch langsam abgerollt regelkonform bleibt, und der Schlusstable 13 m weiter noch vor der Traverse Platz hat."},{"typ":"tabletop","start_m":824,"laenge_m":6.5,"hoehe_m":1,"breite_m":5.5,"notiz":"Faengt den Versatz des Step-downs 13 m hinter dessen Landung auf und schliesst die Gruppe, bevor die Trasse ab 832 m in die 18-Prozent-Traverse abfaellt; nachgemessen und angepasst (Höhe 1.8→1 m, Länge 8→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"kicker","start_m":980,"laenge_m":21,"absprunghoehe_m":1.8,"gapweite_m":9.5,"grubentiefe_m":1,"notiz":"Erster Sprung nach 148 m Erholungstraverse, auf dem flachsten Stueck des unteren Mittelteils, das hier als einziges eine 1,0 m tiefe Grube traegt; sein Fussabdruck endet bei 1001 m, 13 m vor dem naechsten Table."},{"typ":"tabletop","start_m":1014,"laenge_m":9,"hoehe_m":1.1,"breite_m":6,"notiz":"Liegt 13 m hinter der Kicker-Landung und traegt die Linie weiter zum letzten Table der Sektion, hinter dem ab 1075 m die Steilstufe ansetzt; nachgemessen und angepasst (Höhe 2→1.1 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"tabletop","start_m":1036,"laenge_m":5.5,"hoehe_m":1,"breite_m":6,"notiz":"Beendet die Sektion 13 m hinter dem vorigen Table, weil 31 m weiter unten die Steilstufe beginnt und auf ihrer Kante kein Absprung mehr stehen kann; nachgemessen und angepasst (Höhe 1.9→1 m, Länge 8→5.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"steilstueck","start_m":1075,"laenge_m":70,"gefaelle_prozent":30,"notiz":"Setzt 31 m hinter dem letzten Table an der markanten Steilstufe an und erzeugt den Speed fuer die Schluesselsektion, die 35 m unter seinem Ende beginnt."},{"typ":"kicker","start_m":1180,"laenge_m":25,"absprunghoehe_m":0.8,"gapweite_m":11.5,"grubentiefe_m":1.2,"notiz":"Größter Sprung der Strecke bei 62 Prozent der Länge, direkt aus dem Steilstück heraus: mit 12 m Gap braucht er 40 km/h am Rampenfuß, und die gibt es nur als erstes Glied der Kette - hinter einem Table käme man mit 29 km/h an (gemessen)."},{"typ":"tabletop","start_m":1207,"laenge_m":8,"hoehe_m":1.5,"breite_m":6,"notiz":"Table hinter dem großen Kicker als zweites Kettenglied, auf 1,5 m gesetzt, damit er mit dem Landetempo des Kickers ohne Treten erreichbar ist; sein Footprint endet vor dem Table bei 1239 m."},{"typ":"tabletop","start_m":1239,"laenge_m":6,"hoehe_m":1,"breite_m":6,"notiz":"Faengt den Fahrer 13 m nach dem grossen Gap wieder ein und schliesst als hoechster Table die Schluesselsektion, bevor ab 1247 m die sprungfreie Anlieger-Wallride-Kombination uebernimmt; nachgemessen und angepasst (Höhe 2.2→1 m, Länge 8→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"anlieger","start_m":1270,"laenge_m":26,"richtung":"links","neigung_grad":38,"hoehe_m":1.7,"breite_m":4,"notiz":"Steht 23 m hinter dem letzten Table der Schluesselsektion, ist dafuer auf 4 m verbreitert und legt den Fahrer in dieselbe Linkskurve, die die Holzwand 16 m dahinter verlangt."},{"typ":"wallride","start_m":1312,"laenge_m":22,"seite":"links","hoehe_m":3,"neigung_grad":76,"material":"holz","notiz":"Zweite und letzte Holzwand, 1125 m unter der ersten, an der linken Hangkante ueber dem Schlussgraben: angefahren aus dem Linksanlieger, der 16 m davor endet, verlassen ueber die Ausleitung ab 1340 m."},{"typ":"anlieger","start_m":1340,"laenge_m":26,"richtung":"rechts","neigung_grad":32,"hoehe_m":1.4,"breite_m":3.6,"notiz":"Ausleitung der Wand sechs Meter hinter deren Ende: dreht die Linie aus dem Wandauslauf zurueck in die Falllinie und uebergibt sie 29 m weiter an die kleine Sprunggruppe ab 1395 m."},{"typ":"tabletop","start_m":1395,"laenge_m":6,"hoehe_m":1.4,"breite_m":5,"notiz":"Eroeffnet die Gruppe 29 m hinter der Wallride-Ausleitung und ist bewusst nur 1,4 m hoch, weil aus dem 32-Grad-Auslauf davor nur rund 30 km/h ankommen."},{"typ":"tabletop","start_m":1414,"laenge_m":6,"hoehe_m":1,"breite_m":5.5,"notiz":"Liegt 13 m hinter dem Eroeffnungstable und nutzt das auf dem Absatz wieder aufgebaute Tempo, bevor 13 m weiter der letzte Table der Gruppe folgt; nachgemessen und angepasst (Höhe 1.6→1 m, Länge 7→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"tabletop","start_m":1434,"laenge_m":5,"hoehe_m":1,"breite_m":5.5,"notiz":"Schliesst die Gruppe 13 m hinter dem vorigen Table, weil 39 m weiter unten der letzte Steilhang der Strecke ansetzt und dort kein Absprung mehr stehen kann; nachgemessen und angepasst (Höhe 1.5→1 m, Länge 7→5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"steilstueck","start_m":1480,"laenge_m":70,"gefaelle_prozent":26,"notiz":"Letzter Steilhang, 39 m hinter der kleinen Sprunggruppe an der Gelaendestufe angesetzt; 39 m unter seinem Ende beginnt die Schlusssektion, sodass der aufgebaute Speed bis dahin wieder abgebaut ist."},{"typ":"tabletop","start_m":1589,"laenge_m":8,"hoehe_m":1.8,"breite_m":5.5,"notiz":"Eroeffnet die Schlusssektion 39 m unter dem letzten Steilhang auf dem 9-Prozent-Absatz und uebergibt 13 m weiter an den Abschlusskicker."},{"typ":"kicker","start_m":1610,"laenge_m":16,"absprunghoehe_m":1.3,"gapweite_m":6.5,"grubentiefe_m":0.5,"notiz":"Sitzt 13 m hinter der Table-Landung und hat ein auf 6,5 m verkuerztes Gap, weil der Anlauf hier nur noch aus dem flachen Absatz und nicht mehr aus dem Steilhang kommt; sein Fussabdruck endet 13 m vor dem Schlusstable."},{"typ":"tabletop","start_m":1639,"laenge_m":8,"hoehe_m":1.3,"breite_m":5.5,"notiz":"Letztes Sprungelement der Strecke, 13 m hinter der Kicker-Landung; danach folgen 133 m Erholung bis zum sprung- und wandfreien Schlussdrittel ab 1780 m; nachgemessen und angepasst (Höhe 1.7→1.3 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"steinfeld","start_m":1743,"laenge_m":32,"notiz":"Technische Schlussstelle 43 m hinter dem letzten Table und noch vor dem Zielanlieger, damit die Steine mit abgebautem Tempo und nicht aus einer Kurve heraus genommen werden; auf 1743 m geschoben, damit zwischen seinem Ende und dem Schlussanlieger bei 1790 m nur 15 m liegen - Bremsen im Steinfeld kostet damit genau das Tempo, das der letzte Anlieger braucht."},{"typ":"anlieger","start_m":1790,"laenge_m":40,"richtung":"links","neigung_grad":30,"hoehe_m":1.5,"breite_m":4.5,"notiz":"Letzter Anlieger, 68 m hinter dem Steinfeld und in den sprung- und wandfreien letzten 120 m, stellt den Fahrer aus der Steinpassage sauber auf die Zielgerade zur Talstation."}]},{"key":"alpin","name":"Alpin","laenge_m":1900,"hoehendifferenz_m":300,"begruendung":"DEFINITION VORAB (loest den Kern von 12 Befunden): Abstand zwischen Sprungelementen wird jetzt einheitlich ab LANDEPUNKT gemessen, Landepunkt = start_m + laenge_m, beim kicker zusaetzlich + gapweite_m. Alle Sektionsabstaende und alle Erholungsfenster sind nach dieser Definition neu vermessen; alle Zahlen in den Notizen sind ab Landepunkt gerechnet. Damit sind die Befunde zu idx9, 15, 20, 24 (Auslauf zu kurz), zu idx24 (Landung 1167 lag 1 m hinter dem Step-down-Beginn 1166) und (b) aus dem Plankonsistenz-Befund erledigt: jeder Folgesprung steht 11-14 m HINTER dem Landepunkt des Vorgaengers, nicht hinter dem Rampenende.\n\nBALLISTIK: Bemessung nach R = v^2*sin(30 Grad)/g = v^2/19,62 (15 Grad Absprung), Zielwert gapweite ~ R. (1) idx5, Kicker 412 m: Anfahrt ~14 m/s (32 m Bremsweg hinter der Steilstufe 300-360), R = 10,0 m, Gap von 6 auf 10 m und Grube auf 0,9 m vergroessert - Ueberschuss weg. (2) idx4, erstes Tabletop: auf die maximal erlaubten 9 m Laenge gezogen und von 380 auf 392 m verschoben, R = 8,6 m bei 13 m/s, Landung damit auf dem Landehang statt 5 m dahinter. (3) idx14, Kicker 778 m: Gap 9 auf 7 m, dazu Steinfeld davor 60 auf 45 m gekuerzt und Anlieger von 40 auf 32 Grad abgeflacht - Anfahrt jetzt ~12 m/s, R = 7,3 m, kein Casing. (4) idx19, Kicker 980 m: Sektionsstart von 940 auf 962 m verlegt, davor 52 m Traverse hinter dem Anlieger, ~12,5 m/s, Gap 8 statt 10 m, R = 8,0 m. (5) idx22, groesster Kicker: 35 m echte Bremszone zwischen Steilstufenauslauf (1110 m) und Absprung (1145 m) statt bisher Table-auf-Steilstufe; Eintritt ~15,3 m/s, R = 11,9 m gegen 12 m Gap - Landung auf dem Landehang statt 4 m dahinter. (6) idx26, Kicker 1358 m: Sektionseinstieg 38 m nach dem Auslauf der steilsten Passage (Ende 1320 m) statt 15 m, und Gap von 8 auf 10 m vergroessert; Anfahrt ~14 m/s, R = 10,0 m. Die physikalisch invertierte Notiz (\"kleiner bauen, weil schnell\") ist ersetzt durch die richtige Begruendung (weiter bauen, weil schnell).\n\nTABLE-RAEUMBARKEIT: idx13 (760 m) auf 7 m/1,4 m verkleinert UND Sektionsstart um 30 m nach unten verlegt (45 m Traverse hinter dem Anlieger, ~12 m/s, R = 7,3 m > 7 m Laenge). idx18 (962 m) ebenso auf 7 m/1,4 m und mit 52 m Anlauf (Forderung: mindestens 55 m Anlauf ODER verkleinern - beides umgesetzt, deshalb reicht der etwas kuerzere Anlauf). Alle uebrigen Tables sind gegen die lokale Geschwindigkeit gerechnet: 392 m 9 m/13 m/s, 590 m 8 m/12,5 m/s, 1181 m 9 m/13,5 m/s, 1390 m 8 m/13 m/s, 1600 m 8 m/12,5 m/s.\n\nREGEL 6: idx18 von hoehe_m 2,0 auf 1,4 reduziert. Damit liegt jedes Groessenmass im Fenster 1140-1330 m (60-70 %): groesste gapweite_m 12 m bei 1145 m (60,3 %), groesste absprunghoehe_m 2,3 m ebenfalls bei 1145 m, groesstes hoehe_m aller Sprungelemente 1,8 m beim Tabletop 1181 m (62,2 %). Kein Sprungelement ausserhalb des Fensters erreicht 1,8 m. Zusaetzlich wurde der Schluesselsprung wie empfohlen von 1145 m als reiner 60,0-%-Grenzfall abgesichert: er liegt jetzt sauber ueber der Grenze (1140 m) und der zweitgroesste Sprung der Strecke steht 36 m dahinter, nicht davor.\n\nREGEL 4 (Kernumbau des Schlussteils): sieben Sektionen mit je drei Sprungelementen und Erholungen von 110 / 142 / 147 / 135 / 145 / 150 / 149 m - alle im Fenster 80-150 m, alle ab Landepunkt gemessen. Die siebte Sektion (1570-1631 m) fuellt genau die vom Pruefer benannte Totstrecke: nach dem letzten Sprung bleiben 149 m bis zum Beginn des pflichtgemaess sprungfreien Schlussabschnitts bei 1780 m, statt bisher 428 m. Innenabstaende der Sektionen 11-14 m, alle unter 15 m. Auch die 151-m-Erholung aus Befund (c) ist weg: 618 -> 760 m sind jetzt 142 m.\n\nREGEL 9: Alle 34 Notizen sind auf Ortsbezug umgeschrieben und mit nachrechenbaren Zahlen versehen. idx4 traegt jetzt den realen Ortsgrund (32 m hinter dem Steilstufenauslauf, erster flacher Absatz mit Landeraum) statt der widerlegten Steigerungs-Behauptung - zusaetzlich steigert die erste Sektion nun auch numerisch tatsaechlich (Table 1,4 / Kicker 1,5 bei 10 m Gap / Step-up 1,6). Die 12-Meter-Angabe bei idx11 ist korrigiert: der Step-down endet bei 618 m, das Steinfeld beginnt bei 632 m, also exakt 14 m. Beim groessten Kicker steht die Position vorn und die Statistik ist gestrichen. Beim hohen Erdanlieger ist die Rechtfertigung eines nicht gebauten Bauteils entfernt; die Wallride-Ersatzargumentation steht hier in der begruendung, wohin sie gehoert.\n\nANLIEGER-PHYSIK UND KORRIDOR: Die drei Steinfeld-Anlieger (185, 695, 890 m) sind auf 32 Grad, 1,2 m Hoehe und 20 m Bogen gesetzt: neutrale Geschwindigkeit v = sqrt(r*g*tan32) mit r ~ 12,7 m ergibt 8,8 m/s gegen einen Eintritt von 7-8 m/s nach 17-18 m Beschleunigungsstrecke hinter dem jeweils auf 45 m gekuerzten Blockwerk - vorher standen 40-42 Grad gegen 5-6 m/s Eintritt. Korridor: Bankprojektion 1,2/tan32 = 1,92 m, bei 4,5 m Bauteilbreite bleiben 2,58 m freier Korridor, also ueber dem Mindestmass 2,5 m; die alpine Trailbreite von 2,5-4 m bezieht sich auf diesen Korridor, die 4,5 m sind die Bauteilbreite inklusive Bankflaeche.\n\nHOHER ERDANLIEGER (Wallride-Ersatz, Befund idx30): Die Vorgabe des Auftraggebers (hoehe_m nahe 1,8, neigung nahe 45) und der Pruefbefund werden ueber die vom Pruefer selbst genannte zweite Option geloest - Beschleunigungsstrecke statt Abflachung. Der Ersatzanlieger steht jetzt nicht mehr direkt am Steinfeldausgang, sondern 80 m dahinter im Schlussgefaelle (Steinfeld endet 1710 m, Anlieger 1790 m) und ist mit 22 m Bogen (r ~ 14,0 m) statt 30 m gebaut. Gegenrechnung: v_neutral = sqrt(14,0 * 9,81 * tan44) = 11,5 m/s; Eintritt aus 6 m/s Steinfeldaustritt plus 80 m Beschleunigung bei 11 % Gefaelle ergibt 11-13 m/s. Die Wand wird also ausgefahren statt in der unteren Haelfte befahren. Korridor: 1,75/tan44 = 1,81 m Projektion, 4,5 - 1,81 = 2,69 m frei. Er ist zugleich der von Regel 7 geforderte letzte Anlieger und liegt vollstaendig im sprungfreien Schlussabschnitt.\n\nROLLER: statt 4 Wellen auf 34 m (8,5 m Abstand) jetzt 5 Wellen auf 21 m (5,25 m Abstand, 0,8 m Hoehe) - pumpbar bei den dort anliegenden 9-10 m/s. Die falsche Behauptung, die Rollerpassage halte das Tempo bis 560 m, ist ersetzt: die Notiz benennt jetzt die anschliessende Traverse als eigentlichen Tempotraeger.\n\nZIELZEIT: Blockwerk von 325 m auf 185 m reduziert (45/45/45/50 statt 45/60/70/70/80), also 140 m heraus statt der geforderten rund 100 m. Ehrliche Neurechnung mit denselben Segmentgeschwindigkeiten wie im Pruefbericht: rund 190 s, also 3:10 - diese Zeit wird als Zielzeit ausgewiesen, die 3:00 werden nicht mehr behauptet.\n\nZWEI BEFUNDE BLEIBEN BEWUSST UNVERAENDERT, MIT GEGENRECHNUNG: (1) \"breite_m fehlt bei Kickern, Step-ups, Step-downs, Hip, Drop, Roller und Steinfeldern\": Die Spezifikation listet breite_m ausschliesslich bei anlieger, wallride und tabletop. Ein breite_m an einem kicker waere ein erfundenes Feld und damit ein Verstoss gegen \"ERLAUBTE TYPEN UND FELDER\" - die Behebung wuerde einen neuen Fehler erzeugen. Ersatzweise ist die Breite dort verankert, wo das Schema sie zulaesst: alle sieben Tabletops sind einheitlich auf 4,5 m gesetzt (Befund idx27, 3,8 m, damit erledigt), und da jede Sektion mindestens ein Tabletop enthaelt, ist die Jumpline-Breite fuer jede Sektion belegt und ueberprueft. Fuer die Steinfelder gilt die Rahmenvorgabe \"2,5 m im technischen Gelaende\" unveraendert; ein Zahlenfeld dafuer existiert im Schema nicht. (2) drop bei 1010 m mit laenge_m 0: Der Pruefer nennt die Spezifikation an dieser Stelle selbst widerspruechlich. Die STRUKTUR-Regel verlangt die Ueberlappungsrechnung start_m[i] + laenge_m[i] <= start_m[i+1] und schreibt ausdruecklich \"ein drop hat laenge_m 0\". Ohne das Feld waere die Rechnung fuer dieses Element undefiniert; der Wert 0 veraendert weder Sortierung noch Ueberlappung. Das Feld bleibt daher mit Wert 0.\n\nSELBSTPRUEFUNG NACH DER KORREKTUR: 34 Elemente (Fenster 24-34). Streng aufsteigend, keine Ueberlappung - die engsten Stellen sind 1010 (drop, Laenge 0) vor 1020, 1204+9 = 1213 vor 1240 und 1790+22 = 1812 vor Ziel 1900. Regel 3: erstes Sprungelement bei 392 m, die ersten 150 m enthalten nur Steilstufe und Steinfeld. Regel 5: alle vier Steinfelder (122, 632, 828, 1660 m) liegen vor einem Anlieger (185, 695, 890, 1790 m), keines dahinter. Regel 7: zwischen 1780 und 1900 m steht ausschliesslich der Zielanlieger, das letzte Sprungelement endet bei 1631 m. Regel 8: alle vier Steilstufen leiten ein - 115 m -> Steinfeld 122 m (7 m), 360 m -> Sektion 392 m (32 m), 1110 m -> Sektion 1145 m (35 m), 1320 m -> Sektion 1358 m (38 m), alle unter 40 m. Regeln 1 und 2 entfallen mangels Wallride. Masse: Tabletops 7-9 m / 1,4-1,8 m, Roller 0,8 m, Step-ups 8 m, Drop 0,85 m, Anlieger 1,2-1,75 m bei 32-44 Grad, Kicker 1,4-2,3 m Absprung, 7-12 m Gap, 0,8-1,3 m Grube - alle innerhalb der verbindlichen Masse. Hoehenprofil: 19 Stuetzstellen, streng monoton fallend von 300,0 auf 0,0 m, Summe der Steilstufen 100,5 hm, Rest 199,5 hm auf 1600 m Traversen (8-15 %). Die Begruendung nennt jetzt korrekt vier Steinfelder (Befund (a)).","hoehenprofil":[{"s_m":0,"hoehe_m":300.0},{"s_m":45,"hoehe_m":296.4},{"s_m":115,"hoehe_m":272.6},{"s_m":300,"hoehe_m":248.6},{"s_m":360,"hoehe_m":228.8},{"s_m":400,"hoehe_m":226.0},{"s_m":450,"hoehe_m":218.0},{"s_m":560,"hoehe_m":202.6},{"s_m":760,"hoehe_m":174.6},{"s_m":962,"hoehe_m":146.3},{"s_m":1020,"hoehe_m":139.3},{"s_m":1110,"hoehe_m":109.6},{"s_m":1160,"hoehe_m":106.1},{"s_m":1240,"hoehe_m":94.1},{"s_m":1320,"hoehe_m":66.9},{"s_m":1400,"hoehe_m":60.5},{"s_m":1570,"hoehe_m":35.0},{"s_m":1790,"hoehe_m":9.9},{"s_m":1900,"hoehe_m":0.0}],"elemente":[{"typ":"steilstueck","start_m":45,"laenge_m":70,"gefaelle_prozent":34,"notiz":"Setzt 45 m nach dem Start auf der ersten Gelaendekante an und uebergibt sein Tempo sieben Meter nach dem Auslauf bei 115 m an das Steinfeld ab 122 m."},{"typ":"steinfeld","start_m":122,"laenge_m":45,"notiz":"Faengt sieben Meter hinter dem Auslauf der ersten Steilstufe deren Tempo im Blockwerk ab und franst die Linie so weit auf, dass der Anlieger ab 185 m sie wieder buendeln muss."},{"typ":"anlieger","start_m":185,"laenge_m":20,"richtung":"links","neigung_grad":32,"hoehe_m":1.2,"breite_m":4.5,"notiz":"Steht 18 m hinter dem Steinfeldende bei 167 m, weil der Fahrer erst auf dieser kurzen Beschleunigungsstrecke wieder Kurvengeschwindigkeit aufbaut, und dreht die Linie auf die Traverse bis zur zweiten Steilstufe bei 300 m."},{"typ":"steilstueck","start_m":300,"laenge_m":60,"gefaelle_prozent":33,"notiz":"Bricht am Ende der Traverse in die zweite Steilstufe und laesst hinter dem Auslauf bei 360 m bewusst 32 m Bremsweg bis zum ersten Tabletop, damit dieses nicht mit vollem Steilstufentempo angefahren wird."},{"typ":"tabletop","start_m":392,"laenge_m":9,"hoehe_m":1.4,"breite_m":4.5,"notiz":"Sitzt 32 m nach dem Auslauf der zweiten Steilstufe (Ende 360 m) auf dem ersten flachen Absatz, weil erst dort Bremsweg und Landeraum vor dem Kicker bei 412 m zusammenkommen."},{"typ":"kicker","start_m":412,"laenge_m":15,"absprunghoehe_m":0.8,"gapweite_m":9,"grubentiefe_m":0.9,"notiz":"Steht elf Meter hinter der Tablelandung bei 401 m und ist mit 10 m Gap auf genau die Restgeschwindigkeit aus der Steilstufe darueber gebaut, bevor der Step-up bei 442 m folgt; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 10→9 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→15 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"step_up","start_m":442,"laenge_m":8,"hoehenversatz_m":1.6,"notiz":"Schliesst die erste Sektion zwoelf Meter hinter dem Landepunkt des Kickers (430 m) auf der Gegenstufe ab; danach beginnt die 110 m lange Erholung bis zum Kicker bei 560 m."},{"typ":"roller","start_m":470,"laenge_m":21,"anzahl":5,"hoehe_m":0.8,"notiz":"Fuellt die ersten 21 m der Erholung hinter dem Step-up mit fuenf Wellen im Pumpabstand von gut fuenf Metern, weil die anschliessende Traverse bis 560 m sonst ohne Pedaltritt nicht zu halten waere."},{"typ":"kicker","start_m":560,"laenge_m":14,"absprunghoehe_m":1.5,"gapweite_m":8,"grubentiefe_m":0.8,"notiz":"Eroeffnet die zweite Sektion 110 m nach der Landung des Step-ups dort, wo der Hang hinter der Rollerpassage wieder gleichmaessig faellt, und bleibt mit 8 m Gap im Rahmen des dort anliegenden Tempos; Länge 8→14 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":590,"laenge_m":8,"hoehe_m":1.2,"breite_m":4.5,"notiz":"Liegt 14 m hinter dem Landepunkt des Kickers (576 m), sodass vor der Kante ein Lastwechsel bleibt, und traegt den Schwung weiter zum Step-down bei 610 m; nachgemessen und angepasst (Höhe 1.6→1.2 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"step_down","start_m":610,"laenge_m":8,"hoehenversatz_m":1.3,"notiz":"Nutzt zwoelf Meter hinter der Tablelandung bei 598 m die Gelaendekante und setzt die Fahrer als letztes Element der Sektion vor dem Steinfeld ab 632 m ab."},{"typ":"steinfeld","start_m":632,"laenge_m":45,"notiz":"Beginnt 14 m nach der Landung des Step-downs bei 618 m die Erholung und liegt bewusst vor dem Anlieger bei 695 m, der die Linie danach wieder fasst."},{"typ":"anlieger","start_m":695,"laenge_m":20,"richtung":"links","neigung_grad":32,"hoehe_m":1.2,"breite_m":4.5,"notiz":"Faengt die im Blockwerk bis 677 m verstreute Linie nach 18 m Beschleunigungsstrecke auf und stellt sie auf die 45 m Traverse, aus der die dritte Sektion bei 760 m angefahren wird."},{"typ":"tabletop","start_m":760,"laenge_m":7,"hoehe_m":1.4,"breite_m":4.5,"notiz":"Startet die dritte Sektion 142 m nach dem letzten Sprung und erst am Ende der 45 m langen Traverse hinter dem Anlieger, weil direkt am Anliegerausgang das Tempo fuer eine Tablekante fehlt."},{"typ":"kicker","start_m":778,"laenge_m":12,"absprunghoehe_m":0.8,"gapweite_m":6,"grubentiefe_m":0.8,"notiz":"Liegt elf Meter hinter der Tablelandung bei 767 m und bleibt mit 7 m Gap auf dem nach Steinfeld und Anlieger noch begrenzten Anfahrtstempo, bevor der Hip bei 806 m folgt; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 7→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→12 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"hip","start_m":806,"laenge_m":6.5,"hoehe_m":0.9,"seitenversatz_m":2.5,"richtung":"rechts","notiz":"Beendet die Sektion 13 m hinter dem Landepunkt des Kickers (793 m) an der Gelaendenase und wirft die Linie nach rechts auf das Steinfeld ab 828 m; nachgemessen und angepasst (Höhe 1.5→0.9 m, Länge 9→6.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"steinfeld","start_m":828,"laenge_m":45,"notiz":"Nimmt 13 m nach der Hip-Landung bei 815 m das Sektionstempo im Blockwerk heraus und bildet die technische Erholung vor dem Anlieger bei 890 m."},{"typ":"anlieger","start_m":890,"laenge_m":20,"richtung":"links","neigung_grad":32,"hoehe_m":1.2,"breite_m":4.5,"notiz":"Steht 17 m hinter dem Steinfeldende bei 873 m und ist mit 32 Grad auf die dort noch niedrige Austrittsgeschwindigkeit aus dem Blockwerk abgestimmt, bevor 52 m Anfahrt zur vierten Sektion bei 962 m folgen."},{"typ":"tabletop","start_m":962,"laenge_m":7,"hoehe_m":1.4,"breite_m":4.5,"notiz":"Eroeffnet die vierte Sektion 147 m nach dem Hip und erst am Ende der 52 m langen Anfahrt hinter dem Anlieger, weil die Kante genau dieses Tempo zum Raeumen braucht."},{"typ":"kicker","start_m":980,"laenge_m":13.5,"absprunghoehe_m":0.8,"gapweite_m":7.5,"grubentiefe_m":0.9,"notiz":"Steht elf Meter hinter der Tablelandung bei 969 m und haelt die vierte Sektion bis zum Drop bei 1010 m zusammen; nachgemessen und angepasst (Absprunghöhe 1.6→0.8 m, Gap 8→7.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 8→13.5 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"drop","start_m":1010,"laenge_m":0,"hoehe_m":0.85,"notiz":"Liegt 14 m hinter dem Landepunkt des Kickers (996 m), sodass vor der Kante ein Lastwechsel moeglich bleibt, und setzt den Schlusspunkt der Sektion zehn Meter vor der grossen Steilstufe ab 1020 m."},{"typ":"steilstueck","start_m":1020,"laenge_m":90,"gefaelle_prozent":33,"notiz":"Nimmt zehn Meter hinter der Dropkante die grosse Steilstufe mit und laesst nach ihrem Auslauf bei 1110 m 35 m Bremsweg bis zum groessten Kicker bei 1145 m, der nur mit diesem kontrollierten Tempo traegt."},{"typ":"kicker","start_m":1145,"laenge_m":18.6,"absprunghoehe_m":2.3,"gapweite_m":12,"grubentiefe_m":1.3,"notiz":"Sitzt 35 m nach dem Auslauf der grossen Steilstufe (1020-1110 m) an der einzigen Stelle der Strecke, an der das abgebremste Tempo exakt fuer 12 m Gap reicht und der Hang dahinter lang genug flach auslaeuft; Länge 10→18.6 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":1181,"laenge_m":9,"hoehe_m":1.8,"breite_m":4.5,"notiz":"Liegt 14 m hinter dem Landepunkt des grossen Kickers (1167 m) und faengt dessen Restgeschwindigkeit auf dem Ruecken ab, bevor der Step-down bei 1204 m die Sektion aufloest."},{"typ":"step_down","start_m":1204,"laenge_m":9,"hoehenversatz_m":1.6,"notiz":"Loest die Schluesselsektion 14 m nach der Tablelandung bei 1190 m ueber die Gelaendekante auf, bevor ab 1240 m die steilste Passage beginnt."},{"typ":"steilstueck","start_m":1240,"laenge_m":80,"gefaelle_prozent":34,"notiz":"Beginnt 27 m nach dem letzten Sprung der Schluesselsektion die steilste Passage und leitet 38 m nach ihrem Auslauf bei 1320 m die sechste Sektion ab 1358 m ein."},{"typ":"kicker","start_m":1358,"laenge_m":16,"absprunghoehe_m":1.6,"gapweite_m":10,"grubentiefe_m":1,"notiz":"Eroeffnet die sechste Sektion 38 m nach dem Auslauf der steilsten Passage und ist mit 10 m Gap weiter gebaut als die Kicker davor, weil selbst nach diesem Bremsweg das hoechste Anfahrtstempo der Strecke anliegt; Länge 8→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":1390,"laenge_m":7.5,"hoehe_m":1,"breite_m":4.5,"notiz":"Folgt 14 m hinter dem Landepunkt des Kickers (1376 m), damit die Sektion ohne Bremsen bis zum Step-up bei 1412 m durchlaeuft; nachgemessen und angepasst (Höhe 1.6→1 m, Länge 8→7.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"step_up","start_m":1412,"laenge_m":8,"hoehenversatz_m":1.5,"notiz":"Schliesst die sechste Sektion 14 m nach der Tablelandung bei 1398 m auf der Gegenstufe ab; danach folgt die 150 m lange Erholung bis zur letzten Sektion bei 1570 m."},{"typ":"kicker","start_m":1570,"laenge_m":14,"absprunghoehe_m":1.4,"gapweite_m":8,"grubentiefe_m":0.8,"notiz":"Eroeffnet die letzte Sektion 150 m nach dem Step-up auf dem flacheren Hangruecken, damit zwischen ihr und dem sprungfreien Schlussabschnitt ab 1780 m keine Totstrecke entsteht; Länge 8→14 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":1600,"laenge_m":7,"hoehe_m":1,"breite_m":4.5,"notiz":"Liegt 14 m hinter dem Landepunkt des Kickers (1586 m) und haelt die Linie bis zum abschliessenden Step-down bei 1622 m unter Zug; nachgemessen und angepasst (Höhe 1.5→1 m, Länge 8→7 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"step_down","start_m":1622,"laenge_m":9,"hoehenversatz_m":1.4,"notiz":"Beendet 14 m nach der Tablelandung bei 1608 m als letztes Sprungelement die Abfahrt ueber die Kante und endet 149 m vor dem sprungfreien Schlussabschnitt ab 1780 m."},{"typ":"steinfeld","start_m":1725,"laenge_m":50,"notiz":"Beginnt 29 m nach dem letzten Sprung, nimmt das Sektionstempo im Blockwerk heraus und liegt als letzte technische Passage vor dem Zielanlieger bei 1790 m; auf 1725 m geschoben, damit zwischen seinem Ende und dem Schlussanlieger bei 1790 m nur 15 m liegen - Bremsen im Steinfeld kostet damit genau das Tempo, das der letzte Anlieger braucht."},{"typ":"anlieger","start_m":1790,"laenge_m":22,"richtung":"rechts","neigung_grad":44,"hoehe_m":1.75,"breite_m":4.5,"notiz":"Steht 80 m hinter dem Steinfeldende bei 1710 m, weil erst diese Beschleunigungsstrecke im Schlussgefaelle die rund 11,5 m/s liefert, mit denen 1,75 m Wand bei 44 Grad neutral ausgefahren werden, und dreht die Fahrer auf die letzten 88 m Zielgerade."}]},{"key":"canyon","name":"Canyon","laenge_m":1900,"hoehendifferenz_m":300,"begruendung":"Grundlage ist das Hoehenprofil von Entwurf B: 300 hm auf 1900 m ergeben im Mittel 15,8 Prozent, und ein echter Canyonhang haelt diesen Schnitt nicht als Konstante durch, sondern in fuenf Abfallstufen von 22 bis 26 Prozent (8, 262, 700, 1060, 1450 m) mit Traversen von 9 bis 17 Prozent dazwischen. Entwurf A legt zwar drei sehr steile Rampen von 32 bis 36 Prozent an, laesst dafuer aber ueber 1500 Meter ein fast unveraendertes 14- bis 16-Prozent-Band stehen - das ist Planierraupen-, kein Hanggelaende. Aus B stammen also Profil, Steilstueck-Positionen und die daraus folgenden Sektionsanfaenge; aus A stammt die Dichte und Breite der Anlieger, die konsequent nach oben gezogenen Gapweiten (10 bis 12 m statt 9) und die klar durchgezogenen Rhythmus-Bloecke. Die Sektionen liegen jeweils auf den flachen Traversen direkt hinter einer Steilstufe (332, 780, 1140, 1522 m), weil dort Anfahrt aus dem Gefaelle und flache Landezone zusammentreffen. Der groesste Gap mit zwoelf Metern steht bei 1164 m, also bei 61 Prozent der Laenge, mitten in der einzigen langen 8,6-Prozent-Zone der Strecke; der Kicker bei 1140 m ist nur sein Anlauf. Die beiden Betonwallrides bei 548 und 1366 m liegen 818 Meter auseinander, jeweils hinter einem gleichgerichteten Steilanlieger (512 links, 1325 rechts) und mit einer Gegenkurve als Ausleitung (578, 1398 m). Nur ein Steinfeld bei 152 m, bewusst vor dem Anlieger bei 176 m, entspricht der Canyon-Vorgabe wenig Steinfeld, dafuer zwoelf breite, schnelle Anlieger bis 6 m Breite. Die letzten 120 Meter ab 1780 m sind sprung- und wallridefrei und enthalten nur den Zielanlieger bei 1790 m; das letzte Sprungelement endet bereits bei 1574 m.","hoehenprofil":[{"s_m":0,"hoehe_m":300},{"s_m":50,"hoehe_m":288},{"s_m":150,"hoehe_m":275},{"s_m":262,"hoehe_m":259},{"s_m":322,"hoehe_m":243},{"s_m":380,"hoehe_m":237},{"s_m":462,"hoehe_m":224},{"s_m":548,"hoehe_m":213},{"s_m":700,"hoehe_m":192},{"s_m":762,"hoehe_m":177},{"s_m":915,"hoehe_m":156},{"s_m":1060,"hoehe_m":131},{"s_m":1122,"hoehe_m":115},{"s_m":1215,"hoehe_m":107},{"s_m":1325,"hoehe_m":90},{"s_m":1450,"hoehe_m":74},{"s_m":1512,"hoehe_m":60},{"s_m":1580,"hoehe_m":53},{"s_m":1700,"hoehe_m":33},{"s_m":1900,"hoehe_m":0}],"elemente":[{"typ":"steilstueck","start_m":8,"laenge_m":42,"gefaelle_prozent":24,"notiz":"Faellt direkt aus dem Starttor in die Canyonflanke und liefert das Tempo, das der Fahrer acht Meter spaeter im ersten Anlieger bei 58 m ohne einen einzigen Tritt braucht."},{"typ":"anlieger","start_m":58,"laenge_m":30,"richtung":"rechts","neigung_grad":38,"hoehe_m":1.6,"breite_m":5.5,"notiz":"Faengt acht Meter hinter dem Auslauf des Start-Steilstuecks dessen gesamtes Tempo in der ersten Rechtskurve ab und stellt die Linie auf die Gegenkurve bei 100 m."},{"typ":"anlieger","start_m":100,"laenge_m":30,"richtung":"links","neigung_grad":36,"hoehe_m":1.5,"breite_m":5.5,"notiz":"Gegenkurve zum Anlieger bei 58 m, die die Strecke vor dem Steinsektor bei 152 m wieder auf die Falllinie legt."},{"typ":"steinfeld","start_m":152,"laenge_m":16,"notiz":"Liegt auf der Traverse hinter dem zweiten Eingangsanlieger und bewusst vor dem Anlieger bei 176 m, damit die Steine auf der Geraden abgearbeitet werden und nicht im Kurvenausgang stoeren."},{"typ":"anlieger","start_m":176,"laenge_m":30,"richtung":"rechts","neigung_grad":40,"hoehe_m":1.7,"breite_m":5,"notiz":"Nimmt das Rumpeln unmittelbar aus dem Steinfeld auf und dreht die Linie auf die lange Traverse zum Steilstueck bei 262 m."},{"typ":"steilstueck","start_m":262,"laenge_m":60,"gefaelle_prozent":26,"notiz":"Nimmt die erste 26-Prozent-Stufe der Flanke mit und leitet die erste Rhythmus-Sektion ein, deren Kicker zehn Meter hinter seinem Ende bei 332 m steht."},{"typ":"kicker","start_m":332,"laenge_m":16,"absprunghoehe_m":1.3,"gapweite_m":10,"grubentiefe_m":0.8,"notiz":"Erster Sprung der Abfahrt, zehn Meter im Auslauf des Steilstuecks gesetzt, wo das Gelaende auf zehn Prozent abflacht und die Anfahrt ohne Tritt reicht; Länge 12→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":354,"laenge_m":8,"hoehe_m":1.7,"breite_m":6,"notiz":"Steht zehn Meter hinter der Kicker-Landung mitten in der Sektion, damit der Fahrer die Landung direkt in den naechsten Absprung uebersetzt statt an die Bremse zu fassen."},{"typ":"kicker","start_m":372,"laenge_m":12,"absprunghoehe_m":0.8,"gapweite_m":6,"grubentiefe_m":0.9,"notiz":"Schliesst die erste Sektion mit dem weitesten Gap dieses Abschnitts ab, weil der Fahrer aus Kicker und Tabletop voll beschleunigt ankommt; ab 384 m beginnt die sprungfreie Erholung; nachgemessen und angepasst (Absprunghöhe 1.5→0.8 m, Gap 10.5→6 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"anlieger","start_m":462,"laenge_m":40,"richtung":"rechts","neigung_grad":36,"hoehe_m":1.7,"breite_m":6,"notiz":"Erste Kurve der Erholungsstrecke, 78 Meter hinter der letzten Landung, die das Resttempo der Sektion in Kurvengeschwindigkeit umlegt und die Anfahrt zur Betonwand eroeffnet."},{"typ":"anlieger","start_m":512,"laenge_m":34,"richtung":"links","neigung_grad":42,"hoehe_m":1.8,"breite_m":4.5,"notiz":"Steiler Linksanlieger unmittelbar vor der Wand bei 548 m, in derselben Kurvenrichtung gebaut, damit der Fahrer bereits in Schraeglage auf den Beton einfaehrt."},{"typ":"wallride","start_m":548,"laenge_m":22,"seite":"links","hoehe_m":3.4,"neigung_grad":80,"material":"beton","notiz":"Sitzt auf der befestigten Canyonflanke direkt hinter dem gleichgerichteten Linksanlieger bei 512 m und wird vom Anlieger bei 578 m wieder ausgeleitet."},{"typ":"anlieger","start_m":578,"laenge_m":30,"richtung":"rechts","neigung_grad":34,"hoehe_m":1.5,"breite_m":5.5,"notiz":"Ausleitung der Wand: faengt den Fahrer acht Meter hinter dem Wandausgang beim Abkippen ab und dreht die Linie zurueck auf die Traverse zum Steilstueck bei 700 m."},{"typ":"steilstueck","start_m":700,"laenge_m":62,"gefaelle_prozent":24,"notiz":"Zweite Gelaendestufe der Flanke; sie holt die Hoehe und leitet die zweite Rhythmus-Sektion ein, die achtzehn Meter hinter ihrem Ende bei 780 m beginnt."},{"typ":"tabletop","start_m":780,"laenge_m":8,"hoehe_m":2,"breite_m":6,"notiz":"Erster Sprung nach dem Steilstueck, dessen Auslauf hier die Anfahrt liefert, bevor der Hang elf Meter weiter nach rechts abknickt."},{"typ":"hip","start_m":799,"laenge_m":9,"hoehe_m":1.7,"seitenversatz_m":3,"richtung":"rechts","notiz":"Nutzt genau den Rechtsknick des Hangs elf Meter hinter der Tabletop-Landung und uebersetzt den Sprung in den Richtungswechsel statt in eine Bremskurve."},{"typ":"kicker","start_m":820,"laenge_m":17.3,"absprunghoehe_m":1.8,"gapweite_m":11,"grubentiefe_m":1.1,"notiz":"Letzter Sprung dieser Sektion, zwoelf Meter hinter dem Hip, wo der Fahrer aus Tabletop und Hip am schnellsten ankommt; danach bleibt die Strecke bis 1140 m sprungfrei; Länge 12→17.3 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"anlieger","start_m":908,"laenge_m":44,"richtung":"links","neigung_grad":34,"hoehe_m":1.6,"breite_m":6,"notiz":"Eroeffnet 76 Meter hinter der letzten Landung die breite Anlieger-Kette auf der 17-Prozent-Traverse und haelt das Tempo, statt es in einer Bremsspur zu verlieren."},{"typ":"anlieger","start_m":962,"laenge_m":44,"richtung":"rechts","neigung_grad":36,"hoehe_m":1.7,"breite_m":6,"notiz":"Gegengleich zum Anlieger bei 908 m gesetzt, damit der Fahrer im Wechsel Hoehe abbaut und voll ausbeschleunigt in das Steilstueck bei 1060 m einfaehrt."},{"typ":"steilstueck","start_m":1060,"laenge_m":62,"gefaelle_prozent":26,"notiz":"Steilste Stufe der Flanke direkt hinter der Anlieger-Kette; sie leitet die Hauptsektion ein, deren erster Kicker achtzehn Meter hinter ihrem Ende bei 1140 m steht."},{"typ":"kicker","start_m":1140,"laenge_m":19.3,"absprunghoehe_m":1.8,"gapweite_m":12.5,"grubentiefe_m":1,"notiz":"Anlauf-Kicker der Hauptsektion im flacher werdenden Auslauf des Steilstuecks, der das Tempo fuer den grossen Gap zwoelf Meter dahinter aufbaut; als erster Kicker der 60-%-Sektion zum größten Sprung der Strecke gemacht (Gap 12,5 m) - der zweite in einer Kette kann es nicht sein, dort fehlt das Tempo; Länge 12→19.2 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"kicker","start_m":1164,"laenge_m":18.6,"absprunghoehe_m":0.8,"gapweite_m":12,"grubentiefe_m":1.4,"notiz":"Groesster Gap der Strecke bei 61 Prozent der Laenge, hier weil zwischen 1122 und 1215 m die einzige lange flache Landezone liegt und der Kicker bei 1140 m die noetige Anfahrt liefert; nachgemessen und angepasst (Absprunghöhe 2.4→0.8 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt; Länge 14→18.6 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet; zweiter Kicker der Kette, deshalb bewusst kleiner als der erste."},{"typ":"tabletop","start_m":1190,"laenge_m":8.5,"hoehe_m":1,"breite_m":6,"notiz":"Steht zwoelf Meter hinter der Landung des grossen Gaps als sichere Auffangstufe, bevor die Sektion mit dem Step-down endet; nachgemessen und angepasst (Höhe 2.5→1 m, Länge 9→8.5 m), damit ein Fahrer, der vor der Lippe auf Zieltempo bremst, ohne Treten auf der Landung ankommt."},{"typ":"step_down","start_m":1212,"laenge_m":8,"hoehenversatz_m":1.8,"notiz":"Nutzt die Gelaendekante bei 1215 m, wo die flache Landezone wieder in die steilere Traverse kippt, als Sektionsabschluss und gibt das Tempo kontrolliert an die Erholung ab; um 2 m auf 1212 m geschoben, damit die Landung des Tables davor nicht in den Absprung ragt."},{"typ":"roller","start_m":1240,"laenge_m":36,"anzahl":5,"hoehe_m":1,"notiz":"Ueberbrueckt die Erholung zwischen dem Sektionsende bei 1218 m und der Wallride-Anfahrt und laesst den Fahrer das Tempo pumpen, das die zweite Betonwand verlangt."},{"typ":"anlieger","start_m":1325,"laenge_m":32,"richtung":"rechts","neigung_grad":40,"hoehe_m":1.7,"breite_m":5.5,"notiz":"Rechtskurve unmittelbar vor der zweiten Betonwand bei 1366 m, die Kurvenrichtung und Anfahrtshoehe fuer die Wand vorgibt."},{"typ":"wallride","start_m":1366,"laenge_m":24,"seite":"rechts","hoehe_m":3.8,"neigung_grad":82,"material":"beton","notiz":"Zweite und letzte Betonwand, 818 Meter hinter der ersten und direkt hinter dem gleichgerichteten Rechtsanlieger bei 1325 m, mit Ausleitung durch den Anlieger bei 1398 m."},{"typ":"anlieger","start_m":1398,"laenge_m":30,"richtung":"links","neigung_grad":36,"hoehe_m":1.5,"breite_m":5.5,"notiz":"Ausleitung der zweiten Wand: faengt den Fahrer beim Abkippen vom Beton ab und legt die Linie in die Falllinie vor dem Steilstueck bei 1450 m."},{"typ":"steilstueck","start_m":1450,"laenge_m":62,"gefaelle_prozent":22,"notiz":"Letzte Gelaendestufe der Abfahrt, die die Schluss-Sektion einleitet, deren erster Kicker zehn Meter hinter ihrem Ende bei 1522 m steht."},{"typ":"kicker","start_m":1522,"laenge_m":16,"absprunghoehe_m":1.6,"gapweite_m":10,"grubentiefe_m":1,"notiz":"Erster Sprung der Schluss-Sektion direkt im Auslauf des Steilstuecks, wo die Anfahrt noch aus dem Gefaelle kommt und kein Tritt noetig ist; Länge 12→16 m: Anlauf 3 m + Gap + Landung, so wie bei Downhill Republic gerechnet."},{"typ":"tabletop","start_m":1546,"laenge_m":8,"hoehe_m":1.8,"breite_m":5.5,"notiz":"Zwoelf Meter hinter der Kicker-Landung gesetzt, haelt es den Rhythmus bis zum abschliessenden Step-up bei 1566 m aufrecht."},{"typ":"step_up","start_m":1566,"laenge_m":8,"hoehenversatz_m":1.2,"notiz":"Letztes Sprungelement der Strecke; sein Hoehenversatz baut das Tempo der Schluss-Sektion ab, danach bleiben die verbleibenden 326 Meter bis zum Ziel sprungfrei."},{"typ":"anlieger","start_m":1660,"laenge_m":40,"richtung":"rechts","neigung_grad":38,"hoehe_m":1.6,"breite_m":6,"notiz":"Faengt 86 Meter hinter dem letzten Sprung das hohe Tempo der 17-Prozent-Auslaufflanke ab, bevor die sprungfreien letzten 120 Meter beginnen."},{"typ":"anlieger","start_m":1790,"laenge_m":40,"richtung":"links","neigung_grad":32,"hoehe_m":1.4,"breite_m":6,"notiz":"Letzter Anlieger im sprungfreien Auslauf ab 1780 m, der das Resttempo hinter dem Anlieger bei 1660 m in eine weite Kurve legt statt in eine Bremsung vor dem Zielbereich."}]}]}</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const G = 9.81;
+const TRACKS = JSON.parse(document.getElementById('strecken').textContent).strecken;
+const GLB_PFAD_HAUPT = 'mtb-emtb-fahrerin.glb';   // Enduro und eMTB kommen aus derselben Datei
+
+/* ===========================================================================
+   RÄDER
+   Der Unterschied ist nicht kosmetisch: Masse, Luftwiderstand, Rollwiderstand,
+   Bremskraft und Luftkontrolle unterscheiden sich. Das eMTB ist schwerer, rollt
+   auf Geraden besser aus und tritt mit, lässt sich in der Luft aber schlechter
+   korrigieren — genau der Trade-off, den man auf dem Rad auch spürt.
+   =========================================================================== */
+const BIKES = {
+  v10: {
+    id:'v10', name:'Santa Cruz V10 · DH', accent:0xd9a441,
+    masse:92, CdA:0.50, Crr:0.017, bremse:8000, tritt:200, luft:4.4, boden:8.0, grip:1.12, absorb:0.62,
+    modell:{glb:'fahrzeuge/v10.glb', bau:{gabel:'doppel', hinterbau:'coil', motor:false, sattelHoch:false, lenkerBreite:0.80, radR:0.37, radstand:1.0}},
+    d:'Doppelbrücke, Coil-Dämpfer, 200 mm Federweg. Schluckt fast alles, will aber Tempo.'
+  },
+  mtb: {
+    id:'mtb', name:'Enduro 170', accent:0x4fd1c5,
+    masse:88,        // Fahrerin + Rad, kg
+    CdA:0.48,        // m², aufrechte Abfahrtshaltung
+    Crr:0.016,       // Rollwiderstand grober Reifen auf festem Boden
+    bremse:7200,     // N Bremskraft an der Grenze zum Blockieren
+    tritt:260,       // W Dauerleistung beim Treten
+    luft:5.2,        // seitliche Kontrolle in der Luft, m/s²
+    boden:9.0,       // seitliche Kontrolle am Boden, m/s²
+    grip:1.05,       // Reibbeiwert für die Kurvengrenze
+    absorb:0.48,     // m, so viel Welle schluckt Federung + Beine, bevor man abhebt
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
+    d:'Leichter, wendiger, kürzerer Bremsweg. In der Luft besser zu korrigieren.'
+  },
+  dirt: {
+    id:'dirt', name:'Dirt Hardtail', accent:0xc6f24e,
+    masse:84, CdA:0.46, Crr:0.015, bremse:6800, tritt:280, luft:6.2, boden:9.6, grip:0.98, absorb:0.28,
+    modell:{glb:'fahrzeuge/dirt.glb', bau:{gabel:'einfach', hinterbau:'starr', motor:false, sattelHoch:false, lenkerBreite:0.74, radR:0.33, radstand:0.86}},
+    d:'Starrer Hinterbau, 26 Zoll, kurz. Zappelig, geht beim Absprung höher — und das Steinfeld tut weh.'
+  },
+  emtb: {
+    id:'emtb', name:'eMTB', accent:0xff9d4d,
+    masse:113,       // ca. 25 kg mehr: Motor, Akku, verstärkter Rahmen
+    CdA:0.50,
+    Crr:0.019,       // breitere Reifen, mehr Auflagedruck
+    bremse:8600,     // stärkere Bremsen, aber mehr Masse zu verzögern
+    tritt:260,
+    motor:620,       // W Motorunterstützung, nur unter 25 km/h (StVZO-Grenze)
+    motorBis:6.94,   // 25 km/h in m/s
+    luft:3.6,        // träger in der Luft
+    boden:7.4,
+    grip:1.10,       // mehr Auflagedruck → etwas mehr Grip
+    absorb:0.42,     // etwas weniger: mehr Masse, die Beine müssen mehr halten
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:true, sattelHoch:true, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
+    d:'25 kg schwerer, schiebt bis 25 km/h mit. Träge in der Luft, stabiler am Boden.'
+  },
+  roller: {
+    id:'roller', name:'E-Roller', accent:0xe8e8ee,
+    masse:92, CdA:0.55, Crr:0.022, bremse:5600, tritt:120, motor:500, motorBis:5.56, luft:6.0, boden:8.5, grip:0.85, absorb:0.15,
+    modell:{glb:'fahrzeuge/roller.glb', bau:{radR:0.16, radstand:0.84}},
+    d:'Trittbrett, 16-cm-Räder, 500 W bis 20 km/h. Nichts federt, alles rutscht. Nicht empfehlenswert. Trotzdem drin.'
+  }
+};
+const BIKE_IDS = Object.keys(BIKES);   // Reihenfolge = Tasten 1–5
+
+/* Charaktere: Palette + Ausstattung. Die GLB hat kein Rig, also keine Posen
+   oder Körpergrößen — vier Fahrer:innen, die man auf 10 m auseinanderhält. */
+const CHARAKTERE = [
+  { id:'mia',   name:'Mia',   jersey:0x0a7a6a, hose:0x0a0d12, helm:0xff3008, haut:0x945a30, haar:0x0a0503, zopf:true,  schirm:true  },
+  { id:'lenny', name:'Lenny', jersey:0x1b1f27, hose:0x1b1f27, helm:0xd9a441, haut:0xe0b090, haar:0x3a2a18, zopf:false, schirm:true  },
+  { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false },
+  { id:'nora',  name:'Nora',  jersey:0xffffff, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true  },
+];
+let aktCharakterId = 'mia';
+const aktCharakter = () => CHARAKTERE.find(c => c.id === aktCharakterId) || CHARAKTERE[0];
+
+/* Farben auf ein vorhandenes Modell anwenden — nur Materialfarben und zwei
+   Sichtbarkeiten, kein Neuladen. GLB: über Materialnamen (bleiben auch nach
+   dem Merge erhalten) und Node-Namen unter rider_female (vom Merge ausgenommen).
+   Rohrmodell: über die in baueFahrerin abgelegten Referenzen. */
+function wendeCharakterAn(halter, ch){
+  if(!halter || !ch) return;
+  const u = halter.userData;
+  const fahrerin = u.fahrerin || halter;
+  const farbe = {jersey:ch.jersey, kit_pants:ch.hose, helmet:ch.helm, skin:ch.haut, hair:ch.haar};
+  const cd = fahrerin.userData && fahrerin.userData.charakter;
+  if(cd){
+    for(const [n, m] of Object.entries(cd.materialien)) if(farbe[n] !== undefined) m.color.set(farbe[n]);
+    cd.zopf.visible = !!ch.zopf; cd.schirm.visible = !!ch.schirm;
+    return;
+  }
+  fahrerin.traverse(o => {
+    if(o.name === 'ponytail') o.visible = !!ch.zopf;
+    if(o.name === 'helmet_peak') o.visible = !!ch.schirm;
+    if(!o.isMesh) return;
+    for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+      if(m && farbe[m.name] !== undefined) m.color.set(farbe[m.name]);
+  });
+}
+
+/* ===========================================================================
+   1. MITTELLINIE
+   Die Strecke wird nicht gezeichnet, sondern integriert. Anlieger und Wallrides
+   biegen die Linie; ihr Radius folgt aus der Querneigung:
+        R = v² / (g · tan φ)
+   Ein 45°-Anlieger zieht damit fast doppelt so eng wie ein 30°-Anlieger.
+
+   RICHTUNGSKONVENTION (wichtig, weil leicht falsch herum):
+   `richtung` bzw. `seite` ist immer die KURVENRICHTUNG, nicht die Bauseite.
+   Die Bank steht auf der Kurvenaußenseite — bei einer Linkskurve also rechts.
+   Das gilt für Anlieger und Wallride gleichermaßen, deshalb ist Regel 1
+   ("Anlieger in dieselbe Richtung") physikalisch stimmig.
+   =========================================================================== */
+const DS = 1.5;    // Stationsabstand, m
+
+function aussenVon(richtung){ return richtung === 'links' ? 1 : -1; }  // +1 = außen rechts
+
+/* Grobes Tempoprofil aus dem Höhenprofil allein, ohne Kurven und ohne Bremsen.
+   Es wird gebraucht, BEVOR die Kurven feststehen — deshalb dieser erste Durchgang.
+   Ein Anlieger, dessen Radius aus einer festen Referenzgeschwindigkeit kommt, ist
+   bei echten 18-20 m/s drei- bis viermal zu eng; der Fahrer wird oben rausgetragen. */
+function tempoProfil(track){
+  const L = track.laenge_m, SCHRITT = 2.0;
+  const n = Math.ceil(L/SCHRITT) + 2, v = new Float32Array(n);
+  const m = 88, CdA = 0.48, rho = 1.225;
+  v[0] = 3;
+  for(let i = 1; i < n; i++){
+    const s = i*SCHRITT;
+    const dh = baseHoehe(track, s-SCHRITT) - baseHoehe(track, s);
+    const theta = Math.atan(dh/SCHRITT);
+    let crr = 0.016;
+    for(const e of track.elemente){
+      if(e.typ === 'steinfeld' && s >= e.start_m && s <= e.start_m+e.laenge_m) crr *= 3.4;
+    }
+    const vv = Math.max(v[i-1], 2);
+    const a = G*Math.sin(theta) - G*Math.cos(theta)*crr - 0.5*rho*CdA*vv*vv/m;
+    v[i] = Math.max(2.5, Math.min(28, Math.sqrt(Math.max(6.25, vv*vv + 2*a*SCHRITT))));
+  }
+  return s => v[Math.max(0, Math.min(Math.round(s/SCHRITT), n-1))];
+}
+
+function baueMittellinie(track){
+  const L = track.laenge_m;
+  const vBei = tempoProfil(track);
+  const kurven = [];
+  for(const e of track.elemente){
+    if(e.typ === 'anlieger'){
+      // Radius aus dem Tempo an DIESER Stelle, nicht aus einer Konstanten.
+      // Bei Planungstempo soll der Fahrer auf 2/3 der Wange fahren, nicht an
+      // der Oberkante. Deshalb 0,8·φ als wirksame Neigung für den Radius.
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(10, Math.min(65, v*v / (G * Math.tan(0.8 * e.neigung_grad * Math.PI/180))));
+      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.richtung==='links'?1:-1)/R});
+    } else if(e.typ === 'wallride'){
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(14, Math.min(45, v*v / (G * Math.tan(52 * Math.PI/180))));
+      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.seite==='links'?1:-1)/R});
+    }
+  }
+  const st = [];
+  let psi = 0, x = 0, z = 0;
+  for(let s = 0; s <= L + DS; s += DS){
+    let k = 0;
+    for(const c of kurven) if(s >= c.a && s < c.b) k += c.k;
+    if(k === 0) k = 0.0016*Math.sin(s/61) + 0.0011*Math.sin(s/137 + 2);  // leichte Drift
+    psi += k*DS; x += Math.sin(psi)*DS; z += Math.cos(psi)*DS;
+    st.push({s, x, z, psi, k});
+  }
+  return st;
+}
+
+/* --------------------------------------------------------- Basis-Höhenprofil */
+function baseHoehe(track, s){
+  const hp = track.hoehenprofil;
+  // Fehlt das Profil, bleibt ein gleichmäßiges Gefälle. Lieber eine fahrbare
+  // Strecke als eine leere Seite.
+  if(!hp || hp.length < 2) return track.hoehendifferenz_m * (1 - s/track.laenge_m);
+  if(s <= hp[0].s_m) return hp[0].hoehe_m;
+  if(s >= hp[hp.length-1].s_m) return hp[hp.length-1].hoehe_m;
+  for(let i = 0; i < hp.length-1; i++){
+    const a = hp[i], b = hp[i+1];
+    if(s >= a.s_m && s <= b.s_m){
+      const t = (s-a.s_m)/(b.s_m-a.s_m);
+      const e = t*t*(3-2*t);                    // sanfter Übergang statt Knick
+      return a.hoehe_m + e*(b.hoehe_m-a.hoehe_m);
+    }
+  }
+  return 0;
+}
+
+/* Deterministisches Rauschen — dieselbe Strecke sieht immer gleich aus. */
+function noise(x){
+  const i = Math.floor(x), f = x - i;
+  const h = n => { const t = Math.sin(n*127.1)*43758.5453; return t - Math.floor(t); };
+  const u = f*f*(3-2*f);
+  return (h(i)*(1-u) + h(i+1)*u)*2 - 1;
+}
+
+/* ===========================================================================
+   2. LÄNGSPROFIL DER ELEMENTE  —  Δh(s)
+   Jedes Sprungelement verformt die Höhe entlang der Strecke. Der Basisverlauf
+   aus `hoehenprofil` bleibt unangetastet, die Elemente liegen additiv darauf.
+   =========================================================================== */
+function rampe(q){ return q*q*(3-2*q); }                    // 0→1, an beiden Enden flach
+function bucht(q){ return Math.sin(Math.PI*q); }            // 0→1→0
+const clamp01 = q => Math.max(0, Math.min(1, q));
+
+/* Lippenwinkel je Sprungtyp, Grad. Das sind reale Bikepark-Werte: Tables und
+   Hips 35-40°, Kicker steiler, Step-downs flach (man will Weite, nicht Höhe). */
+const LIPPE = {tabletop:38, kicker:42, step_up:40, step_down:22, hip:40};
+
+/* Geometrie eines Sprungelements.
+   WAS laenge_m BEDEUTET, hängt vom Typ ab — so, wie es in Bikeparks gesagt wird:
+     tabletop, hip     Länge des TISCHES (Lippe bis Landungsbeginn). Absprung und
+                       Landung kommen davor und dahinter DAZU.
+     step_up/step_down Gap + Landung. Der Absprung kommt davor dazu.
+     kicker            Rampe + Gap + Landung, der ganze Footprint.
+   Absprung: Parabel h = tanα·x²/(2·Lt), am Fuß flach, an der Lippe genau α,
+   Länge Lt = 2H/tanα. Eine 1,8-m-Lippe bei 38° braucht 4,6 m Anlauf — deshalb
+   passt eine 2-m-Lippe nicht in 9 m Gesamtfläche, und deshalb diese Semantik.
+   Die Landung ist genauso lang wie der Absprung und oben genauso steil. */
+function sprungGeometrie(e){
+  const a = e.start_m, L = e.laenge_m || 0, t = e.typ;
+  const alpha = (LIPPE[t] || 30) * Math.PI/180, tanA = Math.tan(alpha);
+  let Lt, H, deckB, Ll, K;
+  if(t === 'tabletop' || t === 'hip'){
+    H = e.hoehe_m; Lt = 2*H/tanA; deckB = a + Lt + L; Ll = Lt; K = H;
+  } else if(t === 'kicker'){
+    // Der Anlauf (L − Gap − Landung) ist meist länger als die eigentliche Rampe.
+    // Die Rampe ist nur 2H/tanα lang; davor bleibt der Anlauf flach. Sonst würde
+    // die Parabel über den ganzen Anlauf steigen und aus 0,8 m Lippe 3,6 m machen.
+    const Gp = e.gapweite_m; Ll = Math.max(3, 0.3*Gp);
+    const anlauf = Math.max(3, L - Gp - Ll);
+    H = Math.min(e.absprunghoehe_m, anlauf*tanA/2); Lt = 2*H/tanA;
+    deckB = a + anlauf + Gp; K = 0.55*H;
+    const lippe = a + anlauf, fuss = lippe - Lt, ende = Math.max(a + L, deckB + Ll), ziel = deckB + 0.35*Ll;
+    return {typ:t, a, L, Lt, H, alpha, lippe, fuss, deckB, Ll, K, ende, ziel, gap:Gp, grube:e.grubentiefe_m || 0};
+  } else if(t === 'step_up'){
+    H = 0.6*e.hoehenversatz_m + 0.4; Lt = 2*H/tanA;
+    deckB = a + Lt + 0.45*L; Ll = 0.55*L; K = e.hoehenversatz_m;
+  } else if(t === 'step_down'){
+    H = 0.5; Lt = 2*H/tanA;                                   // flache, niedrige Sender-Lippe
+    deckB = a + Lt + 0.5*L; Ll = 0.5*L; K = -e.hoehenversatz_m;
+  } else return null;
+  const lippe = a + Lt;
+  // Wo soll der Fahrer landen? Auf der Landung, nicht auf dem Deck und nicht dahinter.
+  const ziel = t === 'kicker' ? deckB + 0.35*Ll
+             : t === 'step_up' ? deckB + 1.0
+             : deckB + 0.4*Ll;
+  return {typ:t, a, L, Lt, H, alpha, lippe, fuss:a, deckB, Ll, K, ende: deckB + Ll, ziel, gap:0, grube:0};
+}
+
+/* ===========================================================================
+   2. LÄNGSPROFIL DER ELEMENTE  —  Δh(s)
+   Jedes Sprungelement verformt die Höhe entlang der Strecke. Der Basisverlauf
+   aus `hoehenprofil` bleibt unangetastet, die Elemente liegen additiv darauf.
+   `physik` = true liefert die Fläche, auf der gerechnet wird: OHNE die Steine
+   des Steinfelds. Die sind nur im Mesh — eine Punktmasse ohne Federung würde
+   über jeden 16-cm-Stein abheben; in echt frisst das die Federung, und im
+   Modell frisst es der erhöhte Rollwiderstand.
+   =========================================================================== */
+function sprungDeltaH(g, s){
+  const {typ, Lt, H, alpha, lippe, fuss, deckB, Ll, K, ende, gap, grube} = g;
+  if(s < fuss) return 0;                                       // flacher Anlauf
+  // Absprung: Parabel, am Fuß flach, an der Lippe Winkel α und Höhe H
+  if(s < lippe){ const x = s - fuss; return Math.tan(alpha) * x*x / (2*Lt); }
+
+  if(typ === 'tabletop' || typ === 'hip'){
+    if(s < deckB) return H;                                    // Tisch
+    if(s < ende){ const q = (s-deckB)/Ll; return H*(1-q)*(1-q); }   // Landung, oben steil, unten flach
+    return 0;
+  }
+  if(typ === 'kicker'){
+    if(s < deckB){                                             // Grube + Landehügel
+      const q = (s-lippe)/gap;
+      const pit = q < 0.78 ? -grube * bucht(q/0.78) : 0;
+      const knuckle = q > 0.5 ? K * rampe((q-0.5)/0.5) : 0;
+      return pit + knuckle;
+    }
+    if(s < ende){ const q = (s-deckB)/Ll; return K*(1-q)*(1-q); }
+    return 0;
+  }
+  if(typ === 'step_up'){
+    if(s < deckB){ const q = (s-lippe)/(deckB-lippe); return H + (K-H)*rampe(q) - 0.3*bucht(q); }
+    if(s < ende) return K;                                     // Landedeck liegt höher
+    if(s < ende + 20) return K * (1 - rampe((s-ende)/20));     // Gelände holt den Versatz auf
+    return 0;
+  }
+  if(typ === 'step_down'){
+    if(s < deckB){ const q = (s-lippe)/(deckB-lippe); return H + (0.45*K - H)*rampe(q); }
+    if(s < ende){ const q = (s-deckB)/Ll; return 0.45*K + 0.55*K*q; }   // Landung: Gefälle
+    if(s < ende + 26) return K * (1 - rampe((s-ende)/26));
+    return 0;
+  }
+  return 0;
+}
+
+function deltaH(track, s, physik){
+  let d = 0;
+  for(const e of track.elemente){
+    const a = e.start_m, len = e.laenge_m || 0, b = a + len;
+    switch(e.typ){
+      case 'tabletop': case 'kicker': case 'step_up': case 'step_down': case 'hip': {
+        const g = e._geo || (e._geo = sprungGeometrie(e));
+        if(s >= a && s < g.ende + 30) d += sprungDeltaH(g, s);
+        break;
+      }
+      case 'drop': {
+        // Kante 0,35 m lang statt senkrecht (entartete Dreiecke, Raycast-Mehrdeutigkeit).
+        // Danach Landegefälle; das Gelände holt die Stufe über 60 m zurück — 0,85 m
+        // auf 60 m sind 1,4 % Zusatzsteigung, unmerklich.
+        const KANTE = 0.35, D = e.hoehe_m;
+        if(s < a - 2.2) break;
+        if(s < a)               d += D * 0.14 * rampe((s-(a-2.2))/2.2);      // kurze Lippe
+        else if(s < a + KANTE)  d += D * (0.14 - 1.14*(s-a)/KANTE);
+        else if(s < a + KANTE + 6){ const q = (s-a-KANTE)/6; d += -D - 0.45*D*q; }  // Landung fällt weiter
+        else if(s < a + KANTE + 66){ const q = (s-a-KANTE-6)/60; d += -1.45*D*(1 - rampe(q)); }
+        break;
+      }
+      case 'roller': {
+        if(s < a || s > b) break;
+        const q = (s-a)/len;
+        const hull = Math.min(1, Math.min(q, 1-q)*6);
+        d += e.hoehe_m * 0.5 * hull * (1 - Math.cos(2*Math.PI*e.anzahl*q));
+        break;
+      }
+      case 'steinfeld': {
+        if(physik || s < a || s > b) break;
+        const hull = Math.min(1, Math.min(s-a, b-s)/3);
+        d += 0.16 * hull * (noise(s*2.6) + 0.5*noise(s*6.1));
+        break;
+      }
+    }
+  }
+  return d;
+}
+
+/* ===========================================================================
+   3. QUERSCHNITT  —  das eigentliche Kernstück
+
+   Ein einzelner Zahlenwert „Querneigung" reicht für einen Anlieger, aber NICHT
+   für einen Wallride. Bei 80° Querneigung über die ganze Breite gäbe es keine
+   Fahrfläche mehr, auf der man ankommt und zurückkommt — der Fahrer müsste die
+   Wand permanent mit Kurvenkraft halten.
+
+   Ein echter Wallride ist stattdessen: Trailboden + aufsteigende Seitenwand.
+   Die Neigung ist also keine Zahl pro Station, sondern eine FUNKTION der
+   Querposition:  v(x),  x = 0 in der Mitte, positiv nach kurvenaußen.
+
+   Anlieger:  v(x) = h · (x−kante)/run  hoch p      (konkav, steilste Stelle oben)
+   Wallride:  Boden bis zur Kante, dann dieselbe Potenzkurve, aber mit
+              run = h/tan φ — bei h = 3 m und φ = 80° sind das nur 0,53 m
+              Grundfläche für 3 m Höhe.
+
+   Der Exponent p ist so gewählt, dass die Neigung an der Oberkante exakt φ ist:
+        p = 1 + fillet · tan φ / h
+   =========================================================================== */
+const FILLET = 1.15;    // Radius, mit dem der Boden in die Wand übergeht, m
+
+function querschnittBei(track, s){
+  // Liefert die Beschreibung des Querschnitts an Station s.
+  let breite = 4.2, bank = 0, aussen = 1, wandH = 0, wandPhi = 0, material = 'holz';
+  let staerkste = 0;   // stärkster Bank-Einfluss an dieser Station
+
+  for(const e of track.elemente){
+    const a = e.start_m, len = e.laenge_m || 0, b = a + len;
+
+    if(e.typ === 'anlieger'){
+      // 8 m Ein- und Ausleitung, damit die Bank nicht springt
+      const bl = Math.min(1, Math.min((s-(a-8))/8, (b+8-s)/8));
+      if(bl > 0){
+        const w = Math.max(0, Math.min(1, bl));
+        const b = w * e.neigung_grad * Math.PI/180;
+        breite = Math.max(breite, e.breite_m);
+        // Die Anliegerwange ist dieselbe Potenzkurve wie die Wallride-Wand, nur
+        // niedriger und flacher. Der Boden davor bekommt eine leichte Neigung.
+        if(b > staerkste){
+          staerkste = b; aussen = aussenVon(e.richtung);
+          bank = w * 9 * Math.PI/180;
+          wandH = w * e.hoehe_m; wandPhi = e.neigung_grad * Math.PI/180; material = 'erde';
+        }
+      }
+    }
+
+    if(e.typ === 'wallride'){
+      const bl = Math.min(1, Math.min((s-(a-7))/7, (b+7-s)/7));
+      if(bl > 0){
+        const w = Math.max(0, Math.min(1, bl));
+        // Der Wallride bestimmt die Außenseite immer: die Wand steht fest gebaut da.
+        aussen  = aussenVon(e.seite);
+        wandH   = Math.max(wandH, w * e.hoehe_m);
+        wandPhi = e.neigung_grad * Math.PI/180;
+        material = e.material;
+        bank    = w * 14 * Math.PI/180;   // Boden leicht zur Wand geneigt
+        staerkste = 99;
+      }
+    }
+
+    if(e.typ === 'tabletop' || e.typ === 'kicker' || e.typ === 'hip'){
+      const g = e._geo || (e._geo = sprungGeometrie(e));
+      if(s >= a-6 && s <= g.ende+6) breite = Math.max(breite, e.breite_m || 5.0);
+    }
+    if(e.typ === 'steinfeld' && s >= a && s <= b) breite = Math.min(breite, 3.2);
+  }
+  return {breite, bank, aussen, wandH, wandPhi, material};
+}
+
+/* Höhe der Fahrfläche über der Mittellinie, an Querposition u (m, rechts +). */
+function querV(qs, u){
+  const x = u * qs.aussen;                 // x > 0 = kurvenaußen
+  const halb = qs.breite/2;
+  const h = qs.wandH > 0.05 ? qs.wandH : 0;
+  const kante = halb - FILLET;
+
+  // Grundneigung des BODENS. Ab dem Wandfuß hört sie auf — sonst addiert sie
+  // sich auf die Wandhöhe drauf und die Wand wird höher als deklariert.
+  const bodenBis = h > 0.05 ? kante : halb;
+  let v = Math.max(0, Math.min(x, bodenBis) + halb) * Math.tan(Math.min(qs.bank, 0.30));
+
+  // Wandkurve ab der Kante nach außen. Der Exponent ist so gewählt, dass die
+  // Neigung an der Oberkante genau φ ist und v dort genau h erreicht.
+  if(h > 0.05 && x > kante){
+    const W = FILLET + h / Math.tan(qs.wandPhi);
+    const p = 1 + FILLET * Math.tan(qs.wandPhi) / h;
+    v += h * Math.pow(Math.min((x-kante)/W, 1), p);
+  }
+  return v;
+}
+
+/* Wie weit nach kurvenaußen reicht der Querschnitt? (Wand steht außerhalb der Trailbreite) */
+function aussenGrenze(qs){
+  const halb = qs.breite/2;
+  if(qs.wandH <= 0.05) return halb;
+  return halb - FILLET + (FILLET + qs.wandH/Math.tan(qs.wandPhi));
+}
+
+/* ===========================================================================
+   4. MESH
+   Der Querschnitt wird NACH BOGENLÄNGE abgetastet, nicht nach Querposition.
+   Grund: bei 80° Wandneigung liegen 3 m Höhe auf 0,53 m Grundfläche. Eine
+   gleichmäßige Abtastung in x würde dort drei Stützpunkte auf die ganze Wand
+   legen und den Rest der Punkte auf den flachen Boden verschwenden.
+   =========================================================================== */
+const N_QUER  = 22;    // Stützpunkte quer über die Fahrfläche
+const SKIRT   = [3, 14, 45];        // Entfernung der Geländeschürze vom Trailrand, m
+const SKIRT_AB = [1.2, 6.0, 26.0];  // talseits: so tief fällt das Gelände ab, m
+const SKIRT_AUF= [1.1, 5.5, 15.0];  // bergseits: so hoch steigt die Anschnittsböschung, m
+
+/* Ein Trail liegt IM Hang, nicht auf einem Rücken: bergseits ein Anschnitt,
+   talseits ein Abfall. Welche Seite bergseits ist, folgt aus der Falllinie —
+   der Richtung, in die die Strecke insgesamt absteigt. Läuft der Trail gerade
+   die Falllinie hinunter, fallen beide Seiten gleich ab; quert er den Hang,
+   steigt die eine Seite an. `bergSign` = +1 heißt: rechts ist talseits. */
+function profilPunkte(qs, bergSign){
+  // 1) fein abtasten
+  const innen = -qs.breite/2, aussenX = aussenGrenze(qs);
+  const FEIN = 96, roh = [];
+  for(let i = 0; i <= FEIN; i++){
+    const x = innen + (aussenX - innen) * i/FEIN;
+    roh.push({x, v: querV(qs, x * qs.aussen)});
+  }
+  // 2) Bogenlänge aufsummieren
+  const len = [0];
+  for(let i = 1; i < roh.length; i++){
+    len.push(len[i-1] + Math.hypot(roh[i].x - roh[i-1].x, roh[i].v - roh[i-1].v));
+  }
+  const gesamt = len[len.length-1] || 1;
+  // 3) gleichmäßig nach Bogenlänge neu abtasten
+  const pts = [];
+  let j = 0;
+  for(let i = 0; i < N_QUER; i++){
+    const ziel = gesamt * i/(N_QUER-1);
+    while(j < len.length-2 && len[j+1] < ziel) j++;
+    const seg = len[j+1] - len[j];
+    const t = seg > 1e-9 ? (ziel - len[j])/seg : 0;
+    pts.push({x: roh[j].x + t*(roh[j+1].x - roh[j].x),
+              v: roh[j].v + t*(roh[j+1].v - roh[j].v), trail:true});
+  }
+  // 4) Geländeschürze anhängen
+  const links = [], rechts = [];
+  // u = x · aussen, also liegt der Teil mit x < 0 auf der Seite -aussen.
+  const versatz = (seiteU, i, kante) => {
+    const talig = (seiteU * bergSign + 1) / 2;          // 0 = bergseits, 1 = talseits
+    return kante + (SKIRT_AUF[i] * (1 - talig) - SKIRT_AB[i] * talig);
+  };
+  const sL = -Math.sign(qs.aussen) || -1, sR = Math.sign(qs.aussen) || 1;
+  for(let i = SKIRT.length-1; i >= 0; i--){
+    const x = innen - SKIRT[i];
+    links.push({x, v: versatz(sL, i, pts[0].v) + noise(x*0.6 + qs.breite)*1.5, trail:false});
+  }
+  const oben = pts[pts.length-1];
+  for(let i = 0; i < SKIRT.length; i++){
+    const x = aussenX + SKIRT[i];
+    rechts.push({x, v: versatz(sR, i, oben.v) + noise(x*0.6 - qs.breite)*1.5, trail:false});
+  }
+  return links.concat(pts, rechts);
+}
+
+const FARBE = {
+  trail:  new THREE.Color(0x7b6e62),   // heller als das Gelände: die Linie muss lesbar sein
+  rand:   new THREE.Color(0x3b352d),   // Trailrand, damit die Kante sichtbar wird
+  bank:   new THREE.Color(0x7d7062),
+  holz:   new THREE.Color(0x8a6238),
+  beton:  new THREE.Color(0x6a6c72),
+  gelaende:new THREE.Color(0x1e2c1d),
+  fern:   new THREE.Color(0x18231a),
+};
+
+function baueStreckenMesh(track, st, hArr, qsArr, bergBei){
+  const cols = N_QUER + 2*SKIRT.length;
+  const pos = [], col = [], idx = [];
+  const c = new THREE.Color();
+
+  for(let i = 0; i < st.length; i++){
+    const s = st[i].s, qs = qsArr[i];
+    const cx = st[i].x, cz = st[i].z, cy = hArr(s);
+    const rx = -Math.cos(st[i].psi), rz = Math.sin(st[i].psi);   // rechts = vorwärts × oben
+    const pts = profilPunkte(qs, bergBei(i));
+    const kante = qs.breite/2 - FILLET;
+
+    for(const p of pts){
+      const u = p.x * qs.aussen;
+      pos.push(cx + rx*u, cy + p.v, cz + rz*u);
+      if(!p.trail){
+        const tief = Math.min(1, (Math.abs(p.x) - qs.breite/2) / 40);
+        c.copy(FARBE.gelaende).lerp(FARBE.fern, tief);
+        c.offsetHSL(noise(s*0.31 + p.x)*0.03, 0, noise(s*0.9 + p.x*0.4)*0.045);
+      } else if(qs.wandH > 0.3 && p.x > kante){
+        // Wandfläche bekommt Material-Farbe, damit man Holz von Beton sieht
+        const hoch = Math.min(1, (p.v - querV(qs, kante*qs.aussen)) / Math.max(qs.wandH, .3));
+        const wandFarbe = qs.material === 'beton' ? FARBE.beton : qs.material === 'holz' ? FARBE.holz : FARBE.bank;
+        c.copy(FARBE.trail).lerp(wandFarbe, Math.min(1, hoch*2.2));
+        // Waagerechte Bänderung: Bohlen beim Holz, Schalungsfugen beim Beton.
+        // Ohne sie sieht die Wand aus wie modellierte Erde, nicht wie gebaut.
+        if(qs.material !== 'erde') c.offsetHSL(0, 0, Math.sin(p.v * (qs.material === 'beton' ? 4.2 : 9.5)) * 0.055 * hoch);
+      } else if(qs.bank > 0.28 && p.x > kante - 0.6){
+        c.copy(FARBE.bank);
+      } else {
+        // Die äußersten beiden Trailspalten werden zum Rand hin dunkler —
+        // ohne diese Kante verschwimmt die Fahrfläche mit dem Hang.
+        const randNah = Math.max(0, (Math.abs(p.x) - (qs.breite/2 - 0.7)) / 0.7);
+        c.copy(FARBE.trail).lerp(FARBE.rand, Math.min(1, randNah));
+        c.offsetHSL(0, 0, noise(s*0.7 + p.x*1.9)*0.05);
+      }
+      col.push(c.r, c.g, c.b);
+    }
+  }
+  for(let i = 0; i < st.length-1; i++){
+    for(let j = 0; j < cols-1; j++){
+      const a = i*cols + j, b = a + 1, d = a + cols, e = d + 1;
+      idx.push(a, d, b, b, d, e);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:0.94, metalness:0.0, side:THREE.DoubleSide, flatShading:false
+  }));
+}
+
+/* ===========================================================================
+   5. STRECKE BAUEN — alles einmal vorberechnen
+   =========================================================================== */
+const H_STEP = 0.25;
+
+/* Wo landet ein Fahrer, der die Lippe mit Tempo v verlässt? Ballistisch gegen
+   die echte Fläche gerechnet (Basisgefälle eingeschlossen). */
+function landeStelle(w, g, v){
+  const y0 = w.hArr(g.lippe), vx = v*Math.cos(g.alpha), vy0 = v*Math.sin(g.alpha);
+  for(let t = 0.02; t < 6; t += 0.02){
+    const sx = g.lippe + vx*t, y = y0 + vy0*t - 0.5*G*t*t;
+    if(y <= w.hArr(sx)) return sx;
+  }
+  return g.lippe + vx*6;
+}
+/* Binäre Suche nach dem Tempo, das genau auf `ziel` landet. */
+function zielTempo(w, g){
+  let lo = 3, hi = 30;
+  for(let i = 0; i < 26; i++){
+    const mid = (lo+hi)/2;
+    if(landeStelle(w, g, mid) < g.ziel) lo = mid; else hi = mid;
+  }
+  return (lo+hi)/2;
+}
+
+function baueStrecke(track){
+  const st = baueMittellinie(track);
+  const L  = track.laenge_m;
+
+  // Höhenfeld fein vorberechnen: baseHoehe + Δh der Elemente
+  const n = Math.ceil(L/H_STEP) + 8, hRaw = new Float32Array(n), hRawMesh = new Float32Array(n);
+  for(let i = 0; i < n; i++){
+    const s = i*H_STEP, basis = baseHoehe(track, s);
+    hRaw[i]     = basis + deltaH(track, s, true);    // Fläche für die Physik
+    hRawMesh[i] = basis + deltaH(track, s, false);   // Fläche mit Steinen, fürs Mesh
+  }
+  const mach = arr => s => {
+    const f = Math.max(0, Math.min(s/H_STEP, n-2));
+    const i = Math.floor(f), t = f - i;
+    return arr[i] + t*(arr[i+1] - arr[i]);
+  };
+  const hArr = mach(hRaw), hMesh = mach(hRawMesh);
+  // Steigung RÜCKWÄRTS geschaut: die Fläche, auf der der Fahrer gerade ist.
+  // Eine zentrale Differenz sähe einen halben Meter vor der Lippe schon die
+  // Grube dahinter und zöge den Fahrer nach unten, bevor er abhebt.
+  const dhds = s => (hArr(s) - hArr(s-0.3)) / 0.3;
+
+  // Falllinie: grobe Gesamtrichtung des Abstiegs. Daraus folgt pro Station,
+  // welche Trailseite bergseits liegt.
+  const dx = st[st.length-1].x - st[0].x, dz = st[st.length-1].z - st[0].z;
+  const dl = Math.hypot(dx, dz) || 1;
+  const fx = dx/dl, fz = dz/dl;
+  const bergArr = st.map(p => {
+    const rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
+    return Math.max(-1, Math.min(1, (rx*fx + rz*fz) * 1.8));
+  });
+  const bergBei = i => bergArr[Math.max(0, Math.min(i, bergArr.length-1))];
+  const bergAt  = s => bergBei(Math.round(s/DS));
+
+  const qsArr = st.map(p => querschnittBei(track, p.s));
+  const qsBei = s => qsArr[Math.max(0, Math.min(Math.round(s/DS), qsArr.length-1))];
+  const stBei = s => st[Math.max(0, Math.min(Math.round(s/DS), st.length-1))];
+
+  const mesh = baueStreckenMesh(track, st, hMesh, qsArr, bergBei);
+
+  // Höhe der Fahrfläche an (s, u) — analytisch, kein Raycast.
+  // Das ist stabiler als ein Raycast gegen das Mesh und an der Drop-Kante eindeutig.
+  const flaeche = (s, u) => hArr(s) + querV(qsBei(s), u);
+
+  const welt = {track, st, hArr, dhds, qsBei, stBei, mesh, flaeche, L, bergAt};
+  // Zieltempo je Sprung: die Geschwindigkeit an der Lippe, mit der man genau
+  // auf der Landung ankommt. Für HUD und Prüfung.
+  welt.spruenge = track.elemente
+    .map(e => e._geo || (e._geo = sprungGeometrie(e)))
+    .filter(Boolean)
+    .map(g => {
+      const vZiel = zielTempo(welt, g);
+      // Am Rampenfuß braucht man mehr: die Rampe kostet 2·g·H an v².
+      return {g, vZiel, vFuss: Math.sqrt(vZiel*vZiel + 2*G*g.H)};
+    });
+  return welt;
+}
+
+/* ===========================================================================
+   6. FAHRPHYSIK
+   Punktmasse auf der Fahrfläche. Die Höhe wird IMMER ballistisch integriert und
+   danach gegen die Fläche geklemmt — dadurch entsteht der Absprung von selbst:
+   auf der Kickerrampe ist vy = dh/ds · vs positiv, hinter der Lippe fällt die
+   Fläche weg, und der Fahrer ist in der Luft, ohne dass es dafür Sonderregeln
+   braucht.
+   =========================================================================== */
+const RHO = 1.225;
+
+function neuerFahrer(bike){
+  return {bike, s:2, u:0, vs:1.5, vu:0, y:0, vy:0, boden:true, amRand:false, streck:0,
+          luftZeit:0, luftGesamt:0, stuerze:0, zeit:0, roll:0, tilt:0};
+}
+
+function schritt(w, f, dt, ein){
+  const bike = f.bike, m = bike.masse;
+  const qs = w.qsBei(f.s), stn = w.stBei(f.s);
+  const halb = qs.breite/2;
+  const innenU = -halb * qs.aussen, aussenU = aussenGrenze(qs) * qs.aussen;
+
+  // --- Längsrichtung ---
+  const slope = w.dhds(f.s);
+  const theta = Math.atan(-slope);                  // > 0 = bergab
+  let F = 0;
+  const drag = 0.5*RHO*bike.CdA*f.vs*f.vs;
+  if(f.boden){
+    let crr = bike.Crr;
+    // Steinfeld kostet Rollwiderstand — deshalb steht es vor dem Anlieger
+    for(const e of w.track.elemente){
+      if(e.typ === 'steinfeld' && f.s >= e.start_m && f.s <= e.start_m+e.laenge_m) crr *= 3.4;
+    }
+    F += m*G*Math.sin(theta);
+    F -= m*G*Math.cos(theta)*crr;
+    F -= ein.bremse * bike.bremse * 0.085;   // MTB: 612 N auf 88 kg = 0,71 g — mehr gibt Schotter nicht her
+    if(ein.gas) F += Math.min(bike.tritt/Math.max(f.vs,1.2), 900);
+    if(ein.gas && bike.motor && f.vs < bike.motorBis) F += Math.min(bike.motor/Math.max(f.vs,1.2), 700);
+  }
+  F -= drag;
+  f.vs = Math.max(0.4, f.vs + F/m*dt);
+
+  // --- Querrichtung ---
+  const eps = 0.06;
+  const dvdu = (querV(qs, f.u+eps) - querV(qs, f.u-eps)) / (2*eps);
+  const zentrifugal = stn.k * f.vs * f.vs;          // k > 0 = Linkskurve → Druck nach rechts (+u)
+  const hang = -G * dvdu;                           // Fläche steigt nach +u → Zug nach −u
+  const steuer = ein.quer * (f.boden ? bike.boden : bike.luft);
+  const daempf = (f.boden ? 3.4 : 0.35) * f.vu;
+  // Linienhaltung: nur in der Trailmitte und nur ohne Lenkbefehl. Draußen auf
+  // der Bank oder der Wand darf sie nicht gegen die Fliehkraft arbeiten.
+  const halte = (f.boden && ein.quer === 0 && Math.abs(f.u) < halb*0.6) ? -f.u * 2.4 : 0;
+  f.vu += (zentrifugal + hang + steuer + halte - daempf) * dt;
+  f.u  += f.vu * dt;
+
+  // --- Hip: seitlicher Impuls auf der Absprungrampe ---
+  if(f.boden){
+    for(const e of w.track.elemente){
+      if(e.typ !== 'hip') continue;
+      const g = e._geo; if(!g || f.s < g.a || f.s > g.lippe) continue;
+      const seite = e.richtung === 'links' ? -1 : 1;
+      f.vu += seite * (e.seitenversatz_m / 2.4) / (g.Lt / Math.max(f.vs, 3)) * dt;   // Versatz über ~2,4 s Flug
+    }
+  }
+
+  // --- Höhe ---
+  // vs ist die Geschwindigkeit ENTLANG der Fläche. Am Boden kommt man horizontal
+  // nur mit vs·cosθ voran; in der Luft ist vs die Horizontalgeschwindigkeit.
+  // Ohne diese Unterscheidung entstünde auf der Rampe Energie aus dem Nichts:
+  // vy = tanα·vs käme zu vs dazu, statt aus ihm zu werden.
+  const warBoden = f.boden;
+  const cosT = 1/Math.sqrt(1 + slope*slope);
+  f.vy -= G*dt;
+  f.y  += f.vy*dt;
+  f.s  += f.vs * (f.boden ? cosT : 1) * dt;
+
+  const flaeche = w.flaeche(f.s, f.u);
+  // Aufsaugen: fällt die Fläche nur sanft weg (Rollerkuppe, Geländeknick), folgt
+  // ihr ein Fahrer mit Federung und Beinen, statt abzuheben. Das geht, solange
+  // die dafür nötige Beschleunigung unter ~1,5 g bleibt UND der Federweg reicht.
+  // An einer Lippe fällt die Fläche schlagartig weg → beides verletzt → Absprung.
+  if(warBoden && f.y > flaeche){
+    const vySoll = w.dhds(f.s)*f.vs + dvdu*f.vu;
+    const aNoetig = (f.vy - vySoll) / dt;
+    const luecke = f.y - flaeche;
+    if(aNoetig <= 1.5*G && f.streck + luecke <= bike.absorb){
+      f.streck += luecke; f.y = flaeche; f.vy = vySoll;
+    } else {
+      f.vs *= cosT;                                   // Abheben: vs wird horizontal, vy stammt aus der Rampe
+    }
+  }
+  if(f.y <= flaeche){
+    f.streck = Math.max(0, f.streck - 1.2*dt);   // Fläche drückt zurück, Beine wieder neutral
+    const sl = w.dhds(f.s), cL = 1/Math.sqrt(1 + sl*sl), sL = -sl*cL;   // sL > 0 = Landung fällt ab
+    const vyFlaeche = sl*f.vs*(f.boden ? cL : 1) + dvdu*f.vu;
+    const aufprall = vyFlaeche - f.vy;
+    if(!f.boden){
+      // Der ankommende Vektor (horizontal vs, vertikal vy) wird auf die Fläche
+      // projiziert: auf einer abfallenden Landung wird Fallgeschwindigkeit zu
+      // Vortrieb. Die Normalkomponente ist der Aufprall und geht verloren.
+      f.vs = Math.max(0.4, f.vs*cL - f.vy*sL);
+      if(aufprall > 2.2) f.vs *= Math.max(0.52, 1 - (aufprall-2.2)*0.038);
+    }
+    if(!f.boden && f.luftZeit > 0.12) f.luftGesamt += f.luftZeit;
+    if(!f.boden) f.letzteLandung = {s:f.s, aufprall, luft:f.luftZeit};   // für Auswertung und Federung
+    f.y = flaeche; f.vy = vyFlaeche; f.boden = true; f.luftZeit = 0;
+  } else {
+    f.boden = false; f.luftZeit += dt;
+  }
+
+  // --- Grenzen der Fahrfläche ---
+  const lo = Math.min(innenU, aussenU), hi = Math.max(innenU, aussenU);
+  const draussen = f.u < lo || f.u > hi;
+  if(draussen){
+    f.u = Math.max(lo, Math.min(hi, f.u));
+    // Nach innen abprallen, damit der Fahrer nicht am Rand klebt
+    f.vu = (f.u <= lo ? 1 : -1) * Math.max(1.2, Math.abs(f.vu)*0.35);
+    if(!f.amRand){ f.vs *= 0.72; f.stuerze++; }   // Strafe nur beim NEUEN Kontakt
+  }
+  f.amRand = draussen;
+
+  // Lage für die Darstellung
+  const zielRoll = Math.atan(dvdu) + Math.max(-0.5, Math.min(0.5, stn.k*f.vs*f.vs/G*0.35));
+  f.roll += (zielRoll - f.roll) * Math.min(1, dt*7);
+  f.tilt += (theta - f.tilt) * Math.min(1, dt*5);
+  f.zeit += dt;
+  return f;
+}
+
+/* ===========================================================================
+   7. SZENE
+   =========================================================================== */
+const canvas = document.getElementById('scene');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const errBox = document.getElementById('err');
+function zeigeFehler(t){ errBox.textContent = t; errBox.classList.add('on'); }
+
+let renderer;
+try{
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+}catch(e){
+  zeigeFehler('Dieser Browser liefert keinen WebGL-Kontext. Ohne WebGL kann die Strecke nicht dargestellt werden.');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b232c);
+scene.fog = new THREE.FogExp2(0x1b232c, 0.0019);
+
+const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 900);
+
+scene.add(new THREE.HemisphereLight(0xbcd4ea, 0x1e2618, 1.85));
+const sonne = new THREE.DirectionalLight(0xffe8cc, 2.05);
+sonne.position.set(-40, 60, 20);
+scene.add(sonne);
+const fill = new THREE.DirectionalLight(0x8fb0dd, 0.85);
+fill.position.set(35, 22, -30);
+scene.add(fill);
+
+// Himmel als Kuppel mit Farbverlauf über Vertexfarben — ein Draw Call, kein Shader.
+{
+  const g = new THREE.SphereGeometry(700, 24, 16);
+  const p = g.attributes.position, c = [], oben = new THREE.Color(0x33506e), unten = new THREE.Color(0x1b232c);
+  const tmp = new THREE.Color();
+  for(let i = 0; i < p.count; i++){
+    tmp.copy(unten).lerp(oben, Math.max(0, Math.min(1, p.getY(i)/700*1.5 + 0.35)));
+    c.push(tmp.r, tmp.g, tmp.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false})));
+}
+
+/* --------------------------------------------------------------- Bäume */
+function baueBaeume(w){
+  const N = 900;
+  const stammG = new THREE.CylinderGeometry(0.16, 0.26, 3, 5);
+  const kroneG = new THREE.ConeGeometry(1.7, 7.5, 7);
+  const stamm = new THREE.InstancedMesh(stammG, new THREE.MeshStandardMaterial({color:0x2a2119, roughness:1}), N);
+  const krone = new THREE.InstancedMesh(kroneG, new THREE.MeshStandardMaterial({color:0x1c3324, roughness:1, flatShading:true}), N);
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3();
+  for(let i = 0; i < N; i++){
+    const s = (i/N)*w.L;
+    const st = w.stBei(s), qs = w.qsBei(s);
+    const seite = noise(i*3.7) > 0 ? 1 : -1;
+    const ab = qs.breite/2 + 14 + Math.abs(noise(i*1.31))*34;
+    const u = seite*ab;
+    const rx = -Math.cos(st.psi), rz = Math.sin(st.psi);
+    const gr = 0.65 + Math.abs(noise(i*5.9))*0.85;
+    // Bäume folgen demselben Hang wie die Schürze: bergseits höher, talseits tiefer
+    const ferne = ab - qs.breite/2;
+    const talig = (Math.sign(u) * w.bergAt(s) + 1) / 2;
+    const y = w.hArr(s) + (1-talig)*Math.min(15, ferne*0.34)
+                        - talig*Math.min(30, ferne*0.62) - 0.4;
+    P.set(st.x + rx*u, y, st.z + rz*u);
+    Q.setFromAxisAngle(new THREE.Vector3(0,1,0), noise(i*2.2)*3.14);
+    S.set(gr, gr, gr);
+    M.compose(P, Q, S); stamm.setMatrixAt(i, M);
+    P.y += 3*gr + 3.4*gr;
+    M.compose(P, Q, S); krone.setMatrixAt(i, M);
+  }
+  stamm.instanceMatrix.needsUpdate = true; krone.instanceMatrix.needsUpdate = true;
+  return [stamm, krone];
+}
+
+/* ===========================================================================
+   8. FAHRZEUGE
+   Die GLB-Datei wird geladen, wenn sie neben der HTML liegt. Über ihren INHALT
+   wird nichts angenommen: keine Node-Namen, keine Achsenkonvention, keine
+   Materialien werden gesucht oder überschrieben. Sie wird nur eingemessen,
+   auf 1,80 m Gesamthöhe skaliert und auf den Boden gestellt.
+   Fehlt die Datei, wird das Rad hier aus Rohren gebaut — mit Rahmen, Gabel,
+   Speichen, Kurbel und einer Fahrerin in Angriffsposition. Nur dieses Modell
+   wird animiert (Räder, Kurbel, Federung, Hocke); bei der GLB weiß ich nicht,
+   welche Nodes es gäbe.
+   =========================================================================== */
+const GLB_PFAD  = GLB_PFAD_HAUPT;
+const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
+                         // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
+const RAD_R = 0.37;            // Laufradradius außen, m — die GLB hat 0,37; Rohrmodell auf denselben Wert
+
+const _Y = new THREE.Vector3(0, 1, 0);
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+/* Rohr von Punkt a nach Punkt b. Grundlage für Rahmen, Gabel, Speichen. */
+function rohr(a, b, r, segs = 8){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  const g = new THREE.CylinderGeometry(r, r, len, segs, 1);
+  g.translate(0, len/2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(_Y, d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+/* Kapsel von a nach b — Gliedmaßen. CapsuleGeometry ist um den Ursprung
+   zentriert und insgesamt height + 2r lang. */
+function glied(a, b, r){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  const g = new THREE.CapsuleGeometry(r, Math.max(0.01, len - 2*r), 3, 10);
+  g.translate(0, len/2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(_Y, d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+function kugel(p, r){ const g = new THREE.SphereGeometry(r, 14, 10); g.translate(p.x, p.y, p.z); return g; }
+function kasten(p, w, h, d, rx = 0){ const g = new THREE.BoxGeometry(w, h, d); if(rx) g.rotateX(rx); g.translate(p.x, p.y, p.z); return g; }
+function mesh(geos, mat){ return new THREE.Mesh(mergeGeometries(geos, false), mat); }
+
+/* Laufrad: Reifen, Felge, Speichen, Nabe — ein Mesh pro Material, dreht um x. */
+function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false){
+  const g = new THREE.Group();
+  const dicke = scheibe ? 0.045 : 0.038;
+  const reifen = new THREE.TorusGeometry(R - dicke, dicke, 10, 28); reifen.rotateY(Math.PI/2);
+  g.add(new THREE.Mesh(reifen, matReifen));
+  if(scheibe){
+    const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 20); disk.rotateZ(Math.PI/2);
+    g.add(new THREE.Mesh(disk, matMetall));
+    return g;
+  }
+  const felge  = new THREE.TorusGeometry(R - 0.08, 0.012, 6, 28);          felge.rotateY(Math.PI/2);
+  const nabe   = new THREE.CylinderGeometry(0.03, 0.03, 0.10, 10);         nabe.rotateZ(Math.PI/2);
+  const speichen = [];
+  for(let i = 0; i < 16; i++){
+    const a = i/16 * Math.PI*2, seite = i % 2 ? 0.035 : -0.035;
+    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*(R - 0.085), Math.cos(a)*(R - 0.085)), 0.0035, 4));
+  }
+  g.add(mesh([felge, nabe, ...speichen], matMetall));
+  return g;
+}
+
+/* Fahrerin: eine Funktion für alle Fahrzeuge. `farben` kommt aus CHARAKTERE,
+   `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien und die
+   umschaltbaren Teile (Zopf, Helmschirm) werden in userData abgelegt, damit ein
+   Charakterwechsel nur Farben setzt und nichts neu baut. */
+function baueFahrerin(farben, pose = 'angriff'){
+  const F = farben || CHARAKTERE[0];
+  const matJersey = new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}); matJersey.name = 'jersey';
+  const matHose   = new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9});    matHose.name = 'kit_pants';
+  const matHaut   = new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7});    matHaut.name = 'skin';
+  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}); matHelm.name = 'helmet';
+  const matHaar   = new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9});    matHaar.name = 'hair';
+  const matSchw   = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const g = new THREE.Group(); g.name = 'rider_female';
+
+  let P;   // Gelenkpunkte je Pose
+  if(pose === 'stehend'){
+    P = {huefte:V(0,1.02,-0.05), schulter:V(0,1.42,0.02), kopf:V(0,1.62,0.06),
+         schL:V(-0.19,1.40,0.02), ellL:V(-0.26,1.22,0.18), handL:V(-0.24,1.08,0.32),
+         schR:V( 0.19,1.40,0.02), ellR:V( 0.26,1.22,0.18), handR:V( 0.24,1.08,0.32),
+         hueL:V(-0.09,1.00,-0.05), knieL:V(-0.10,0.60,0.02), fussL:V(-0.10,0.22,0.06),
+         hueR:V( 0.09,1.00,-0.05), knieR:V( 0.10,0.60,-0.10), fussR:V( 0.10,0.22,-0.16),
+         schuhL:V(-0.10,0.19,0.09), schuhR:V(0.10,0.19,-0.13), hals:V(0,1.50,0.04), rumpfR:0.14};
+  } else {
+    P = {huefte:V(0,1.00,-0.14), schulter:V(0,1.24,0.16), kopf:V(0,1.42,0.28),
+         schL:V(-0.20,1.22,0.16), ellL:V(-0.34,1.10,0.28), handL:V(-0.36,1.04,0.40),
+         schR:V( 0.20,1.22,0.16), ellR:V( 0.34,1.10,0.28), handR:V( 0.36,1.04,0.40),
+         hueL:V(-0.09,0.98,-0.12), knieL:V(-0.16,0.72,0.12), fussL:V(-0.16,0.42,0.14),
+         hueR:V( 0.09,0.98,-0.12), knieR:V( 0.17,0.70,-0.02), fussR:V( 0.16,0.42,-0.12),
+         schuhL:V(-0.16,0.37,0.16), schuhR:V(0.16,0.37,-0.12), hals:V(0,1.30,0.20), rumpfR:0.15};
+  }
+  g.add(mesh([glied(P.huefte, P.schulter, P.rumpfR), kugel(P.huefte, 0.135),
+    glied(P.schL, P.ellL, 0.052), glied(P.schR, P.ellR, 0.052)], matJersey));
+  g.add(mesh([glied(P.ellL, P.handL, 0.042), glied(P.ellR, P.handR, 0.042),
+    kugel(P.handL, 0.045), kugel(P.handR, 0.045), glied(P.hals, P.kopf, 0.05)], matHaut));
+  g.add(new THREE.Mesh(kugel(P.kopf, 0.115), matHaut));
+  g.add(mesh([glied(P.hueL, P.knieL, 0.075), glied(P.hueR, P.knieR, 0.075),
+    glied(P.knieL, P.fussL, 0.058), glied(P.knieR, P.fussR, 0.058)], matHose));
+  g.add(mesh([kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
+  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(P.kopf.x, P.kopf.y + 0.01, P.kopf.z);
+  g.add(new THREE.Mesh(helm, matHelm));
+  const schirm = new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.08, P.kopf.z + 0.14), 0.20, 0.012, 0.09, -0.3), matHelm);
+  schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; g.add(schirm);
+  g.add(new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.01, P.kopf.z + 0.12), 0.17, 0.05, 0.04), matSchw));   // Brille
+  const zopf = new THREE.Mesh(glied(V(P.kopf.x, P.kopf.y + 0.02, P.kopf.z - 0.10), V(P.kopf.x, P.kopf.y - 0.22, P.kopf.z - 0.20), 0.032), matHaar);
+  zopf.name = 'ponytail'; zopf.visible = !!F.zopf; g.add(zopf);
+  g.userData.charakter = {materialien:{jersey:matJersey, kit_pants:matHose, helmet:matHelm, skin:matHaut, hair:matHaar}, zopf, schirm};
+  return g;
+}
+
+/* Baukasten für alle Räder. Schalter aus bike.modell.bau:
+   gabel 'einfach'|'doppel', hinterbau 'luft'|'coil'|'starr', motor, sattelHoch,
+   lenkerBreite, radR, radstand. Der Roller ist eine eigene Funktion. */
+function baueRad(bike, farben){
+  const bau = Object.assign({gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}, (bike.modell && bike.modell.bau) || {});
+  const R = bau.radR, RS = bau.radstand, accent = bike.accent;
+  const matRahmen = new THREE.MeshStandardMaterial({color:accent, roughness:0.32, metalness:0.55}); matRahmen.name = 'frame_charcoal';
+  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}); matMetall.name = 'raw_alu';
+  const matGold   = new THREE.MeshStandardMaterial({color:0xd9a441, roughness:0.3, metalness:0.8});  matGold.name = 'anodized_gold';
+  const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}); matReifen.name = 'tire_rubber';
+  const matGummi  = new THREE.MeshStandardMaterial({color:0x26282c, roughness:0.9});
+
+  // Geometrie in Metern, Fahrtrichtung +z, Boden bei y = 0. Radstand skaliert die Länge.
+  const hinten = V(0, R, -0.60*RS), vorn = V(0, R, 0.64*RS);
+  const tret   = V(0, 0.32, -0.02);
+  const sitzO  = V(0, 0.80, -0.20*RS);
+  const kopfO  = V(0, 0.98, 0.42*RS), kopfU = V(0, 0.82, 0.50*RS);
+
+  const halter = new THREE.Group();
+  const koerper = new THREE.Group();
+  halter.add(koerper);
+
+  const rUnter = bau.motor ? 0.048 : 0.022;
+  const rahmen = [
+    rohr(sitzO, kopfO, 0.02), rohr(tret, kopfU, rUnter), rohr(tret, sitzO, 0.02), rohr(kopfU, kopfO, 0.028),
+    rohr(V( 0.06, 0.33, -0.02), V( 0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V(-0.06, 0.33, -0.02), V(-0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V( 0.03, 0.79, sitzO.z - 0.01), V( 0.05, R, hinten.z + 0.02), 0.010),
+    rohr(V(-0.03, 0.79, sitzO.z - 0.01), V(-0.05, R, hinten.z + 0.02), 0.010),
+  ];
+  if(bau.hinterbau === 'luft'){
+    rahmen.push(rohr(V(0, 0.74, -0.08), V(0, 0.48, -0.30*RS), 0.016));                 // Luftdämpfer, schlank
+  } else if(bau.hinterbau === 'coil'){
+    rahmen.push(rohr(V(0, 0.76, -0.06), V(0, 0.46, -0.32*RS), 0.014));
+  }
+  if(bau.motor){
+    const motor = new THREE.CylinderGeometry(0.095, 0.095, 0.17, 14); motor.rotateZ(Math.PI/2); motor.translate(0, 0.34, -0.02);
+    rahmen.push(motor);
+  }
+  koerper.add(mesh(rahmen, matRahmen));
+  if(bau.hinterbau === 'coil'){
+    // Stahlfeder: Ringe um den Dämpfer, goldfarben wie am DH-Rad
+    const ringe = [];
+    const a = V(0, 0.74, -0.075), b = V(0, 0.50, -0.30*RS), d = new THREE.Vector3().subVectors(b, a);
+    for(let i = 0; i < 7; i++){
+      const c = a.clone().addScaledVector(d, 0.1 + 0.8*i/6);
+      const t = new THREE.TorusGeometry(0.036, 0.007, 6, 14);
+      t.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), d.clone().normalize()));
+      t.translate(c.x, c.y, c.z); ringe.push(t);
+    }
+    koerper.add(mesh(ringe, matGold));
+  }
+  const sattelY = bau.sattelHoch ? 0.98 : 0.86;
+  const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(-0.05, 0.32, -0.02);
+  koerper.add(mesh([
+    kettenblatt,
+    kasten(V(0, sattelY, sitzO.z - 0.05), 0.09, 0.04, 0.25),                  // Sattel
+    rohr(V(0, 0.80, sitzO.z - 0.01), V(0, sattelY - 0.01, sitzO.z - 0.04), 0.014),
+    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.014),                                   // Vorbau
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.012),
+  ], matSchwarz));
+  koerper.add(mesh([
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 + 0.13, 1.04, 0.36*RS), 0.016),
+    rohr(V( bau.lenkerBreite/2 - 0.13, 1.04, 0.36*RS), V( bau.lenkerBreite/2, 1.04, 0.36*RS), 0.016),
+  ], matGummi));
+  if(bau.motor){
+    const led = new THREE.Mesh(kasten(V(0.06, 1.07, 0.36*RS), 0.07, 0.012, 0.045),
+      new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
+    koerper.add(led);
+  }
+  // Gabel
+  const gabel = [
+    kasten(V(0, 0.80, kopfU.z + 0.01), 0.15, 0.05, 0.06),
+    rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, R, vorn.z), 0.017),
+    rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, R, vorn.z), 0.017),
+  ];
+  if(bau.gabel === 'doppel'){
+    // Doppelbrücke: zweite Brücke über dem Steuerrohr, Standrohre laufen durch
+    gabel.push(kasten(V(0, 1.02, kopfO.z + 0.02), 0.17, 0.045, 0.06));
+    gabel.push(rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, 1.05, kopfO.z + 0.03), 0.019));
+    gabel.push(rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, 1.05, kopfO.z + 0.03), 0.019));
+  }
+  koerper.add(mesh(gabel, bau.gabel === 'doppel' ? matGold : matMetall));
+
+  // Kurbel (dreht). Kettenblatt und rechter Arm bei −x: nach der Yaw-Korrektur ist
+  // lokal −x die rechte Seite der Fahrerin.
+  const kurbel = new THREE.Group(); kurbel.position.copy(tret);
+  kurbel.add(mesh([rohr(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.012), rohr(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.012),
+    rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014)], matMetall));
+  kurbel.add(mesh([kasten(V(-0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
+  koerper.add(kurbel);
+
+  const radH = laufrad(matReifen, matMetall, R); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R); radV.position.copy(vorn);
+  halter.add(radH, radV);
+
+  const fahrerin = baueFahrerin(farben, 'angriff');
+  koerper.add(fahrerin);
+
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  return halter;
+}
+
+/* Der E-Roller: andere Topologie, deshalb eigene Funktion. Trittbrett, Lenkstange,
+   zwei kleine Räder, Fahrerin stehend. */
+function baueRoller(bike, farben){
+  const R = (bike.modell && bike.modell.bau && bike.modell.bau.radR) || 0.16;
+  const matRahmen = new THREE.MeshStandardMaterial({color:bike.accent, roughness:0.35, metalness:0.5}); matRahmen.name = 'frame_charcoal';
+  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}); matMetall.name = 'raw_alu';
+  const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}); matReifen.name = 'tire_rubber';
+  const halter = new THREE.Group(), koerper = new THREE.Group(); halter.add(koerper);
+  const hinten = V(0, R, -0.42), vorn = V(0, R, 0.42);
+  koerper.add(mesh([
+    kasten(V(0, 0.12, -0.02), 0.16, 0.05, 0.62),                                   // Trittbrett
+    rohr(V(0, 0.14, 0.28), V(0, 1.02, 0.36), 0.022),                                // Lenkstange
+    rohr(V(0, 0.10, -0.32), V(0, R, hinten.z), 0.016),                              // Hinterradaufnahme
+    rohr(V(0, 0.62, 0.34), V(0, R, vorn.z), 0.018),                                 // Vorderradgabel
+  ], matRahmen));
+  koerper.add(mesh([rohr(V(-0.25, 1.04, 0.36), V(0.25, 1.04, 0.36), 0.012), kasten(V(0, 1.0, 0.40), 0.06, 0.03, 0.05)], matSchwarz));
+  koerper.add(mesh([kasten(V(0, 0.10, -0.02), 0.17, 0.008, 0.64)], matMetall));      // Deckplatte
+  const radH = laufrad(matReifen, matMetall, R, true); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R, true); radV.position.copy(vorn);
+  halter.add(radH, radV);
+  const fahrerin = baueFahrerin(farben, 'stehend'); fahrerin.position.y = 0.15;   // steht auf dem Brett
+  koerper.add(fahrerin);
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel:null, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  return halter;
+}
+
+/* Die GLB wird EINMAL geladen; jedes Rad bekommt einen Klon des Szenenbaums.
+   Nur load() steht im try — Fehler in der eigenen Verarbeitung müssen in der
+   Konsole landen, sonst sieht man „Rohrmodell aktiv" und sucht an der falschen Stelle. */
+let glbVersprechen = null;
+/* Ladezustand für den Ladebildschirm. Wird schon beim Vorladen gefüllt, das
+   Overlay liest ihn nur. gesamt = 0 heißt: der Server hat keine Content-Length
+   geschickt (chunked) — dann läuft der Balken unbestimmt statt auf 100 % zu springen. */
+const ladeStand = {
+  fahrzeug: {zustand:'offen', geladen:0, gesamt:0, text:''},
+  strecke:  {zustand:'offen'},
+  wald:     {zustand:'offen'},
+};
+function ladeGLB(){
+  if(!glbVersprechen){
+    ladeStand.fahrzeug.zustand = 'läuft'; zeichneLadestand();
+    const manager = new THREE.LoadingManager();
+    glbVersprechen = new Promise((ok, no) => new GLTFLoader(manager).load(GLB_PFAD, ok,
+      ev => { ladeStand.fahrzeug.geladen = ev.loaded; ladeStand.fahrzeug.gesamt = ev.lengthComputable ? ev.total : 0; zeichneLadestand(); },
+      no));
+    glbVersprechen.then(
+      () => { ladeStand.fahrzeug.zustand = 'fertig'; ladeStand.fahrzeug.text = 'geladen'; zeichneLadestand(); },
+      () => { ladeStand.fahrzeug.zustand = 'fehler'; ladeStand.fahrzeug.text = 'Modell nicht gefunden, Rohrmodell aktiv'; zeichneLadestand(); });
+  }
+  return glbVersprechen;
+}
+
+/* Weitere GLB-Dateien (fahrzeuge/<id>.glb) werden je Pfad einmal geladen. */
+const glbDateien = new Map();
+function ladeGLBDatei(pfad){
+  if(pfad === GLB_PFAD_HAUPT) return ladeGLB();
+  if(!glbDateien.has(pfad)) glbDateien.set(pfad, new Promise((ok, no) => new GLTFLoader().load(pfad, ok, undefined, no)));
+  return glbDateien.get(pfad);
+}
+function baukasten(bike){
+  return bike.id === 'roller' ? baueRoller(bike, aktCharakter()) : baueRad(bike, aktCharakter());
+}
+async function ladeFahrzeug(bike){
+  const pfad = bike.modell && bike.modell.glb;
+  if(!pfad) return baukasten(bike);
+  let gltf;
+  try{ gltf = await ladeGLBDatei(pfad); }
+  catch(e){
+    // Die Hauptdatei fehlt: laut sagen. Eine optionale fahrzeuge/<id>.glb fehlt: normal, leise.
+    if(pfad === GLB_PFAD_HAUPT) console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
+    else console.info('Kein ' + pfad + ' — Baukasten für ' + bike.id);
+    return baukasten(bike);
+  }
+  const halter = richteGLB(gltf.scene.clone(true), bike);
+  wendeCharakterAn(halter, aktCharakter());
+  return halter;
+}
+
+/* Alle Nodes eines Namens (getObjectByName liefert nur den ersten). */
+function alleMitName(root, name){
+  const out = []; root.traverse(o => { if(o.name === name) out.push(o); }); return out;
+}
+/* Pivot-Gruppe ins gemeinsame Zentrum der Nodes setzen und die Nodes umhängen.
+   Nötig, weil z. B. wheel_front ein Identitäts-Transform hat: sein Drehpunkt wäre
+   der Modellursprung, nicht die Nabe. attach() behält die Welt-Transform. */
+function pivotUm(root, nodes, name){
+  if(!nodes.length) return null;
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  for(const n of nodes) box.union(new THREE.Box3().setFromObject(n));
+  const pivot = new THREE.Group(); pivot.name = name;
+  box.getCenter(pivot.position); root.add(pivot);
+  for(const n of nodes) for(const ch of (n.isGroup ? [...n.children] : [n])) pivot.attach(ch);
+  return pivot;
+}
+
+function richteGLB(root, bike){
+  // Die Datei ist in Metern, Boden bei y = 0, in x/z zentriert: keine Skalierung.
+  const halter = new THREE.Group(), koerper = new THREE.Group();
+  halter.add(koerper); koerper.add(root);
+  root.rotation.y = GLB_DREHUNG;
+  root.updateMatrixWorld(true);
+
+  // Materialien klonen — der Loader teilt sie zwischen Meshes und zwischen den beiden Klonen.
+  root.traverse(o => {
+    if(!o.isMesh) return;
+    const k = m => { const c = m.clone(); c.name = m.name; return c; };
+    o.material = Array.isArray(o.material) ? o.material.map(k) : k(o.material);
+  });
+  // MTB: kein Motor, kein Akku, Rahmen in Akzentfarbe. eMTB: alles sichtbar, Rahmen bleibt.
+  if(!bike.motor){
+    for(const n of ['motor_box', 'battery_downtube']) for(const o of alleMitName(root, n)) o.visible = false;
+    root.traverse(o => {
+      if(!o.isMesh) return;
+      for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+        if(m.name === 'frame_charcoal') m.color.set(bike.accent);
+    });
+  }
+
+  const pivotV = pivotUm(root, alleMitName(root, 'wheel_front'), 'pivot_wheel_front');
+  const pivotH = pivotUm(root, alleMitName(root, 'wheel_rear'),  'pivot_wheel_rear');
+  const kurbel = pivotUm(root, [...alleMitName(root, 'chainring'), ...alleMitName(root, 'crank_arm'), ...alleMitName(root, 'pedal')], 'pivot_kurbel');
+  const fahrerin = root.getObjectByName('rider_female') || null;
+  if(!pivotV || !pivotH) console.warn('GLB: wheel_front/wheel_rear nicht gefunden — Räder drehen nicht');
+  // Räder hängen am Halter, nicht am federnden Körper
+  for(const pv of [pivotV, pivotH]) if(pv) halter.attach(pv);
+
+  const ausnahmen = new Set();
+  for(const g of [pivotV, pivotH, kurbel, fahrerin]) if(g) g.traverse(o => ausnahmen.add(o));
+  const drawcalls = verschmelzeNachMaterial(root, ausnahmen);
+
+  halter.userData = {quelle:'glb', raeder:[pivotH, pivotV].filter(Boolean), kurbel, koerper, fahrerin,
+                     radR:(bike.modell && bike.modell.bau && bike.modell.bau.radR) || RAD_R,
+                     feder:0, federV:0, letzteLandung:null, drawcalls};
+  return halter;
+}
+
+/* Draw Calls: statische Meshes je Material zusammenlegen (Welt-Transform eingebacken).
+   Gruppen mit ungleichen Attributen werden übersprungen, nicht gehackt. */
+function verschmelzeNachMaterial(root, ausnahmen){
+  root.updateMatrixWorld(true);
+  const gruppen = new Map(), vorher = [];
+  root.traverse(o => {
+    if(!o.isMesh || ausnahmen.has(o) || !o.visible || Array.isArray(o.material)) return;
+    vorher.push(o);
+    // Nach NAME gruppieren: die Materialien wurden vorher pro Mesh geklont, ihre uuids
+    // sind also alle verschieden. Innerhalb eines Rads ist gleicher Name = gleiche Farbe.
+    const k = o.material.name || o.material.uuid;
+    if(!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(o);
+  });
+  let nachher = 0, uebersprungen = 0;
+  for(const [, meshes] of gruppen){
+    if(meshes.length < 2){ nachher += meshes.length; continue; }
+    const attrs = g => Object.keys(g.attributes).sort().join(',') + (g.index ? '|i' : '');
+    const ref = attrs(meshes[0].geometry);
+    if(!meshes.every(m => attrs(m.geometry) === ref)){ nachher += meshes.length; uebersprungen++; continue; }
+    const geos = meshes.map(m => m.geometry.clone().applyMatrix4(m.matrixWorld));
+    const merged = mergeGeometries(geos, false);
+    if(!merged){ nachher += meshes.length; uebersprungen++; continue; }
+    const neu = new THREE.Mesh(merged, meshes[0].material); neu.name = 'merged_' + meshes[0].material.name;
+    for(const m of meshes) m.removeFromParent();
+    root.add(neu); nachher++;
+  }
+  return {vorher: vorher.length, nachher, uebersprungen};
+}
+
+/* Animation des Rohrmodells: Räder drehen mit dem Tempo, die Kurbel beim Treten,
+   Körper und Fahrerin federn — ein Feder-Dämpfer, der bei der Landung einen
+   Stoß bekommt und in der Luft leicht ausfedert. */
+function animiereFahrzeug(halter, f, dt, ein){
+  const u = halter.userData; if(!u || !u.raeder) return;
+  // Rollen nach +z = positive Drehung um die lokale x-Achse: (0,R,0) → (0, R·cos a, R·sin a),
+  // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
+  const spin = (f.boden ? f.vs : f.vs*0.92) / (u.radR || RAD_R) * dt;
+  for(const r of u.raeder) r.rotation.x += spin;
+  if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
+  if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
+    u.letzteLandung = f.letzteLandung;
+    u.federV -= Math.min(2.2, 0.16 * f.letzteLandung.aufprall);
+  }
+  const ziel = f.boden ? 0 : 0.05;
+  const a = -160*(u.feder - ziel) - 16*u.federV;
+  u.federV += a*dt; u.feder = Math.max(-0.14, Math.min(0.06, u.feder + u.federV*dt));
+  u.koerper.position.y = u.feder;
+  // Die Fahrerin geht bei der Kompression tiefer in die Hocke als das Rad einfedert
+  if(u.fahrerin){
+    u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
+    u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+  }
+}
+
+/* Blob-Schatten: zeigt beim Sprung, wie hoch man wirklich ist. Kostet eine
+   Shadow-Map-Berechnung über 1900 m nicht — ein Kreis reicht völlig. */
+function baueSchatten(){
+  const g = new THREE.CircleGeometry(0.62, 20);
+  g.rotateX(-Math.PI/2);
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color:0x000000, transparent:true, opacity:0.42, depthWrite:false, fog:false}));
+}
+
+/* ===========================================================================
+   9. STEUERUNG UND SCHLEIFE
+   =========================================================================== */
+const ein = {gas:false, bremse:0, quer:0};
+const taste = {};
+const KAMERAS = [
+  {name:'Verfolgung', hinten:6.8, hoch:2.5, ziel:9,  roll:0.55},
+  {name:'Cockpit',    hinten:-0.15, hoch:1.5, ziel:14, roll:0.85},
+  {name:'Weit',       hinten:13,  hoch:5.4, ziel:6,  roll:0.30},
+];
+let kamMode = 0;
+
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  taste[k] = true;
+  if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
+  if(k === 'r' && welt) neustart();
+  if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
+  if(k === 'f' && welt){
+    const i = CHARAKTERE.findIndex(c => c.id === aktCharakterId);
+    wechsleCharakter(CHARAKTERE[(i + 1) % CHARAKTERE.length].id);
+  }
+});
+addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
+
+function leseEingabe(){
+  ein.gas    = !!(taste['w'] || taste['arrowup']);
+  ein.bremse = (taste['s'] || taste['arrowdown']) ? 1 : 0;
+  ein.quer   = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+}
+
+/* --------------------------------------------- Position auf der Mittellinie */
+const _p = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3();
+const _camZiel = new THREE.Vector3(), _camPos = new THREE.Vector3(), _up = new THREE.Vector3();
+
+function stInterp(w, s){
+  const f = Math.max(0, Math.min(s/DS, w.st.length - 2));
+  const i = Math.floor(f), t = f - i;
+  const a = w.st[i], b = w.st[i+1];
+  return {x: a.x + t*(b.x-a.x), z: a.z + t*(b.z-a.z), psi: a.psi + t*(b.psi-a.psi)};
+}
+function weltPos(w, s, u, y, out){
+  const st = stInterp(w, s);
+  const rx = -Math.cos(st.psi), rz = Math.sin(st.psi);
+  return out.set(st.x + rx*u, y, st.z + rz*u);
+}
+
+/* ------------------------------------------------------------------ Zustand */
+let welt = null, fahrer = null, halter = null, schatten = null, laeuft = false;
+/* Letzte Wahl merken. localStorage kann fehlen (Private Mode) oder werfen. */
+const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
+const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
+let radCache = {}, aktRad = BIKES[gemerkt('rad', 'mtb')] ? gemerkt('rad', 'mtb') : 'mtb', aktStrecke = 0, hudAn = false;
+if(CHARAKTERE.some(c => c.id === gemerkt('charakter', 'mia'))) aktCharakterId = gemerkt('charakter', 'mia');
+
+/* Charakterwechsel: kein Neuladen, kein Neubau — nur Farben und zwei
+   Sichtbarkeiten auf jedem schon gebauten Fahrzeug (radCache). */
+function wechsleCharakter(id){
+  const ch = CHARAKTERE.find(c => c.id === id);
+  if(!ch) return;
+  aktCharakterId = id; merke('charakter', id);
+  for(const h of Object.values(radCache)) wendeCharakterAn(h, ch);
+  document.querySelectorAll('#chars .card').forEach(c =>
+    c.setAttribute('aria-pressed', String(c.dataset.id === id)));
+  if(hudAn) meldung(ch.name, 1500);
+}
+const timer = new THREE.Timer();
+
+const $ = id => document.getElementById(id);
+
+function neustart(){
+  fahrer = neuerFahrer(BIKES[aktRad]);
+  $('elem').classList.remove('on');
+}
+
+let montiert = null;
+async function wechsleRad(id){
+  if(!BIKES[id] || montiert === id) return;   // auf das MONTIERTE Rad prüfen,
+  aktRad = id;                                // nicht auf das gewählte
+  if(fahrer) fahrer.bike = BIKES[id];
+  if(halter) scene.remove(halter);
+  if(!radCache[id]) radCache[id] = await ladeFahrzeug(BIKES[id]);
+  halter = radCache[id];
+  scene.add(halter);
+  montiert = id; merke('rad', id);
+  $('vname').textContent = BIKES[id].name;
+  document.querySelectorAll('#bikes .card').forEach(c =>
+    c.setAttribute('aria-pressed', String(c.dataset.id === id)));
+}
+
+/* ------------------------------------------------------------------ Aufbau */
+/* Einen Paint freigeben. rAF allein reicht NICHT: die Fortsetzung eines
+   await'ed rAF läuft als Microtask noch vor dem Paint desselben Frames, und
+   das Overlay würde nie gezeichnet. rAF + setTimeout(0) liegt hinter dem Paint. */
+const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+function zeichneLadestand(){
+  const lade = $('lade'); if(!lade) return;
+  const F = ladeStand.fahrzeug;
+  const zeile = (id, zustand, text) => {
+    const z = lade.querySelector(`.lz[data-s="${id}"]`); z.dataset.z = zustand; z.querySelector('b').textContent = text;
+  };
+  // Geklemmt: FileLoader zählt entpackte Bytes, Content-Length ist bei gzip die
+  // komprimierte Größe — ohne Clamp stünde dort „137 %".
+  const q = F.gesamt > 0 ? Math.min(1, F.geladen/F.gesamt) : 0;
+  let ft = F.zustand === 'offen' ? 'offen' : F.zustand === 'läuft'
+    ? (F.gesamt > 0 ? Math.round(q*100) + ' %' : (F.geladen > 0 ? Math.round(F.geladen/1024) + ' kB …' : 'läuft'))
+    : F.text;
+  zeile('fahrzeug', F.zustand, ft);
+  zeile('strecke', ladeStand.strecke.zustand, ladeStand.strecke.zustand);
+  zeile('wald', ladeStand.wald.zustand, ladeStand.wald.zustand);
+  // Gesamtfortschritt: Fahrzeug 0-50 %, Strecke bis 80 %, Wald bis 100 %
+  const balken = $('ladeBalken'), i = balken.firstElementChild;
+  let p = 0, unbestimmt = false;
+  if(F.zustand === 'läuft'){ if(F.gesamt > 0) p = 50 * q; else unbestimmt = true; }
+  else if(F.zustand !== 'offen') p = 50;
+  if(ladeStand.strecke.zustand === 'läuft') p = 55; else if(ladeStand.strecke.zustand !== 'offen') p = 80;
+  if(ladeStand.wald.zustand === 'läuft') p = 85; else if(ladeStand.wald.zustand !== 'offen') p = 100;
+  balken.classList.toggle('unbestimmt', unbestimmt);
+  if(!unbestimmt) i.style.width = p + '%';
+}
+
+let ladeAusblenden = 0;
+function zeigeLade(an){
+  const lade = $('lade');
+  clearTimeout(ladeAusblenden);
+  if(an){
+    lade.hidden = false; lade.classList.remove('weg'); canvas.setAttribute('aria-busy', 'true');
+    $('ladeFehler').hidden = true; $('ladeZurueck').hidden = true;
+    zeichneLadestand(); lade.focus({preventScroll:true});
+  } else {
+    canvas.setAttribute('aria-busy', 'false'); lade.classList.add('weg');
+    ladeAusblenden = setTimeout(() => { lade.hidden = true; }, reduced ? 0 : 380);
+  }
+}
+function ladeFehler(text){
+  canvas.setAttribute('aria-busy', 'false');
+  $('ladeFehler').textContent = text; $('ladeFehler').hidden = false;
+  $('ladeZurueck').hidden = false; $('ladeZurueck').focus();
+}
+$('ladeZurueck').onclick = () => {
+  ladeStand.strecke.zustand = 'offen'; ladeStand.wald.zustand = 'offen';
+  zeigeLade(false); $('start').classList.remove('gone');
+  $('go').focus({preventScroll:true});   // sonst verschwindet das fokussierte Element unter dem Fokus
+};
+
+async function starte(){
+  const t0 = performance.now(), T = {};   // Prüfhaken: Zeiten je Schritt, lesbar über window.bikepark.ladeStand.zeiten
+  ladeStand.zeiten = T;
+  $('start').classList.add('gone');
+  zeigeLade(true);
+
+  // 1) Fahrzeug — läuft seit dem Öffnen der Seite (Vorladen); hier nur warten
+  let glbOk = true;
+  try{ await ladeGLB(); }catch(e){ glbOk = false; }
+  zeichneLadestand(); T.fahrzeug = Math.round(performance.now() - t0);
+  await frame();
+
+  // 2) Strecke — synchron, friert den Tab ein; vorher einen Paint freigeben
+  ladeStand.strecke.zustand = 'läuft'; zeichneLadestand(); await frame();
+  try{
+    const track = TRACKS[aktStrecke];
+    if(welt){
+      scene.remove(welt.mesh); welt.mesh.geometry.dispose(); welt.mesh.material.dispose();
+      for(const b of (welt.baeume || [])){ scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
+    }
+    welt = baueStrecke(track);
+    welt.baeume = [];
+    scene.add(welt.mesh);
+  }catch(e){
+    console.error('Strecke konnte nicht gebaut werden:', e);
+    ladeStand.strecke.zustand = 'fehler'; zeichneLadestand();
+    ladeFehler('Strecke konnte nicht gebaut werden: ' + ((e && e.message) || e));
+    return;
+  }
+  ladeStand.strecke.zustand = 'fertig'; zeichneLadestand(); T.strecke = Math.round(performance.now() - t0); await frame();
+
+  // 3) Wald
+  ladeStand.wald.zustand = 'läuft'; zeichneLadestand(); await frame();
+  welt.baeume = baueBaeume(welt);
+  scene.add(...welt.baeume);
+  ladeStand.wald.zustand = 'fertig'; zeichneLadestand(); T.wald = Math.round(performance.now() - t0);
+
+  await frame();                                   // Radaufbau (Klon, Pivots, Merge) ist synchron
+  if(!schatten){ schatten = baueSchatten(); scene.add(schatten); }
+  await wechsleRad(aktRad); T.rad = Math.round(performance.now() - t0);
+  neustart();
+
+  // Mindestens 600 ms sichtbar, sonst flackert es bei vorgeladener GLB
+  const rest = 600 - (performance.now() - t0);
+  if(rest > 0) await new Promise(r => setTimeout(r, rest));
+  zeigeLade(false);
+
+  $('hud').classList.add('on'); $('right').classList.add('on');
+  hudAn = true; laeuft = true;
+  timer.update(performance.now()); timer.getDelta();
+  if(!glbOk) meldung('Modell nicht gefunden (' + GLB_PFAD + '), Rohrmodell aktiv', 4500);
+}
+
+let meldungTimer = 0;
+function meldung(text, ms){
+  const el = $('elem');
+  el.textContent = text; el.classList.add('on');
+  meldungTimer = performance.now() + ms;
+}
+
+/* ------------------------------------------------------------- Elementinfo */
+let letztesElement = null;
+function pruefeElement(){
+  let treffer = null;
+  for(const e of welt.track.elemente){
+    const b = e._geo ? e._geo.ende : e.start_m + (e.laenge_m || 1.5);
+    if(fahrer.s >= e.start_m - 2 && fahrer.s <= b + 2){ treffer = e; break; }
+  }
+  if(treffer !== letztesElement){
+    letztesElement = treffer;
+    if(treffer) meldung(treffer.typ.replace('_','-') + ' · ' + treffer.notiz, 4200);
+  }
+}
+
+/* ---------------------------------------------------------------- HUD */
+let hudTakt = 0;
+function schreibeHud(dt){
+  hudTakt += dt;
+  if(hudTakt < 0.08) return;
+  hudTakt = 0;
+  $('kmh').textContent = Math.round(fahrer.vs * 3.6);
+  const t = fahrer.zeit;
+  $('t').textContent = Math.floor(t/60) + ':' + (t%60 < 10 ? '0' : '') + (t%60).toFixed(1);
+  $('d').textContent = Math.round(Math.min(fahrer.s, welt.L)) + ' / ' + welt.L + ' m';
+  $('h').textContent = Math.round(welt.hArr(Math.min(fahrer.s, welt.L))) + ' m';
+  $('air').textContent = (fahrer.boden ? fahrer.luftGesamt : fahrer.luftGesamt + fahrer.luftZeit)
+    .toFixed(1).replace('.', ',') + ' s';
+  $('bar').firstElementChild.style.width = Math.min(100, fahrer.s/welt.L*100) + '%';
+  // Nächste Lippe voraus: Abstand und das Tempo, mit dem man die Landung trifft.
+  const nx = welt.spruenge.find(j => j.g.lippe > fahrer.s && j.g.lippe - fahrer.s < 70);
+  const row = $('nextRow');
+  if(nx){
+    row.hidden = false;
+    $('nextName').textContent = nx.g.typ.replace('_','-') + ' in ' + Math.round(nx.g.lippe - fahrer.s) + ' m';
+    const dv = fahrer.vs - nx.vFuss;
+    $('next').textContent = 'Ziel ' + Math.round(nx.vFuss*3.6) + ' km/h';
+    $('next').style.color = dv > 2.5 ? 'var(--jump)' : dv < -2.5 ? '#8fb0dd' : 'var(--line)';
+  } else row.hidden = true;
+}
+
+/* ---------------------------------------------------------------- Schleife */
+let sichtbar = true;
+document.addEventListener('visibilitychange', () => { sichtbar = !document.hidden; });
+
+renderer.setAnimationLoop(() => {
+  if(!sichtbar) return;
+  timer.update(performance.now());
+  const dt = Math.min(timer.getDelta(), 0.1);
+
+  if(laeuft && welt && fahrer){
+    leseEingabe();
+    // Feste Teilschritte: bei 30 fps sonst andere Physik als bei 144 fps
+    const n = Math.max(1, Math.ceil(dt/0.008));
+    for(let i = 0; i < n; i++) schritt(welt, fahrer, dt/n, ein);
+
+    if(fahrer.s >= welt.L){
+      laeuft = false;
+      meldung('Ziel · ' + Math.floor(fahrer.zeit/60) + ':' +
+              (fahrer.zeit%60 < 10 ? '0' : '') + (fahrer.zeit%60).toFixed(1) +
+              ' · ' + fahrer.luftGesamt.toFixed(1).replace('.',',') + ' s Luft' +
+              ' · ' + fahrer.stuerze + ' Randkontakte · R für neu', 99999);
+    }
+    pruefeElement();
+    schreibeHud(dt);
+
+    // --- Fahrer setzen ---
+    const st = stInterp(welt, fahrer.s);
+    weltPos(welt, fahrer.s, fahrer.u, fahrer.y, _p);
+    if(halter){
+      animiereFahrzeug(halter, fahrer, dt, ein);
+      halter.position.copy(_p);
+      // Fahrtrichtung an der Station ist (sin ψ, 0, cos ψ); Rohrmodell und GLB schauen
+      // lokal nach +z. rotateY(ψ) dreht +z genau dorthin. Vorher stand hier
+      // rotateY(π − ψ): das liefert (sin ψ, −cos ψ), eine z-Spiegelung — Fehler 180°+2ψ.
+      halter.rotation.set(0, 0, 0);
+      halter.rotateY(st.psi);
+      halter.rotateX(fahrer.tilt);     // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
+      halter.rotateZ(-fahrer.roll);
+    }
+    if(schatten){
+      const sy = welt.flaeche(Math.min(fahrer.s, welt.L), fahrer.u);
+      weltPos(welt, fahrer.s, fahrer.u, sy + 0.05, schatten.position);
+      const hoch = Math.max(0, fahrer.y - sy);
+      const sk = 1 + hoch*0.16;
+      schatten.scale.set(sk, 1, sk);
+      schatten.material.opacity = 0.42 / (1 + hoch*0.5);
+    }
+
+    // --- Kamera ---
+    const km = KAMERAS[kamMode];
+    const fx = Math.sin(st.psi), fz = Math.cos(st.psi);
+    _camPos.set(_p.x - fx*km.hinten, _p.y + km.hoch, _p.z - fz*km.hinten);
+    _camZiel.set(_p.x + fx*km.ziel, _p.y + 0.7, _p.z + fz*km.ziel);
+    camera.position.lerp(_camPos, Math.min(1, dt*(kamMode === 1 ? 26 : 9)));
+    // Die Kamera rollt nur teilweise mit: ohne Rollen ist ein Wallride nicht
+    // lesbar, mit vollem Rollen wird einem schlecht.
+    const roll = fahrer.roll * km.roll;
+    _up.set(-Math.cos(st.psi)*Math.sin(-roll), Math.cos(roll), Math.sin(st.psi)*Math.sin(-roll));
+    camera.up.copy(_up);
+    camera.lookAt(_camZiel);
+  }
+
+  if(meldungTimer && performance.now() > meldungTimer){
+    $('elem').classList.remove('on'); meldungTimer = 0;
+  }
+  renderer.render(scene, camera);
+});
+
+/* ---------------------------------------------------------------- Resize */
+function resize(){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if(!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+resize();
+
+/* ---------------------------------------------------------------- Startmenü */
+function karte(html, id, gedrueckt){
+  const b = document.createElement('button');
+  b.className = 'card'; b.type = 'button'; b.dataset.id = id;
+  b.setAttribute('aria-pressed', String(gedrueckt));
+  b.innerHTML = html;
+  return b;
+}
+
+TRACKS.forEach((t, i) => {
+  const spr = t.elemente.filter(e =>
+    ['kicker','tabletop','step_up','step_down','drop','hip'].includes(e.typ)).length;
+  const wr = t.elemente.filter(e => e.typ === 'wallride').length;
+  const b = karte(
+    `<div class="n">${t.name}</div><div class="d">${t.laenge_m} m · ${t.hoehendifferenz_m} hm · ` +
+    `${(t.hoehendifferenz_m/t.laenge_m*100).toFixed(1)} % Gefälle<br>` +
+    `${t.elemente.length} Elemente · ${spr} Sprünge · ${wr} Wallride${wr === 1 ? '' : 's'}</div>`,
+    String(i), i === 0);
+  b.onclick = () => {
+    aktStrecke = i;
+    document.querySelectorAll('#tracks .card').forEach((c, j) =>
+      c.setAttribute('aria-pressed', String(j === i)));
+  };
+  $('tracks').appendChild(b);
+});
+
+BIKE_IDS.forEach((id, n) => {
+  const bk = BIKES[id];
+  const b = karte(`<div class="n"><span class="k">${n+1}</span> ${bk.name}</div><div class="d">${bk.d}<br>${bk.masse} kg Systemmasse` +
+                  (bk.motor ? ` · Motor bis ${Math.round(bk.motorBis*3.6)} km/h` : '') + `</div>`,
+                  bk.id, bk.id === aktRad);
+  b.onclick = () => {
+    aktRad = bk.id; merke('rad', bk.id);
+    document.querySelectorAll('#bikes .card').forEach(c =>
+      c.setAttribute('aria-pressed', String(c.dataset.id === bk.id)));
+  };
+  $('bikes').appendChild(b);
+});
+
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+CHARAKTERE.forEach(ch => {
+  const b = karte(`<div class="n">${ch.name}</div><div class="d">` +
+                  `<span class="sw" style="background:${hex(ch.jersey)}"></span>Trikot ` +
+                  `<span class="sw" style="background:${hex(ch.helm)}"></span>Helm` +
+                  (ch.zopf ? ' · Zopf' : '') + (ch.schirm ? '' : ' · ohne Schirm') + `</div>`,
+                  ch.id, ch.id === aktCharakterId);
+  b.onclick = () => wechsleCharakter(ch.id);
+  $('chars').appendChild(b);
+});
+
+$('note').innerHTML =
+  'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen und auf 1,80 m ' +
+  'eingemessen. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
+  'Doppelklick reicht: Three.js kommt vom CDN mit CORS-Freigabe. Nur die GLB-Datei lässt sich ' +
+  'unter <code>file://</code> nicht laden — dafür <code>python3 -m http.server</code> im Ordner starten.';
+
+$('go').onclick = () => { starte().catch(e => {
+  console.error(e);
+  for(const k of ['strecke', 'wald']) if(ladeStand[k].zustand === 'läuft') ladeStand[k].zustand = 'fehler';
+  zeichneLadestand();
+  ladeFehler('Aufbau fehlgeschlagen: ' + e.message);
+}); };
+ladeGLB().catch(() => {});   // Vorladen: die Datei liegt beim Klick auf „Abfahrt" schon im Cache
+
+if(reduced){
+  // Die Bewegung hier ist vom Nutzer ausgelöst, nicht dekorativ — die Fahrt
+  // bleibt. Nur der Kameranachlauf wird härter, damit weniger geschwebt wird.
+  KAMERAS.forEach(k => k.roll *= 0.4);
+}
+
+/* Prüfhaken: erlaubt es, die Geometrie von außen nachzumessen, statt sie
+   aus dem Bild zu raten. Kostet nichts und hilft beim Einbau in ein anderes Spiel. */
+window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, baseHoehe,
+                   baueStrecke, neuerFahrer, schritt, stInterp, wechsleRad, renderer,
+                   get welt(){ return welt; }, get fahrer(){ return fahrer; },
+                   get halter(){ return halter; },
+                   get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
+                   get charakter(){ return aktCharakterId; }, wechsleCharakter,
+                   TRACKS, BIKES, CHARAKTERE};
+
+addEventListener('pagehide', () => {
+  renderer.setAnimationLoop(null);
+  scene.traverse(o => {
+    if(o.geometry) o.geometry.dispose();
+    if(o.material){
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+        Object.values(m).forEach(v => v && v.isTexture && v.dispose());
+        m.dispose();
+      });
+    }
+  });
+  renderer.dispose();
+});
+</script>
+</body>
+</html>
