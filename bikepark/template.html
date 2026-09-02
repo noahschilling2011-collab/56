@@ -1,0 +1,2295 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bikepark-Prüfstand</title>
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#101015; --line:#4fd1c5; --jump:#ff9d4d;
+    --wall:#d9a441; --dim:#8b8b95; --fg:#e8e8ee;
+    --glass:rgba(255,255,255,.045); --stroke:rgba(255,255,255,.09);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased}
+  #scene{display:block;width:100%;height:100svh}
+  .glass{background:var(--glass);border:1px solid var(--stroke);border-radius:14px;
+    backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%)}
+
+  /* --- HUD --- */
+  #hud{position:fixed;inset:auto auto 18px 18px;padding:14px 16px;min-width:206px;
+    pointer-events:none;opacity:0;transition:opacity .5s ease}
+  #hud.on{opacity:1}
+  #hud .big{font-size:34px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  #hud .u{font-size:11px;color:var(--dim);margin-left:5px}
+  #hud .row{display:flex;justify-content:space-between;gap:18px;font-size:11px;
+    color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums}
+  #hud .row b{color:var(--fg);font-weight:400}
+  #hud .row[hidden]{display:none}   /* display:flex würde das native hidden überschreiben */
+  #bar{height:3px;background:rgba(255,255,255,.09);border-radius:2px;margin-top:11px;overflow:hidden}
+  #bar i{display:block;height:100%;width:0;background:var(--line);transition:width .12s linear}
+
+  /* Bleibt rechts vom HUD: bei 1280 px reicht 88vw sonst bis unter den Tacho. */
+  #elem{position:fixed;left:calc(50% + 110px);bottom:26px;transform:translateX(-50%);
+    padding:9px 18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--jump);opacity:0;transition:opacity .3s ease;pointer-events:none;
+    white-space:nowrap;max-width:min(62vw,760px);overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:760px){
+    #elem{left:50%;bottom:14px;max-width:92vw;font-size:11px}
+    #hud{inset:auto auto 58px 12px;padding:10px 12px;min-width:0}
+    #hud .big{font-size:26px}
+    #right{top:12px;right:12px;font-size:10px}
+  }
+  #elem.on{opacity:1}
+
+  #right{position:fixed;top:18px;right:18px;padding:12px 14px;font-size:11px;color:var(--dim);
+    opacity:0;transition:opacity .5s ease;pointer-events:none;text-align:right}
+  #right.on{opacity:1}
+  #right b{color:var(--fg);font-weight:400}
+  #right .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;
+    margin-left:4px;color:var(--fg)}
+
+  /* --- Startbildschirm --- */
+  #start{position:fixed;inset:0;display:grid;place-items:center;padding:24px;
+    background:radial-gradient(120% 90% at 50% 0%,#14141b 0%,#0a0a0c 62%);z-index:10;
+    overflow-y:auto}
+  #start.gone{display:none}
+  #panel{width:min(860px,100%);padding:30px}
+  h1{margin:0;font-size:25px;letter-spacing:-.02em;font-weight:500}
+  .sub{color:var(--dim);font-size:12px;margin:8px 0 26px}
+  .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin:0 0 10px}
+  .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:24px}
+  .card{padding:14px 16px;border-radius:12px;border:1px solid var(--stroke);background:var(--glass);
+    cursor:pointer;transition:border-color .2s ease,background .2s ease;text-align:left;
+    color:inherit;font:inherit}
+  .card:hover{border-color:rgba(79,209,197,.4)}
+  .card:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+  .card[aria-pressed=true]{border-color:var(--line);background:rgba(79,209,197,.09)}
+  .card .n{font-size:15px;margin-bottom:5px}
+  .card .n .k{display:inline-block;padding:0 6px;border:1px solid var(--stroke);border-radius:4px;color:var(--dim);font-size:12px;margin-right:4px}
+  .card .d{font-size:11px;color:var(--dim);line-height:1.55}
+  #chars{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .card .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;
+    border:1px solid rgba(255,255,255,.18)}
+  #go{width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(79,209,197,.13);color:var(--fg);font:inherit;font-size:14px;cursor:pointer;
+    transition:background .2s ease}
+  #go:hover{background:rgba(79,209,197,.22)}
+  #go:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+  #note{margin-top:16px;font-size:11px;color:var(--dim);line-height:1.7}
+  #note code{color:var(--line)}
+  #err{margin-top:14px;padding:11px 13px;border-radius:9px;font-size:11px;line-height:1.65;
+    border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a;display:none}
+  #err.on{display:block}
+
+  /* --- Ladebildschirm --- */
+  #lade{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 32px));
+    padding:22px 24px;z-index:11;opacity:1;transition:opacity .35s ease}
+  #lade.weg{opacity:0;pointer-events:none}
+  #lade .lt{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+  #lade .lz{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--dim)}
+  #lade .lz b{font-weight:400;color:var(--dim)}
+  #lade .lz[data-z="läuft"] b{color:var(--line)}
+  #lade .lz[data-z="fertig"]{color:var(--fg)} #lade .lz[data-z="fertig"] b{color:var(--fg)}
+  #lade .lz[data-z="fehler"] b{color:var(--jump)}
+  #ladeBalken{height:4px;background:rgba(255,255,255,.09);border-radius:2px;margin:12px 0 14px;overflow:hidden;position:relative}
+  #ladeBalken i{display:block;height:100%;width:0;background:var(--line);transition:width .25s ease}
+  #ladeBalken.unbestimmt i{width:35%;animation:ladeLauf 1.2s ease-in-out infinite}
+  @keyframes ladeLauf{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+  #lade .ltip{margin:0;font-size:11px;color:var(--dim);line-height:1.7}
+  #lade .ltip .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;color:var(--fg);margin:0 3px 0 1px}
+  #ladeFehler{margin-top:12px;padding:10px 12px;border-radius:9px;font-size:12px;line-height:1.6;
+    border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a}
+  #ladeZurueck{margin-top:12px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--stroke);
+    background:var(--glass);color:var(--fg);font:inherit;cursor:pointer}
+  #ladeZurueck:focus-visible,#lade:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms!important}
+    #ladeBalken.unbestimmt i{animation:none;width:35%;transform:none;
+      background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px)}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-busy="false"></canvas>
+<noscript>Für diese Ansicht wird JavaScript benötigt.</noscript>
+
+<div id="hud" class="glass">
+  <div><span class="big" id="kmh">0</span><span class="u">km/h</span></div>
+  <div class="row"><span>Zeit</span><b id="t">0:00.0</b></div>
+  <div class="row"><span>Strecke</span><b id="d">0 / 0 m</b></div>
+  <div class="row"><span>Höhe</span><b id="h">0 m</b></div>
+  <div class="row"><span>Luft</span><b id="air">0,0 s</b></div>
+  <div class="row" id="nextRow" hidden><span id="nextName">Sprung</span><b id="next">—</b></div>
+  <div id="bar"><i></i></div>
+</div>
+
+<div id="right" class="glass">
+  <div><b id="vname">—</b></div>
+  <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
+  <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
+  <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
+  <div>Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+  <div id="gq" style="margin-top:6px"></div>
+</div>
+
+<div id="elem" class="glass"></div>
+
+<div id="start">
+  <div id="panel" class="glass">
+    <h1>Bikepark-Prüfstand</h1>
+    <p class="sub">Drei Streckenpläne, aus der Elementliste gebaut — nicht zufällig erzeugt.
+      Bei jedem Run liegt derselbe Sprung an derselben Stelle.</p>
+
+    <p class="lbl">Strecke</p>
+    <div class="grid" id="tracks"></div>
+
+    <p class="lbl">Rad</p>
+    <div class="grid" id="bikes"></div>
+
+    <p class="lbl">Fahrer:in</p>
+    <div class="grid" id="chars"></div>
+
+    <button id="go">Abfahrt</button>
+    <p id="note"></p>
+    <div id="err"></div>
+  </div>
+</div>
+
+<div id="lade" class="glass" role="status" aria-labelledby="ladeTitel" tabindex="-1" hidden>
+  <div class="lt" id="ladeTitel">Wird geladen</div>
+  <div class="lz" data-s="fahrzeug" data-z="offen"><span>Fahrzeug</span><b>offen</b></div>
+  <div class="lz" data-s="strecke"  data-z="offen"><span>Strecke</span><b>offen</b></div>
+  <div class="lz" data-s="wald"     data-z="offen"><span>Wald</span><b>offen</b></div>
+  <div id="ladeBalken"><i></i></div>
+  <p class="ltip">Gas<span class="k">W</span> Bremse<span class="k">S</span> Linie<span class="k">A</span><span class="k">D</span>
+    Kamera<span class="k">C</span> Neustart<span class="k">R</span> Rad<span class="k">1</span>–<span class="k">5</span> Fahrer:in<span class="k">F</span></p>
+  <div id="ladeFehler" hidden></div>
+  <button id="ladeZurueck" type="button" hidden>Zurück</button>
+</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.185.1/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.185.1/examples/jsm/"
+}}
+</script>
+
+<script id="strecken" type="application/json">__STRECKEN_JSON__</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* Qualitätsschalter. ?q=hoch|niedrig erzwingt, sonst: niedrig bei ≤ 4 Kernen
+   oder Touch. ?aus=schale,schatten,himmel,textur,wald,material,post,bewegung
+   schaltet einzelne Grafikschritte ab — Prüfhaken für Vorher/Nachher-Messungen,
+   kein Nutzer-Feature. */
+const GRAFIK = (() => {
+  const q = new URLSearchParams(location.search);
+  let stufe = q.get('q');
+  if(stufe !== 'niedrig' && stufe !== 'hoch'){
+    const touch = navigator.maxTouchPoints > 0;
+    stufe = ((navigator.hardwareConcurrency || 8) <= 4 || touch) ? 'niedrig' : 'hoch';
+  }
+  const aus = new Set((q.get('aus') || '').split(',').filter(Boolean));
+  return {stufe, hoch: stufe === 'hoch', aus:[...aus], an: name => !aus.has(name)};
+})();
+
+const G = 9.81;
+const TRACKS = JSON.parse(document.getElementById('strecken').textContent).strecken;
+const GLB_PFAD_HAUPT = 'mtb-emtb-fahrerin.glb';   // Enduro und eMTB kommen aus derselben Datei
+
+/* ===========================================================================
+   RÄDER
+   Der Unterschied ist nicht kosmetisch: Masse, Luftwiderstand, Rollwiderstand,
+   Bremskraft und Luftkontrolle unterscheiden sich. Das eMTB ist schwerer, rollt
+   auf Geraden besser aus und tritt mit, lässt sich in der Luft aber schlechter
+   korrigieren — genau der Trade-off, den man auf dem Rad auch spürt.
+   =========================================================================== */
+const BIKES = {
+  v10: {
+    id:'v10', name:'Santa Cruz V10 · DH', accent:0xd9a441,
+    masse:92, CdA:0.50, Crr:0.017, bremse:8000, tritt:200, luft:4.4, boden:8.0, grip:1.12, absorb:0.62,
+    modell:{glb:'fahrzeuge/v10.glb', bau:{gabel:'doppel', hinterbau:'coil', motor:false, sattelHoch:false, lenkerBreite:0.80, radR:0.37, radstand:1.0}},
+    d:'Doppelbrücke, Coil-Dämpfer, 200 mm Federweg. Schluckt fast alles, will aber Tempo.'
+  },
+  mtb: {
+    id:'mtb', name:'Enduro 170', accent:0x4fd1c5,
+    masse:88,        // Fahrerin + Rad, kg
+    CdA:0.48,        // m², aufrechte Abfahrtshaltung
+    Crr:0.016,       // Rollwiderstand grober Reifen auf festem Boden
+    bremse:7200,     // N Bremskraft an der Grenze zum Blockieren
+    tritt:260,       // W Dauerleistung beim Treten
+    luft:5.2,        // seitliche Kontrolle in der Luft, m/s²
+    boden:9.0,       // seitliche Kontrolle am Boden, m/s²
+    grip:1.05,       // Reibbeiwert für die Kurvengrenze
+    absorb:0.48,     // m, so viel Welle schluckt Federung + Beine, bevor man abhebt
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
+    d:'Leichter, wendiger, kürzerer Bremsweg. In der Luft besser zu korrigieren.'
+  },
+  dirt: {
+    id:'dirt', name:'Dirt Hardtail', accent:0xc6f24e,
+    masse:84, CdA:0.46, Crr:0.015, bremse:6800, tritt:280, luft:6.2, boden:9.6, grip:0.98, absorb:0.28,
+    modell:{glb:'fahrzeuge/dirt.glb', bau:{gabel:'einfach', hinterbau:'starr', motor:false, sattelHoch:false, lenkerBreite:0.74, radR:0.33, radstand:0.86}},
+    d:'Starrer Hinterbau, 26 Zoll, kurz. Zappelig, geht beim Absprung höher — und das Steinfeld tut weh.'
+  },
+  emtb: {
+    id:'emtb', name:'eMTB', accent:0xff9d4d,
+    masse:113,       // ca. 25 kg mehr: Motor, Akku, verstärkter Rahmen
+    CdA:0.50,
+    Crr:0.019,       // breitere Reifen, mehr Auflagedruck
+    bremse:8600,     // stärkere Bremsen, aber mehr Masse zu verzögern
+    tritt:260,
+    motor:620,       // W Motorunterstützung, nur unter 25 km/h (StVZO-Grenze)
+    motorBis:6.94,   // 25 km/h in m/s
+    luft:3.6,        // träger in der Luft
+    boden:7.4,
+    grip:1.10,       // mehr Auflagedruck → etwas mehr Grip
+    absorb:0.42,     // etwas weniger: mehr Masse, die Beine müssen mehr halten
+    modell:{glb:GLB_PFAD_HAUPT, bau:{gabel:'einfach', hinterbau:'luft', motor:true, sattelHoch:true, lenkerBreite:0.78, radR:0.37, radstand:1.0}},
+    d:'25 kg schwerer, schiebt bis 25 km/h mit. Träge in der Luft, stabiler am Boden.'
+  },
+  roller: {
+    id:'roller', name:'E-Roller', accent:0xe8e8ee,
+    masse:92, CdA:0.55, Crr:0.022, bremse:5600, tritt:120, motor:500, motorBis:5.56, luft:6.0, boden:8.5, grip:0.85, absorb:0.15,
+    modell:{glb:'fahrzeuge/roller.glb', bau:{radR:0.16, radstand:0.84}},
+    d:'Trittbrett, 16-cm-Räder, 500 W bis 20 km/h. Nichts federt, alles rutscht. Nicht empfehlenswert. Trotzdem drin.'
+  }
+};
+const BIKE_IDS = Object.keys(BIKES);   // Reihenfolge = Tasten 1–5
+
+/* Charaktere: Palette + Ausstattung. Die GLB hat kein Rig, also keine Posen
+   oder Körpergrößen — vier Fahrer:innen, die man auf 10 m auseinanderhält. */
+const CHARAKTERE = [
+  { id:'mia',   name:'Mia',   jersey:0x0a7a6a, hose:0x0a0d12, helm:0xff3008, haut:0x945a30, haar:0x0a0503, zopf:true,  schirm:true  },
+  { id:'lenny', name:'Lenny', jersey:0x1b1f27, hose:0x1b1f27, helm:0xd9a441, haut:0xe0b090, haar:0x3a2a18, zopf:false, schirm:true  },
+  { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false },
+  { id:'nora',  name:'Nora',  jersey:0xffffff, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true  },
+];
+let aktCharakterId = 'mia';
+const aktCharakter = () => CHARAKTERE.find(c => c.id === aktCharakterId) || CHARAKTERE[0];
+
+/* Farben auf ein vorhandenes Modell anwenden — nur Materialfarben und zwei
+   Sichtbarkeiten, kein Neuladen. GLB: über Materialnamen (bleiben auch nach
+   dem Merge erhalten) und Node-Namen unter rider_female (vom Merge ausgenommen).
+   Rohrmodell: über die in baueFahrerin abgelegten Referenzen. */
+function wendeCharakterAn(halter, ch){
+  if(!halter || !ch) return;
+  const u = halter.userData;
+  const fahrerin = u.fahrerin || halter;
+  const farbe = {jersey:ch.jersey, kit_pants:ch.hose, helmet:ch.helm, skin:ch.haut, hair:ch.haar};
+  const cd = fahrerin.userData && fahrerin.userData.charakter;
+  if(cd){
+    for(const [n, m] of Object.entries(cd.materialien)) if(farbe[n] !== undefined) m.color.set(farbe[n]);
+    cd.zopf.visible = !!ch.zopf; cd.schirm.visible = !!ch.schirm;
+    return;
+  }
+  fahrerin.traverse(o => {
+    if(o.name === 'ponytail') o.visible = !!ch.zopf;
+    if(o.name === 'helmet_peak') o.visible = !!ch.schirm;
+    if(!o.isMesh) return;
+    for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+      if(m && farbe[m.name] !== undefined) m.color.set(farbe[m.name]);
+  });
+}
+
+/* ===========================================================================
+   1. MITTELLINIE
+   Die Strecke wird nicht gezeichnet, sondern integriert. Anlieger und Wallrides
+   biegen die Linie; ihr Radius folgt aus der Querneigung:
+        R = v² / (g · tan φ)
+   Ein 45°-Anlieger zieht damit fast doppelt so eng wie ein 30°-Anlieger.
+
+   RICHTUNGSKONVENTION (wichtig, weil leicht falsch herum):
+   `richtung` bzw. `seite` ist immer die KURVENRICHTUNG, nicht die Bauseite.
+   Die Bank steht auf der Kurvenaußenseite — bei einer Linkskurve also rechts.
+   Das gilt für Anlieger und Wallride gleichermaßen, deshalb ist Regel 1
+   ("Anlieger in dieselbe Richtung") physikalisch stimmig.
+   =========================================================================== */
+const DS = 1.5;    // Stationsabstand, m
+
+function aussenVon(richtung){ return richtung === 'links' ? 1 : -1; }  // +1 = außen rechts
+
+/* Grobes Tempoprofil aus dem Höhenprofil allein, ohne Kurven und ohne Bremsen.
+   Es wird gebraucht, BEVOR die Kurven feststehen — deshalb dieser erste Durchgang.
+   Ein Anlieger, dessen Radius aus einer festen Referenzgeschwindigkeit kommt, ist
+   bei echten 18-20 m/s drei- bis viermal zu eng; der Fahrer wird oben rausgetragen. */
+function tempoProfil(track){
+  const L = track.laenge_m, SCHRITT = 2.0;
+  const n = Math.ceil(L/SCHRITT) + 2, v = new Float32Array(n);
+  const m = 88, CdA = 0.48, rho = 1.225;
+  v[0] = 3;
+  for(let i = 1; i < n; i++){
+    const s = i*SCHRITT;
+    const dh = baseHoehe(track, s-SCHRITT) - baseHoehe(track, s);
+    const theta = Math.atan(dh/SCHRITT);
+    let crr = 0.016;
+    for(const e of track.elemente){
+      if(e.typ === 'steinfeld' && s >= e.start_m && s <= e.start_m+e.laenge_m) crr *= 3.4;
+    }
+    const vv = Math.max(v[i-1], 2);
+    const a = G*Math.sin(theta) - G*Math.cos(theta)*crr - 0.5*rho*CdA*vv*vv/m;
+    v[i] = Math.max(2.5, Math.min(28, Math.sqrt(Math.max(6.25, vv*vv + 2*a*SCHRITT))));
+  }
+  return s => v[Math.max(0, Math.min(Math.round(s/SCHRITT), n-1))];
+}
+
+function baueMittellinie(track){
+  const L = track.laenge_m;
+  const vBei = tempoProfil(track);
+  const kurven = [];
+  for(const e of track.elemente){
+    if(e.typ === 'anlieger'){
+      // Radius aus dem Tempo an DIESER Stelle, nicht aus einer Konstanten.
+      // Bei Planungstempo soll der Fahrer auf 2/3 der Wange fahren, nicht an
+      // der Oberkante. Deshalb 0,8·φ als wirksame Neigung für den Radius.
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(10, Math.min(65, v*v / (G * Math.tan(0.8 * e.neigung_grad * Math.PI/180))));
+      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.richtung==='links'?1:-1)/R});
+    } else if(e.typ === 'wallride'){
+      const v = vBei(e.start_m + e.laenge_m/2);
+      const R = Math.max(14, Math.min(45, v*v / (G * Math.tan(52 * Math.PI/180))));
+      kurven.push({a:e.start_m, b:e.start_m+e.laenge_m, k:(e.seite==='links'?1:-1)/R});
+    }
+  }
+  const st = [];
+  let psi = 0, x = 0, z = 0;
+  for(let s = 0; s <= L + DS; s += DS){
+    let k = 0;
+    for(const c of kurven) if(s >= c.a && s < c.b) k += c.k;
+    if(k === 0) k = 0.0016*Math.sin(s/61) + 0.0011*Math.sin(s/137 + 2);  // leichte Drift
+    psi += k*DS; x += Math.sin(psi)*DS; z += Math.cos(psi)*DS;
+    st.push({s, x, z, psi, k});
+  }
+  return st;
+}
+
+/* --------------------------------------------------------- Basis-Höhenprofil */
+function baseHoehe(track, s){
+  const hp = track.hoehenprofil;
+  // Fehlt das Profil, bleibt ein gleichmäßiges Gefälle. Lieber eine fahrbare
+  // Strecke als eine leere Seite.
+  if(!hp || hp.length < 2) return track.hoehendifferenz_m * (1 - s/track.laenge_m);
+  if(s <= hp[0].s_m) return hp[0].hoehe_m;
+  if(s >= hp[hp.length-1].s_m) return hp[hp.length-1].hoehe_m;
+  for(let i = 0; i < hp.length-1; i++){
+    const a = hp[i], b = hp[i+1];
+    if(s >= a.s_m && s <= b.s_m){
+      const t = (s-a.s_m)/(b.s_m-a.s_m);
+      const e = t*t*(3-2*t);                    // sanfter Übergang statt Knick
+      return a.hoehe_m + e*(b.hoehe_m-a.hoehe_m);
+    }
+  }
+  return 0;
+}
+
+/* Deterministisches Rauschen — dieselbe Strecke sieht immer gleich aus. */
+function noise(x){
+  const i = Math.floor(x), f = x - i;
+  const h = n => { const t = Math.sin(n*127.1)*43758.5453; return t - Math.floor(t); };
+  const u = f*f*(3-2*f);
+  return (h(i)*(1-u) + h(i+1)*u)*2 - 1;
+}
+
+/* ===========================================================================
+   2. LÄNGSPROFIL DER ELEMENTE  —  Δh(s)
+   Jedes Sprungelement verformt die Höhe entlang der Strecke. Der Basisverlauf
+   aus `hoehenprofil` bleibt unangetastet, die Elemente liegen additiv darauf.
+   =========================================================================== */
+function rampe(q){ return q*q*(3-2*q); }                    // 0→1, an beiden Enden flach
+function bucht(q){ return Math.sin(Math.PI*q); }            // 0→1→0
+const clamp01 = q => Math.max(0, Math.min(1, q));
+
+/* Lippenwinkel je Sprungtyp, Grad. Das sind reale Bikepark-Werte: Tables und
+   Hips 35-40°, Kicker steiler, Step-downs flach (man will Weite, nicht Höhe). */
+const LIPPE = {tabletop:38, kicker:42, step_up:40, step_down:22, hip:40};
+
+/* Geometrie eines Sprungelements.
+   WAS laenge_m BEDEUTET, hängt vom Typ ab — so, wie es in Bikeparks gesagt wird:
+     tabletop, hip     Länge des TISCHES (Lippe bis Landungsbeginn). Absprung und
+                       Landung kommen davor und dahinter DAZU.
+     step_up/step_down Gap + Landung. Der Absprung kommt davor dazu.
+     kicker            Rampe + Gap + Landung, der ganze Footprint.
+   Absprung: Parabel h = tanα·x²/(2·Lt), am Fuß flach, an der Lippe genau α,
+   Länge Lt = 2H/tanα. Eine 1,8-m-Lippe bei 38° braucht 4,6 m Anlauf — deshalb
+   passt eine 2-m-Lippe nicht in 9 m Gesamtfläche, und deshalb diese Semantik.
+   Die Landung ist genauso lang wie der Absprung und oben genauso steil. */
+function sprungGeometrie(e){
+  const a = e.start_m, L = e.laenge_m || 0, t = e.typ;
+  const alpha = (LIPPE[t] || 30) * Math.PI/180, tanA = Math.tan(alpha);
+  let Lt, H, deckB, Ll, K;
+  if(t === 'tabletop' || t === 'hip'){
+    H = e.hoehe_m; Lt = 2*H/tanA; deckB = a + Lt + L; Ll = Lt; K = H;
+  } else if(t === 'kicker'){
+    // Der Anlauf (L − Gap − Landung) ist meist länger als die eigentliche Rampe.
+    // Die Rampe ist nur 2H/tanα lang; davor bleibt der Anlauf flach. Sonst würde
+    // die Parabel über den ganzen Anlauf steigen und aus 0,8 m Lippe 3,6 m machen.
+    const Gp = e.gapweite_m; Ll = Math.max(3, 0.3*Gp);
+    const anlauf = Math.max(3, L - Gp - Ll);
+    H = Math.min(e.absprunghoehe_m, anlauf*tanA/2); Lt = 2*H/tanA;
+    deckB = a + anlauf + Gp; K = 0.55*H;
+    const lippe = a + anlauf, fuss = lippe - Lt, ende = Math.max(a + L, deckB + Ll), ziel = deckB + 0.35*Ll;
+    return {typ:t, a, L, Lt, H, alpha, lippe, fuss, deckB, Ll, K, ende, ziel, gap:Gp, grube:e.grubentiefe_m || 0};
+  } else if(t === 'step_up'){
+    H = 0.6*e.hoehenversatz_m + 0.4; Lt = 2*H/tanA;
+    deckB = a + Lt + 0.45*L; Ll = 0.55*L; K = e.hoehenversatz_m;
+  } else if(t === 'step_down'){
+    H = 0.5; Lt = 2*H/tanA;                                   // flache, niedrige Sender-Lippe
+    deckB = a + Lt + 0.5*L; Ll = 0.5*L; K = -e.hoehenversatz_m;
+  } else return null;
+  const lippe = a + Lt;
+  // Wo soll der Fahrer landen? Auf der Landung, nicht auf dem Deck und nicht dahinter.
+  const ziel = t === 'kicker' ? deckB + 0.35*Ll
+             : t === 'step_up' ? deckB + 1.0
+             : deckB + 0.4*Ll;
+  return {typ:t, a, L, Lt, H, alpha, lippe, fuss:a, deckB, Ll, K, ende: deckB + Ll, ziel, gap:0, grube:0};
+}
+
+/* ===========================================================================
+   2. LÄNGSPROFIL DER ELEMENTE  —  Δh(s)
+   Jedes Sprungelement verformt die Höhe entlang der Strecke. Der Basisverlauf
+   aus `hoehenprofil` bleibt unangetastet, die Elemente liegen additiv darauf.
+   `physik` = true liefert die Fläche, auf der gerechnet wird: OHNE die Steine
+   des Steinfelds. Die sind nur im Mesh — eine Punktmasse ohne Federung würde
+   über jeden 16-cm-Stein abheben; in echt frisst das die Federung, und im
+   Modell frisst es der erhöhte Rollwiderstand.
+   =========================================================================== */
+function sprungDeltaH(g, s){
+  const {typ, Lt, H, alpha, lippe, fuss, deckB, Ll, K, ende, gap, grube} = g;
+  if(s < fuss) return 0;                                       // flacher Anlauf
+  // Absprung: Parabel, am Fuß flach, an der Lippe Winkel α und Höhe H
+  if(s < lippe){ const x = s - fuss; return Math.tan(alpha) * x*x / (2*Lt); }
+
+  if(typ === 'tabletop' || typ === 'hip'){
+    if(s < deckB) return H;                                    // Tisch
+    if(s < ende){ const q = (s-deckB)/Ll; return H*(1-q)*(1-q); }   // Landung, oben steil, unten flach
+    return 0;
+  }
+  if(typ === 'kicker'){
+    if(s < deckB){                                             // Grube + Landehügel
+      const q = (s-lippe)/gap;
+      const pit = q < 0.78 ? -grube * bucht(q/0.78) : 0;
+      const knuckle = q > 0.5 ? K * rampe((q-0.5)/0.5) : 0;
+      return pit + knuckle;
+    }
+    if(s < ende){ const q = (s-deckB)/Ll; return K*(1-q)*(1-q); }
+    return 0;
+  }
+  if(typ === 'step_up'){
+    if(s < deckB){ const q = (s-lippe)/(deckB-lippe); return H + (K-H)*rampe(q) - 0.3*bucht(q); }
+    if(s < ende) return K;                                     // Landedeck liegt höher
+    if(s < ende + 20) return K * (1 - rampe((s-ende)/20));     // Gelände holt den Versatz auf
+    return 0;
+  }
+  if(typ === 'step_down'){
+    if(s < deckB){ const q = (s-lippe)/(deckB-lippe); return H + (0.45*K - H)*rampe(q); }
+    if(s < ende){ const q = (s-deckB)/Ll; return 0.45*K + 0.55*K*q; }   // Landung: Gefälle
+    if(s < ende + 26) return K * (1 - rampe((s-ende)/26));
+    return 0;
+  }
+  return 0;
+}
+
+function deltaH(track, s, physik){
+  let d = 0;
+  for(const e of track.elemente){
+    const a = e.start_m, len = e.laenge_m || 0, b = a + len;
+    switch(e.typ){
+      case 'tabletop': case 'kicker': case 'step_up': case 'step_down': case 'hip': {
+        const g = e._geo || (e._geo = sprungGeometrie(e));
+        if(s >= a && s < g.ende + 30) d += sprungDeltaH(g, s);
+        break;
+      }
+      case 'drop': {
+        // Kante 0,35 m lang statt senkrecht (entartete Dreiecke, Raycast-Mehrdeutigkeit).
+        // Danach Landegefälle; das Gelände holt die Stufe über 60 m zurück — 0,85 m
+        // auf 60 m sind 1,4 % Zusatzsteigung, unmerklich.
+        const KANTE = 0.35, D = e.hoehe_m;
+        if(s < a - 2.2) break;
+        if(s < a)               d += D * 0.14 * rampe((s-(a-2.2))/2.2);      // kurze Lippe
+        else if(s < a + KANTE)  d += D * (0.14 - 1.14*(s-a)/KANTE);
+        else if(s < a + KANTE + 6){ const q = (s-a-KANTE)/6; d += -D - 0.45*D*q; }  // Landung fällt weiter
+        else if(s < a + KANTE + 66){ const q = (s-a-KANTE-6)/60; d += -1.45*D*(1 - rampe(q)); }
+        break;
+      }
+      case 'roller': {
+        if(s < a || s > b) break;
+        const q = (s-a)/len;
+        const hull = Math.min(1, Math.min(q, 1-q)*6);
+        d += e.hoehe_m * 0.5 * hull * (1 - Math.cos(2*Math.PI*e.anzahl*q));
+        break;
+      }
+      case 'steinfeld': {
+        if(physik || s < a || s > b) break;
+        const hull = Math.min(1, Math.min(s-a, b-s)/3);
+        d += 0.16 * hull * (noise(s*2.6) + 0.5*noise(s*6.1));
+        break;
+      }
+    }
+  }
+  return d;
+}
+
+/* ===========================================================================
+   3. QUERSCHNITT  —  das eigentliche Kernstück
+
+   Ein einzelner Zahlenwert „Querneigung" reicht für einen Anlieger, aber NICHT
+   für einen Wallride. Bei 80° Querneigung über die ganze Breite gäbe es keine
+   Fahrfläche mehr, auf der man ankommt und zurückkommt — der Fahrer müsste die
+   Wand permanent mit Kurvenkraft halten.
+
+   Ein echter Wallride ist stattdessen: Trailboden + aufsteigende Seitenwand.
+   Die Neigung ist also keine Zahl pro Station, sondern eine FUNKTION der
+   Querposition:  v(x),  x = 0 in der Mitte, positiv nach kurvenaußen.
+
+   Anlieger:  v(x) = h · (x−kante)/run  hoch p      (konkav, steilste Stelle oben)
+   Wallride:  Boden bis zur Kante, dann dieselbe Potenzkurve, aber mit
+              run = h/tan φ — bei h = 3 m und φ = 80° sind das nur 0,53 m
+              Grundfläche für 3 m Höhe.
+
+   Der Exponent p ist so gewählt, dass die Neigung an der Oberkante exakt φ ist:
+        p = 1 + fillet · tan φ / h
+   =========================================================================== */
+const FILLET = 1.15;    // Radius, mit dem der Boden in die Wand übergeht, m
+
+function querschnittBei(track, s){
+  // Liefert die Beschreibung des Querschnitts an Station s.
+  let breite = 4.2, bank = 0, aussen = 1, wandH = 0, wandPhi = 0, material = 'holz';
+  let staerkste = 0;   // stärkster Bank-Einfluss an dieser Station
+
+  for(const e of track.elemente){
+    const a = e.start_m, len = e.laenge_m || 0, b = a + len;
+
+    if(e.typ === 'anlieger'){
+      // 8 m Ein- und Ausleitung, damit die Bank nicht springt
+      const bl = Math.min(1, Math.min((s-(a-8))/8, (b+8-s)/8));
+      if(bl > 0){
+        const w = Math.max(0, Math.min(1, bl));
+        const b = w * e.neigung_grad * Math.PI/180;
+        breite = Math.max(breite, e.breite_m);
+        // Die Anliegerwange ist dieselbe Potenzkurve wie die Wallride-Wand, nur
+        // niedriger und flacher. Der Boden davor bekommt eine leichte Neigung.
+        if(b > staerkste){
+          staerkste = b; aussen = aussenVon(e.richtung);
+          bank = w * 9 * Math.PI/180;
+          wandH = w * e.hoehe_m; wandPhi = e.neigung_grad * Math.PI/180; material = 'erde';
+        }
+      }
+    }
+
+    if(e.typ === 'wallride'){
+      const bl = Math.min(1, Math.min((s-(a-7))/7, (b+7-s)/7));
+      if(bl > 0){
+        const w = Math.max(0, Math.min(1, bl));
+        // Der Wallride bestimmt die Außenseite immer: die Wand steht fest gebaut da.
+        aussen  = aussenVon(e.seite);
+        wandH   = Math.max(wandH, w * e.hoehe_m);
+        wandPhi = e.neigung_grad * Math.PI/180;
+        material = e.material;
+        bank    = w * 14 * Math.PI/180;   // Boden leicht zur Wand geneigt
+        staerkste = 99;
+      }
+    }
+
+    if(e.typ === 'tabletop' || e.typ === 'kicker' || e.typ === 'hip'){
+      const g = e._geo || (e._geo = sprungGeometrie(e));
+      if(s >= a-6 && s <= g.ende+6) breite = Math.max(breite, e.breite_m || 5.0);
+    }
+    if(e.typ === 'steinfeld' && s >= a && s <= b) breite = Math.min(breite, 3.2);
+  }
+  return {breite, bank, aussen, wandH, wandPhi, material};
+}
+
+/* Höhe der Fahrfläche über der Mittellinie, an Querposition u (m, rechts +). */
+function querV(qs, u){
+  const x = u * qs.aussen;                 // x > 0 = kurvenaußen
+  const halb = qs.breite/2;
+  const h = qs.wandH > 0.05 ? qs.wandH : 0;
+  const kante = halb - FILLET;
+
+  // Grundneigung des BODENS. Ab dem Wandfuß hört sie auf — sonst addiert sie
+  // sich auf die Wandhöhe drauf und die Wand wird höher als deklariert.
+  const bodenBis = h > 0.05 ? kante : halb;
+  let v = Math.max(0, Math.min(x, bodenBis) + halb) * Math.tan(Math.min(qs.bank, 0.30));
+
+  // Wandkurve ab der Kante nach außen. Der Exponent ist so gewählt, dass die
+  // Neigung an der Oberkante genau φ ist und v dort genau h erreicht.
+  if(h > 0.05 && x > kante){
+    const W = FILLET + h / Math.tan(qs.wandPhi);
+    const p = 1 + FILLET * Math.tan(qs.wandPhi) / h;
+    v += h * Math.pow(Math.min((x-kante)/W, 1), p);
+  }
+  return v;
+}
+
+/* Wie weit nach kurvenaußen reicht der Querschnitt? (Wand steht außerhalb der Trailbreite) */
+function aussenGrenze(qs){
+  const halb = qs.breite/2;
+  if(qs.wandH <= 0.05) return halb;
+  return halb - FILLET + (FILLET + qs.wandH/Math.tan(qs.wandPhi));
+}
+
+/* ===========================================================================
+   4. MESH
+   Der Querschnitt wird NACH BOGENLÄNGE abgetastet, nicht nach Querposition.
+   Grund: bei 80° Wandneigung liegen 3 m Höhe auf 0,53 m Grundfläche. Eine
+   gleichmäßige Abtastung in x würde dort drei Stützpunkte auf die ganze Wand
+   legen und den Rest der Punkte auf den flachen Boden verschwenden.
+   =========================================================================== */
+const N_QUER  = 22;    // Stützpunkte quer über die Fahrfläche
+const SKIRT   = [3, 14, 45];        // Entfernung der Geländeschürze vom Trailrand, m
+const SKIRT_AB = [1.2, 6.0, 26.0];  // talseits: so tief fällt das Gelände ab, m
+const SKIRT_AUF= [1.1, 5.5, 15.0];  // bergseits: so hoch steigt die Anschnittsböschung, m
+
+/* Ein Trail liegt IM Hang, nicht auf einem Rücken: bergseits ein Anschnitt,
+   talseits ein Abfall. Welche Seite bergseits ist, folgt aus der Falllinie —
+   der Richtung, in die die Strecke insgesamt absteigt. Läuft der Trail gerade
+   die Falllinie hinunter, fallen beide Seiten gleich ab; quert er den Hang,
+   steigt die eine Seite an. `bergSign` = +1 heißt: rechts ist talseits. */
+function profilPunkte(qs, bergSign){
+  // 1) fein abtasten
+  const innen = -qs.breite/2, aussenX = aussenGrenze(qs);
+  const FEIN = 96, roh = [];
+  for(let i = 0; i <= FEIN; i++){
+    const x = innen + (aussenX - innen) * i/FEIN;
+    roh.push({x, v: querV(qs, x * qs.aussen)});
+  }
+  // 2) Bogenlänge aufsummieren
+  const len = [0];
+  for(let i = 1; i < roh.length; i++){
+    len.push(len[i-1] + Math.hypot(roh[i].x - roh[i-1].x, roh[i].v - roh[i-1].v));
+  }
+  const gesamt = len[len.length-1] || 1;
+  // 3) gleichmäßig nach Bogenlänge neu abtasten
+  const pts = [];
+  let j = 0;
+  for(let i = 0; i < N_QUER; i++){
+    const ziel = gesamt * i/(N_QUER-1);
+    while(j < len.length-2 && len[j+1] < ziel) j++;
+    const seg = len[j+1] - len[j];
+    const t = seg > 1e-9 ? (ziel - len[j])/seg : 0;
+    pts.push({x: roh[j].x + t*(roh[j+1].x - roh[j].x),
+              v: roh[j].v + t*(roh[j+1].v - roh[j].v), trail:true});
+  }
+  // 4) Geländeschürze anhängen
+  const links = [], rechts = [];
+  // u = x · aussen, also liegt der Teil mit x < 0 auf der Seite -aussen.
+  const versatz = (seiteU, i, kante) => {
+    const talig = (seiteU * bergSign + 1) / 2;          // 0 = bergseits, 1 = talseits
+    return kante + (SKIRT_AUF[i] * (1 - talig) - SKIRT_AB[i] * talig);
+  };
+  const sL = -Math.sign(qs.aussen) || -1, sR = Math.sign(qs.aussen) || 1;
+  for(let i = SKIRT.length-1; i >= 0; i--){
+    const x = innen - SKIRT[i];
+    links.push({x, v: versatz(sL, i, pts[0].v) + noise(x*0.6 + qs.breite)*1.5, trail:false});
+  }
+  const oben = pts[pts.length-1];
+  for(let i = 0; i < SKIRT.length; i++){
+    const x = aussenX + SKIRT[i];
+    rechts.push({x, v: versatz(sR, i, oben.v) + noise(x*0.6 - qs.breite)*1.5, trail:false});
+  }
+  return links.concat(pts, rechts);
+}
+
+const FARBE = {
+  trail:  new THREE.Color(0x7b6e62),   // heller als das Gelände: die Linie muss lesbar sein
+  rand:   new THREE.Color(0x3b352d),   // Trailrand, damit die Kante sichtbar wird
+  bank:   new THREE.Color(0x7d7062),
+  holz:   new THREE.Color(0x8a6238),
+  beton:  new THREE.Color(0x6a6c72),
+  gelaende:new THREE.Color(0x1e2c1d),
+  fern:   new THREE.Color(0x18231a),
+};
+
+function baueStreckenMesh(track, st, hArr, qsArr, bergBei){
+  const cols = N_QUER + 2*SKIRT.length;
+  const pos = [], col = [], uv = [], idx = [];
+  const c = new THREE.Color();
+
+  for(let i = 0; i < st.length; i++){
+    const s = st[i].s, qs = qsArr[i];
+    const cx = st[i].x, cz = st[i].z, cy = hArr(s);
+    const rx = -Math.cos(st[i].psi), rz = Math.sin(st[i].psi);   // rechts = vorwärts × oben
+    const pts = profilPunkte(qs, bergBei(i));
+    const kante = qs.breite/2 - FILLET;
+
+    for(const p of pts){
+      const u = p.x * qs.aussen;
+      pos.push(cx + rx*u, cy + p.v, cz + rz*u);
+      if(!p.trail){
+        const tief = Math.min(1, (Math.abs(p.x) - qs.breite/2) / 40);
+        c.copy(FARBE.gelaende).lerp(FARBE.fern, tief);
+        c.offsetHSL(noise(s*0.31 + p.x)*0.03, 0, noise(s*0.9 + p.x*0.4)*0.045);
+      } else if(qs.wandH > 0.3 && p.x > kante){
+        // Wandfläche bekommt Material-Farbe, damit man Holz von Beton sieht
+        const hoch = Math.min(1, (p.v - querV(qs, kante*qs.aussen)) / Math.max(qs.wandH, .3));
+        const wandFarbe = qs.material === 'beton' ? FARBE.beton : qs.material === 'holz' ? FARBE.holz : FARBE.bank;
+        c.copy(FARBE.trail).lerp(wandFarbe, Math.min(1, hoch*2.2));
+        // Waagerechte Bänderung: Bohlen beim Holz, Schalungsfugen beim Beton.
+        // Ohne sie sieht die Wand aus wie modellierte Erde, nicht wie gebaut.
+        if(qs.material !== 'erde') c.offsetHSL(0, 0, Math.sin(p.v * (qs.material === 'beton' ? 4.2 : 9.5)) * 0.055 * hoch);
+      } else if(qs.bank > 0.28 && p.x > kante - 0.6){
+        c.copy(FARBE.bank);
+      } else {
+        // Die äußersten beiden Trailspalten werden zum Rand hin dunkler —
+        // ohne diese Kante verschwimmt die Fahrfläche mit dem Hang.
+        const randNah = Math.max(0, (Math.abs(p.x) - (qs.breite/2 - 0.7)) / 0.7);
+        c.copy(FARBE.trail).lerp(FARBE.rand, Math.min(1, randNah));
+        c.offsetHSL(0, 0, noise(s*0.7 + p.x*1.9)*0.05);
+      }
+      col.push(c.r, c.g, c.b);
+      uv.push(s/4, u/8);   // längs 4-m-Kacheln, quer 8 m (die nächste Linie liegt außerhalb jeder Fahrfläche); v = 0 = Trailmitte
+    }
+  }
+  // Steinfelder bekommen die Schottertextur: Index-Gruppen je Stationsabschnitt, zweites Material
+  const imSteinfeld = s => track.elemente.some(e => e.typ === 'steinfeld' && s >= e.start_m && s <= e.start_m + (e.laenge_m || 10));
+  const g = new THREE.BufferGeometry();
+  const proStation = 6*(cols-1);
+  let gStart = 0, gMat = -1;
+  for(let i = 0; i < st.length-1; i++){
+    const mat = TEX && imSteinfeld(st[i].s) ? 1 : 0;
+    if(mat !== gMat){ if(gMat >= 0) g.addGroup(gStart, i*proStation - gStart, gMat); gStart = i*proStation; gMat = mat; }
+    for(let j = 0; j < cols-1; j++){
+      const a = i*cols + j, b = a + 1, d = a + cols, e = d + 1;
+      idx.push(a, d, b, b, d, e);
+    }
+  }
+  g.addGroup(gStart, idx.length - gStart, Math.max(0, gMat));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color',    new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv',       new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const basis = {vertexColors:true, roughness:0.94, metalness:0.0, side:THREE.DoubleSide, flatShading:false};
+  const material = TEX
+    ? [new THREE.MeshStandardMaterial({...basis, map:TEX.erde,     normalMap:TEX.normal, normalScale:new THREE.Vector2(0.45, 0.45)}),
+       new THREE.MeshStandardMaterial({...basis, map:TEX.schotter, normalMap:TEX.normal, normalScale:new THREE.Vector2(0.9, 0.9)})]
+    : new THREE.MeshStandardMaterial(basis);
+  const mesh = new THREE.Mesh(g, material);
+  mesh.receiveShadow = SCHATTEN;
+  return mesh;
+}
+
+/* ===========================================================================
+   5. STRECKE BAUEN — alles einmal vorberechnen
+   =========================================================================== */
+const H_STEP = 0.25;
+
+/* Wo landet ein Fahrer, der die Lippe mit Tempo v verlässt? Ballistisch gegen
+   die echte Fläche gerechnet (Basisgefälle eingeschlossen). */
+function landeStelle(w, g, v){
+  const y0 = w.hArr(g.lippe), vx = v*Math.cos(g.alpha), vy0 = v*Math.sin(g.alpha);
+  for(let t = 0.02; t < 6; t += 0.02){
+    const sx = g.lippe + vx*t, y = y0 + vy0*t - 0.5*G*t*t;
+    if(y <= w.hArr(sx)) return sx;
+  }
+  return g.lippe + vx*6;
+}
+/* Binäre Suche nach dem Tempo, das genau auf `ziel` landet. */
+function zielTempo(w, g){
+  let lo = 3, hi = 30;
+  for(let i = 0; i < 26; i++){
+    const mid = (lo+hi)/2;
+    if(landeStelle(w, g, mid) < g.ziel) lo = mid; else hi = mid;
+  }
+  return (lo+hi)/2;
+}
+
+function baueStrecke(track){
+  const st = baueMittellinie(track);
+  const L  = track.laenge_m;
+
+  // Höhenfeld fein vorberechnen: baseHoehe + Δh der Elemente
+  const n = Math.ceil(L/H_STEP) + 8, hRaw = new Float32Array(n), hRawMesh = new Float32Array(n);
+  for(let i = 0; i < n; i++){
+    const s = i*H_STEP, basis = baseHoehe(track, s);
+    hRaw[i]     = basis + deltaH(track, s, true);    // Fläche für die Physik
+    hRawMesh[i] = basis + deltaH(track, s, false);   // Fläche mit Steinen, fürs Mesh
+  }
+  const mach = arr => s => {
+    const f = Math.max(0, Math.min(s/H_STEP, n-2));
+    const i = Math.floor(f), t = f - i;
+    return arr[i] + t*(arr[i+1] - arr[i]);
+  };
+  const hArr = mach(hRaw), hMesh = mach(hRawMesh);
+  // Steigung RÜCKWÄRTS geschaut: die Fläche, auf der der Fahrer gerade ist.
+  // Eine zentrale Differenz sähe einen halben Meter vor der Lippe schon die
+  // Grube dahinter und zöge den Fahrer nach unten, bevor er abhebt.
+  const dhds = s => (hArr(s) - hArr(s-0.3)) / 0.3;
+
+  // Falllinie: grobe Gesamtrichtung des Abstiegs. Daraus folgt pro Station,
+  // welche Trailseite bergseits liegt.
+  const dx = st[st.length-1].x - st[0].x, dz = st[st.length-1].z - st[0].z;
+  const dl = Math.hypot(dx, dz) || 1;
+  const fx = dx/dl, fz = dz/dl;
+  const bergArr = st.map(p => {
+    const rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
+    return Math.max(-1, Math.min(1, (rx*fx + rz*fz) * 1.8));
+  });
+  const bergBei = i => bergArr[Math.max(0, Math.min(i, bergArr.length-1))];
+  const bergAt  = s => bergBei(Math.round(s/DS));
+
+  const qsArr = st.map(p => querschnittBei(track, p.s));
+  const qsBei = s => qsArr[Math.max(0, Math.min(Math.round(s/DS), qsArr.length-1))];
+  const stBei = s => st[Math.max(0, Math.min(Math.round(s/DS), st.length-1))];
+
+  const mesh = baueStreckenMesh(track, st, hMesh, qsArr, bergBei);
+
+  // Höhe der Fahrfläche an (s, u) — analytisch, kein Raycast.
+  // Das ist stabiler als ein Raycast gegen das Mesh und an der Drop-Kante eindeutig.
+  const flaeche = (s, u) => hArr(s) + querV(qsBei(s), u);
+
+  const welt = {track, st, hArr, hMesh, dhds, qsBei, stBei, mesh, flaeche, L, bergAt,
+                profilBei: i => profilPunkte(qsArr[Math.max(0, Math.min(i, qsArr.length-1))], bergBei(i))};
+  // Zieltempo je Sprung: die Geschwindigkeit an der Lippe, mit der man genau
+  // auf der Landung ankommt. Für HUD und Prüfung.
+  welt.spruenge = track.elemente
+    .map(e => e._geo || (e._geo = sprungGeometrie(e)))
+    .filter(Boolean)
+    .map(g => {
+      const vZiel = zielTempo(welt, g);
+      // Am Rampenfuß braucht man mehr: die Rampe kostet 2·g·H an v².
+      return {g, vZiel, vFuss: Math.sqrt(vZiel*vZiel + 2*G*g.H)};
+    });
+  return welt;
+}
+
+/* ===========================================================================
+   6. FAHRPHYSIK
+   Punktmasse auf der Fahrfläche. Die Höhe wird IMMER ballistisch integriert und
+   danach gegen die Fläche geklemmt — dadurch entsteht der Absprung von selbst:
+   auf der Kickerrampe ist vy = dh/ds · vs positiv, hinter der Lippe fällt die
+   Fläche weg, und der Fahrer ist in der Luft, ohne dass es dafür Sonderregeln
+   braucht.
+   =========================================================================== */
+const RHO = 1.225;
+
+function neuerFahrer(bike){
+  return {bike, s:2, u:0, vs:1.5, vu:0, y:0, vy:0, boden:true, amRand:false, streck:0,
+          luftZeit:0, luftGesamt:0, stuerze:0, zeit:0, roll:0, tilt:0};
+}
+
+function schritt(w, f, dt, ein){
+  const bike = f.bike, m = bike.masse;
+  const qs = w.qsBei(f.s), stn = w.stBei(f.s);
+  const halb = qs.breite/2;
+  const innenU = -halb * qs.aussen, aussenU = aussenGrenze(qs) * qs.aussen;
+
+  // --- Längsrichtung ---
+  const slope = w.dhds(f.s);
+  const theta = Math.atan(-slope);                  // > 0 = bergab
+  let F = 0;
+  const drag = 0.5*RHO*bike.CdA*f.vs*f.vs;
+  if(f.boden){
+    let crr = bike.Crr;
+    // Steinfeld kostet Rollwiderstand — deshalb steht es vor dem Anlieger
+    for(const e of w.track.elemente){
+      if(e.typ === 'steinfeld' && f.s >= e.start_m && f.s <= e.start_m+e.laenge_m) crr *= 3.4;
+    }
+    F += m*G*Math.sin(theta);
+    F -= m*G*Math.cos(theta)*crr;
+    F -= ein.bremse * bike.bremse * 0.085;   // MTB: 612 N auf 88 kg = 0,71 g — mehr gibt Schotter nicht her
+    if(ein.gas) F += Math.min(bike.tritt/Math.max(f.vs,1.2), 900);
+    if(ein.gas && bike.motor && f.vs < bike.motorBis) F += Math.min(bike.motor/Math.max(f.vs,1.2), 700);
+  }
+  F -= drag;
+  f.vs = Math.max(0.4, f.vs + F/m*dt);
+
+  // --- Querrichtung ---
+  const eps = 0.06;
+  const dvdu = (querV(qs, f.u+eps) - querV(qs, f.u-eps)) / (2*eps);
+  const zentrifugal = stn.k * f.vs * f.vs;          // k > 0 = Linkskurve → Druck nach rechts (+u)
+  const hang = -G * dvdu;                           // Fläche steigt nach +u → Zug nach −u
+  const steuer = ein.quer * (f.boden ? bike.boden : bike.luft);
+  const daempf = (f.boden ? 3.4 : 0.35) * f.vu;
+  // Linienhaltung: nur in der Trailmitte und nur ohne Lenkbefehl. Draußen auf
+  // der Bank oder der Wand darf sie nicht gegen die Fliehkraft arbeiten.
+  const halte = (f.boden && ein.quer === 0 && Math.abs(f.u) < halb*0.6) ? -f.u * 2.4 : 0;
+  f.vu += (zentrifugal + hang + steuer + halte - daempf) * dt;
+  f.u  += f.vu * dt;
+
+  // --- Hip: seitlicher Impuls auf der Absprungrampe ---
+  if(f.boden){
+    for(const e of w.track.elemente){
+      if(e.typ !== 'hip') continue;
+      const g = e._geo; if(!g || f.s < g.a || f.s > g.lippe) continue;
+      const seite = e.richtung === 'links' ? -1 : 1;
+      f.vu += seite * (e.seitenversatz_m / 2.4) / (g.Lt / Math.max(f.vs, 3)) * dt;   // Versatz über ~2,4 s Flug
+    }
+  }
+
+  // --- Höhe ---
+  // vs ist die Geschwindigkeit ENTLANG der Fläche. Am Boden kommt man horizontal
+  // nur mit vs·cosθ voran; in der Luft ist vs die Horizontalgeschwindigkeit.
+  // Ohne diese Unterscheidung entstünde auf der Rampe Energie aus dem Nichts:
+  // vy = tanα·vs käme zu vs dazu, statt aus ihm zu werden.
+  const warBoden = f.boden;
+  const cosT = 1/Math.sqrt(1 + slope*slope);
+  f.vy -= G*dt;
+  f.y  += f.vy*dt;
+  f.s  += f.vs * (f.boden ? cosT : 1) * dt;
+
+  const flaeche = w.flaeche(f.s, f.u);
+  // Aufsaugen: fällt die Fläche nur sanft weg (Rollerkuppe, Geländeknick), folgt
+  // ihr ein Fahrer mit Federung und Beinen, statt abzuheben. Das geht, solange
+  // die dafür nötige Beschleunigung unter ~1,5 g bleibt UND der Federweg reicht.
+  // An einer Lippe fällt die Fläche schlagartig weg → beides verletzt → Absprung.
+  if(warBoden && f.y > flaeche){
+    const vySoll = w.dhds(f.s)*f.vs + dvdu*f.vu;
+    const aNoetig = (f.vy - vySoll) / dt;
+    const luecke = f.y - flaeche;
+    if(aNoetig <= 1.5*G && f.streck + luecke <= bike.absorb){
+      f.streck += luecke; f.y = flaeche; f.vy = vySoll;
+    } else {
+      f.vs *= cosT;                                   // Abheben: vs wird horizontal, vy stammt aus der Rampe
+    }
+  }
+  if(f.y <= flaeche){
+    f.streck = Math.max(0, f.streck - 1.2*dt);   // Fläche drückt zurück, Beine wieder neutral
+    const sl = w.dhds(f.s), cL = 1/Math.sqrt(1 + sl*sl), sL = -sl*cL;   // sL > 0 = Landung fällt ab
+    const vyFlaeche = sl*f.vs*(f.boden ? cL : 1) + dvdu*f.vu;
+    const aufprall = vyFlaeche - f.vy;
+    if(!f.boden){
+      // Der ankommende Vektor (horizontal vs, vertikal vy) wird auf die Fläche
+      // projiziert: auf einer abfallenden Landung wird Fallgeschwindigkeit zu
+      // Vortrieb. Die Normalkomponente ist der Aufprall und geht verloren.
+      f.vs = Math.max(0.4, f.vs*cL - f.vy*sL);
+      if(aufprall > 2.2) f.vs *= Math.max(0.52, 1 - (aufprall-2.2)*0.038);
+    }
+    if(!f.boden && f.luftZeit > 0.12) f.luftGesamt += f.luftZeit;
+    if(!f.boden) f.letzteLandung = {s:f.s, aufprall, luft:f.luftZeit};   // für Auswertung und Federung
+    f.y = flaeche; f.vy = vyFlaeche; f.boden = true; f.luftZeit = 0;
+  } else {
+    f.boden = false; f.luftZeit += dt;
+  }
+
+  // --- Grenzen der Fahrfläche ---
+  const lo = Math.min(innenU, aussenU), hi = Math.max(innenU, aussenU);
+  const draussen = f.u < lo || f.u > hi;
+  if(draussen){
+    f.u = Math.max(lo, Math.min(hi, f.u));
+    // Nach innen abprallen, damit der Fahrer nicht am Rand klebt
+    f.vu = (f.u <= lo ? 1 : -1) * Math.max(1.2, Math.abs(f.vu)*0.35);
+    if(!f.amRand){ f.vs *= 0.72; f.stuerze++; }   // Strafe nur beim NEUEN Kontakt
+  }
+  f.amRand = draussen;
+
+  // Lage für die Darstellung
+  const zielRoll = Math.atan(dvdu) + Math.max(-0.5, Math.min(0.5, stn.k*f.vs*f.vs/G*0.35));
+  f.roll += (zielRoll - f.roll) * Math.min(1, dt*7);
+  f.tilt += (theta - f.tilt) * Math.min(1, dt*5);
+  f.zeit += dt;
+  return f;
+}
+
+/* ===========================================================================
+   7. SZENE
+   =========================================================================== */
+const canvas = document.getElementById('scene');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const errBox = document.getElementById('err');
+function zeigeFehler(t){ errBox.textContent = t; errBox.classList.add('on'); }
+
+let renderer;
+try{
+  // MSAA nur ohne Composer: hinter dem Composer macht SMAA die Kanten.
+  renderer = new THREE.WebGLRenderer({canvas, antialias: !(GRAFIK.hoch && GRAFIK.an('post')), powerPreference:'high-performance'});
+}catch(e){
+  zeigeFehler('Dieser Browser liefert keinen WebGL-Kontext. Ohne WebGL kann die Strecke nicht dargestellt werden.');
+  throw e;
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, GRAFIK.hoch ? 1.5 : 1));   // DPR-Deckel: hoch 1,5, niedrig 1
+const SCHATTEN = GRAFIK.hoch && GRAFIK.an('schatten');
+const BEWEGUNG = GRAFIK.an('bewegung');
+if(SCHATTEN){ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; }   // PCFSoftShadowMap ist in 0.185 abgekündigt (Warnung, fällt auf PCF zurück)
+renderer.info.autoReset = false;   // sonst zählt info nur den letzten Pass des Composers (Output-Quad: 1 Call)
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 900);
+
+/* Sonnenrichtung: eine Quelle für Licht, Schatten und Himmel. Elevation ≈ 30°,
+   damit Schatten lang genug sind, um Relief zu zeigen. */
+const SONNE_DIR = new THREE.Vector3(-0.62, 0.50, 0.60).normalize();
+const sonne = new THREE.DirectionalLight(0xffe4c4, 2.3);
+sonne.position.copy(SONNE_DIR).multiplyScalar(120);
+scene.add(sonne);
+if(SCHATTEN){
+  sonne.castShadow = true;
+  sonne.shadow.mapSize.set(2048, 2048);
+  const sc = sonne.shadow.camera;
+  sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40; sc.near = 1; sc.far = 300;
+  sc.updateProjectionMatrix();
+  sonne.shadow.normalBias = 0.02;    // gegen Schatten-Akne auf flach beleuchteten Hängen
+  sonne.shadow.bias = -0.0004;
+  scene.add(sonne.target);           // target muss in der Szene sein, sonst bleibt seine Matrix stehen
+}
+const fill = new THREE.DirectionalLight(0x8fb0dd, 0.55);
+fill.position.set(35, 22, -30);
+scene.add(fill);
+
+/* Himmel: Sky-Shader mit derselben Sonne; daraus per PMREM das Umgebungslicht
+   (erst dadurch spiegelt der Rahmen etwas). Die Nebelfarbe wird aus dem
+   gerenderten Horizont GELESEN, nicht geraten — sonst passt der Nebel nie zum Himmel. */
+const HORIZONT = new THREE.Color(0x1b232c);
+let hemi;
+if(GRAFIK.an('himmel')){
+  const sky = new Sky();
+  sky.scale.setScalar(20000);        // Der Vertex-Shader setzt z = w (immer auf far), die Größe muss nur alle Kamerapositionen einschließen
+  const su = sky.material.uniforms;
+  su.turbidity.value = 2.5; su.rayleigh.value = 0.7; su.mieCoefficient.value = 0.004; su.mieDirectionalG.value = 0.8;
+  su.sunPosition.value.copy(SONNE_DIR);
+  const skyScene = new THREE.Scene(); skyScene.add(sky);
+  try{
+    su.showSunDisc.value = 0;          // Sonnenscheibe würde als heller Fleck in die Environment-Map einbrennen
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(skyScene).texture;
+    scene.environmentIntensity = 0.5;
+    pmrem.dispose();
+    su.showSunDisc.value = 1;
+    // Horizontfarbe: 8×8-Pixel-Render 90° neben der Sonne, knapp über dem Horizont, Mittelwert (linear)
+    // Float-Target: der Himmel liegt am Horizont über 1,0 (linear), ein 8-Bit-Target klemmt ihn auf Weiß.
+    // Nebel wird linear VOR dem Tone-Mapping gemischt, also braucht er genau diesen ungeklemmten Wert.
+    const rt = new THREE.WebGLRenderTarget(8, 8, {type:THREE.FloatType});
+    const hc = new THREE.PerspectiveCamera(16, 1, 0.1, 100);
+    hc.lookAt(new THREE.Vector3(SONNE_DIR.z, 0.04, -SONNE_DIR.x));
+    renderer.setRenderTarget(rt); renderer.render(skyScene, hc); renderer.setRenderTarget(null);
+    const px = new Float32Array(8*8*4); renderer.readRenderTargetPixels(rt, 0, 0, 8, 8, px); rt.dispose();
+    let r = 0, g = 0, b = 0; for(let i = 0; i < 64; i++){ r += px[4*i]; g += px[4*i+1]; b += px[4*i+2]; }
+    // 0,8 × Horizont: Dunst am Boden liegt etwas unter dem Himmel direkt darüber, sonst stehen
+    // die Fernkegel als Papierdreiecke in Himmelsfarbe vor dem blaueren Himmel.
+    if(Number.isFinite(r + g + b) && r + g + b > 0) HORIZONT.setRGB(r/64*0.8, g/64*0.8, b/64*0.8);
+  }catch(e){ console.warn('Umgebungslicht/Horizont nicht erzeugt:', e && e.message); }
+  skyScene.remove(sky); scene.add(sky);
+  hemi = new THREE.HemisphereLight(0xbcd4ea, 0x2a3320, 0.9);
+} else {
+  // Ohne Sky-Schritt: Kuppel mit Farbverlauf über Vertexfarben — ein Draw Call, kein Shader.
+  const g = new THREE.SphereGeometry(700, 24, 16);
+  const p = g.attributes.position, c = [], oben = new THREE.Color(0x33506e), unten = new THREE.Color(0x1b232c);
+  const tmp = new THREE.Color();
+  for(let i = 0; i < p.count; i++){
+    tmp.copy(unten).lerp(oben, Math.max(0, Math.min(1, p.getY(i)/700*1.5 + 0.35)));
+    c.push(tmp.r, tmp.g, tmp.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false})));
+  hemi = new THREE.HemisphereLight(0xbcd4ea, 0x1e2618, 1.85);
+}
+scene.add(hemi);
+scene.background = GRAFIK.an('himmel') ? null : HORIZONT;   // mit Sky deckt der Himmel alles; die lineare Nebelfarbe darf > 1 sein
+scene.fog = new THREE.FogExp2(HORIZONT, 0.0019);
+
+/* ------------------------------------------------ Texturen ohne Bilddateien */
+/* Wertrauschen, kachelbar (Periode P), daraus vier 256er-Texturen: Erde mit
+   dunkler gefahrener Linie, Schotter, Waldboden, und aus derselben Höhenkarte
+   eine Normal-Map (Sobel). Farbtexturen sRGB, Normal-Map nicht. */
+function erzeugeTexturen(){
+  const t0 = performance.now(), N = 256;
+  const hash2 = (x, y) => { const s = Math.sin(x*127.1 + y*311.7)*43758.5453; return s - Math.floor(s); };
+  const wert = (x, y, P) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = x-xi, fy = y-yi, ux = fx*fx*(3-2*fx), uy = fy*fy*(3-2*fy);
+    const h = (a, b) => hash2(((a % P) + P) % P, ((b % P) + P) % P);
+    return (h(xi,yi)*(1-ux) + h(xi+1,yi)*ux)*(1-uy) + (h(xi,yi+1)*(1-ux) + h(xi+1,yi+1)*ux)*uy;
+  };
+  const fbm = (u, v, okt, P0) => { let a = 0, amp = 0.5, P = P0, sum = 0;
+    for(let o = 0; o < okt; o++){ a += amp*wert(u*P, v*P, P); sum += amp; amp *= 0.5; P *= 2; } return a/sum; };
+  const H = new Float32Array(N*N);
+  for(let y = 0; y < N; y++) for(let x = 0; x < N; x++) H[y*N+x] = fbm(x/N, y/N, 5, 6);
+  const Hw = (a, b) => H[((b+N)%N)*N + ((a+N)%N)];
+  const mal = (f, srgb) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = N;
+    const cx = cv.getContext('2d'), img = cx.createImageData(N, N), d = img.data;
+    for(let y = 0; y < N; y++) for(let x = 0; x < N; x++){
+      const i = y*N+x, c = f(x/N, y/N, H[i], x, y);
+      d[4*i] = Math.max(0, Math.min(255, c[0]*255)); d[4*i+1] = Math.max(0, Math.min(255, c[1]*255));
+      d[4*i+2] = Math.max(0, Math.min(255, c[2]*255)); d[4*i+3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    if(srgb) tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
+  const mix = (a, b, q) => a + (b-a)*q;
+  // Erde: hell (Vertexfarbe gibt den Ton), Korn, dunkle Linie bei v = 0 — das ist der
+  // Kachelrand, weil v = quer/4 m: die Linie liegt damit genau auf der Trailmitte.
+  const erde = mal((u, v, h, x, y) => {
+    const dv = Math.min(v, 1-v), linie = Math.exp(-(dv/0.045)*(dv/0.045))*0.26;   // ≈ 0,7 m breit bei 8-m-Kachel
+    const l = mix(0.74, 0.98, h) - linie + (hash2(x, y)-0.5)*0.08;
+    return [l, l*0.96, l*0.9];
+  }, true);
+  const schotter = mal((u, v, h, x, y) => {
+    const st = fbm(u, v, 3, 22), kante = Math.abs(st - 0.5) < 0.035 ? 0.6 : 1;
+    const l = (0.6 + 0.34*Math.pow(st, 1.4) + (hash2(x, y)-0.5)*0.14)*kante;
+    return [l, l*0.98, l*0.95];
+  }, true);
+  const waldboden = mal((u, v, h, x, y) => {
+    const l = mix(0.6, 0.92, h) + (hash2(x, y)-0.5)*0.1;
+    return [l*0.92, l, l*0.86];
+  }, true);
+  const normal = mal((u, v, h, x, y) => {
+    const k = 2.4, dx = (Hw(x+1, y) - Hw(x-1, y))*k, dy = (Hw(x, y+1) - Hw(x, y-1))*k, len = Math.hypot(dx, dy, 1);
+    return [(-dx/len)*0.5 + 0.5, (-dy/len)*0.5 + 0.5, (1/len)*0.5 + 0.5];
+  }, false);
+  return {erde, schotter, waldboden, normal, ms: Math.round(performance.now() - t0)};
+}
+const TEX = GRAFIK.an('textur') ? erzeugeTexturen() : null;
+
+/* Fahrzeugmaterialien nach Namen veredeln — gilt für Baukasten und GLB gleich. */
+function veredle(m, name){
+  m.name = name;
+  if(!GRAFIK.an('material')) return m;
+  let n = m;
+  if(name === 'frame_charcoal'){
+    n = new THREE.MeshPhysicalMaterial({color:m.color, clearcoat:1, clearcoatRoughness:0.08, metalness:0.25, roughness:0.4});
+  } else if(name === 'raw_alu' || name === 'anodized_gold'){
+    m.metalness = 0.9; m.roughness = 0.35;
+  } else if(name === 'tire_rubber'){
+    m.roughness = 0.95; m.metalness = 0;
+    if(TEX){ m.normalMap = TEX.normal; m.normalScale = new THREE.Vector2(0.5, 0.5); }
+  } else if(name === 'visor_glass'){
+    n = new THREE.MeshPhysicalMaterial({color:m.color, transparent:true, opacity:0.45, roughness:0.08, metalness:0, clearcoat:1});
+  }
+  if(n !== m){ n.name = name; m.dispose(); }
+  return n;
+}
+
+/* ------------------------------------------------------------ Geländeschale */
+/* Grobes Weltgitter (Zelle 25 m) unter allem. Höhe: abstandsgewichtetes Mittel der
+   Stationshöhen, dazu derselbe Hangversatz wie Schürze und Bäume (bergseits
+   +0,34 m/m bis 15 m, talseits −0,62 m/m bis 30 m), Welligkeit erst ab 40 m,
+   ab 120 m steigen die Talflanken zu Fels an. Nah an der Strecke liegt die
+   Schale sicher unter der Schürze. */
+function schaleHoehe(w){
+  const pts = [];
+  for(let i = 0; i < w.st.length; i += 4) pts.push({x:w.st[i].x, z:w.st[i].z, h:w.hArr(w.st[i].s), s:w.st[i].s});
+  return (x, z) => {
+    let dmin = 1e18, wsum = 0, hsum = 0, best = pts[0];
+    for(const p of pts){
+      const d2 = (p.x-x)*(p.x-x) + (p.z-z)*(p.z-z), wg = 1/(d2 + 400);
+      wsum += wg; hsum += wg*p.h;
+      if(d2 < dmin){ dmin = d2; best = p; }
+    }
+    const d = Math.sqrt(dmin), hN = hsum/wsum;
+    const stn = w.stBei(best.s), rx = -Math.cos(stn.psi), rz = Math.sin(stn.psi);
+    const u = (x-stn.x)*rx + (z-stn.z)*rz;
+    const talig = (Math.sign(u || 1)*w.bergAt(best.s) + 1)/2;
+    let y = hN + (1-talig)*Math.min(15, d*0.34) - talig*Math.min(30, d*0.62);
+    y += noise(x*0.021)*noise(z*0.017)*Math.min(1, Math.max(0, (d-40)/80))*14;
+    if(d > 120) y += (d-120)*0.22*(0.6 + 0.4*noise(x*0.03 + z*0.011));
+    y -= 1.6*Math.max(0, 1 - d/45);
+    return {y, d};
+  };
+}
+function baueSchale(w){
+  const ZELLE = 25, RAND = 520;
+  let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
+  for(const p of w.st){ minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  const x0 = minX - RAND, z0 = minZ - RAND;
+  const nx = Math.ceil((maxX - minX + 2*RAND)/ZELLE) + 1, nz = Math.ceil((maxZ - minZ + 2*RAND)/ZELLE) + 1;
+  const hoehe = schaleHoehe(w);
+  const pos = [], col = [], uv = [], idx = [];
+  const c = new THREE.Color(), fels = new THREE.Color(0x4b4a50);
+  for(let iz = 0; iz < nz; iz++) for(let ix = 0; ix < nx; ix++){
+    const x = x0 + ix*ZELLE, z = z0 + iz*ZELLE, {y, d} = hoehe(x, z);
+    pos.push(x, y, z); uv.push(x/6, z/6);
+    c.copy(FARBE.gelaende).lerp(FARBE.fern, Math.min(1, d/90)).lerp(fels, Math.max(0, Math.min(1, (d-120)/160)));
+    c.offsetHSL(0, 0, noise(x*0.05)*noise(z*0.043)*0.05);
+    col.push(c.r, c.g, c.b);
+  }
+  for(let iz = 0; iz < nz-1; iz++) for(let ix = 0; ix < nx-1; ix++){
+    const a = iz*nx + ix, b = a + 1, d = a + nx, e = d + 1;
+    idx.push(a, d, b, b, d, e);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({vertexColors:true, roughness:1, metalness:0,
+    map: TEX ? TEX.waldboden : null, normalMap: TEX ? TEX.normal : null, normalScale: new THREE.Vector2(0.35, 0.35)}));
+  m.name = 'schale'; m.receiveShadow = SCHATTEN;
+  return m;
+}
+/* Ferngebirge: ein Kamm aus Kegeln im Nebel, auf die Schale gesetzt. */
+function baueFerngebirge(w){
+  // 24 Gruppen à 3 überlappende Kegel: ein Kamm, keine Reihe perfekter Dreiecke
+  const N = 72, g = new THREE.ConeGeometry(1, 1, 6, 1); g.translate(0, 0.5, 0);
+  const m = new THREE.InstancedMesh(g, new THREE.MeshStandardMaterial({color:0xffffff, roughness:1, flatShading:true}), N);
+  m.name = 'ferngebirge';
+  let cx = 0, cz = 0; for(const p of w.st){ cx += p.x; cz += p.z; } cx /= w.st.length; cz /= w.st.length;
+  let weit = 0; for(const p of w.st) weit = Math.max(weit, Math.hypot(p.x - cx, p.z - cz));   // Ring außerhalb JEDER Station
+  const hoehe = schaleHoehe(w), hash = n => { const s = Math.sin(n*127.1)*43758.5453; return s - Math.floor(s); };
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), c = new THREE.Color();
+  const fels = new THREE.Color(0x3e4048);
+  for(let i = 0; i < N; i++){
+    const grp = Math.floor(i/3), k = i % 3;
+    const a = grp/(N/3)*Math.PI*2 + noise(grp*0.9)*0.15 + (k-1)*0.055*(0.6 + hash(i+3)*0.8);
+    const R = weit + 420 + hash(grp)*220 + (k-1)*60*hash(i+11);
+    const x = cx + Math.cos(a)*R, z = cz + Math.sin(a)*R;
+    const rx = (k === 1 ? 90 : 55) + hash(i+50)*80, h = (k === 1 ? 90 : 50) + hash(i+100)*100;
+    P.set(x, hoehe(x, z).y - 10, z);
+    Q.setFromAxisAngle(_Y, hash(i+7)*6.28); S.set(rx, h, rx*(0.8 + hash(i+9)*0.5));
+    M.compose(P, Q, S); m.setMatrixAt(i, M);
+    m.setColorAt(i, c.copy(fels).lerp(HORIZONT, 0.35).offsetHSL(0, 0, (hash(i+13)-0.5)*0.06));
+  }
+  m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+  return m;
+}
+
+/* --------------------------------------------------------------- Bäume */
+/* Krone aus drei gestaffelten Kegeln mit Vertex-Rauschen, eine Geometrie;
+   Farbvarianz per setColorAt (Materialfarbe weiß, sonst multipliziert es doppelt). */
+function kronenGeometrie(){
+  const teile = [];
+  for(const [r, h, y0] of [[2.2, 3.4, 0.0], [1.7, 3.2, 1.9], [1.15, 3.0, 3.7]]){
+    const g = new THREE.ConeGeometry(r, h, 7, 1); g.translate(0, y0 + h/2, 0); teile.push(g);
+  }
+  const g = mergeGeometries(teile, false), p = g.attributes.position;
+  for(let i = 0; i < p.count; i++){
+    if(p.getY(i) < 0.3) continue;   // Basisringe bleiben rund, sonst schweben Ecken frei
+    p.setXYZ(i, p.getX(i) + noise(i*1.7)*0.16, p.getY(i) + noise(i*3.1)*0.2, p.getZ(i) + noise(i*2.3 + 5)*0.16);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+function baueBaeume(w){
+  const N = 900, wald = GRAFIK.an('wald');
+  const stammG = new THREE.CylinderGeometry(0.16, 0.26, 3, 5); stammG.translate(0, 1.5, 0);
+  const kroneG = wald ? kronenGeometrie() : (() => { const g = new THREE.ConeGeometry(1.7, 7.5, 7); g.translate(0, 3.75, 0); return g; })();
+  const stamm = new THREE.InstancedMesh(stammG, new THREE.MeshStandardMaterial({color:0xffffff, roughness:1}), N);
+  const krone = new THREE.InstancedMesh(kroneG, new THREE.MeshStandardMaterial({color:0xffffff, roughness:1, flatShading:true}), N);
+  stamm.name = 'staemme'; krone.name = 'kronen';
+  stamm.castShadow = krone.castShadow = SCHATTEN;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), c = new THREE.Color();
+  for(let i = 0; i < N; i++){
+    const s = (i/N)*w.L;
+    const st = w.stBei(s), qs = w.qsBei(s);
+    const seite = noise(i*3.7) > 0 ? 1 : -1;
+    const ab = qs.breite/2 + 14 + Math.abs(noise(i*1.31))*34;
+    const u = seite*ab;
+    const rx = -Math.cos(st.psi), rz = Math.sin(st.psi);
+    const gr = 0.65 + Math.abs(noise(i*5.9))*0.85;
+    // Bäume folgen demselben Hang wie die Schürze: bergseits höher, talseits tiefer
+    const ferne = ab - qs.breite/2;
+    const talig = (Math.sign(u) * w.bergAt(s) + 1) / 2;
+    const y = w.hArr(s) + (1-talig)*Math.min(15, ferne*0.34)
+                        - talig*Math.min(30, ferne*0.62) - 0.4;
+    P.set(st.x + rx*u, y, st.z + rz*u);
+    Q.setFromAxisAngle(_Y, noise(i*2.2)*3.14);
+    S.set(gr, gr, gr);
+    M.compose(P, Q, S); stamm.setMatrixAt(i, M);
+    stamm.setColorAt(i, c.setHex(0x2a2119).offsetHSL(0, 0, wald ? noise(i*0.83)*0.04 : 0));
+    P.y += 2.6*gr;
+    M.compose(P, Q, S); krone.setMatrixAt(i, M);
+    krone.setColorAt(i, c.setHex(0x1c3324).offsetHSL(wald ? noise(i*0.61)*0.025 : 0, 0, wald ? noise(i*1.37)*0.05 : 0));
+  }
+  stamm.instanceMatrix.needsUpdate = true; krone.instanceMatrix.needsUpdate = true;
+  stamm.instanceColor.needsUpdate = true; krone.instanceColor.needsUpdate = true;
+  return [stamm, krone];
+}
+
+/* Meshhöhe am Streckenrand: Station i exakt, Profilkoordinate x linear zwischen
+   den Profilpunkten — genau wie das Mesh dort ist. flaeche() kennt die Schürze nicht. */
+function meshHoeheAn(w, i, x){
+  const pts = w.profilBei(i);
+  let v = pts[0].v;
+  if(x >= pts[pts.length-1].x) v = pts[pts.length-1].v;
+  else for(let k = 0; k < pts.length-1; k++){
+    if(x >= pts[k].x && x <= pts[k+1].x){
+      const dx = pts[k+1].x - pts[k].x, q = dx > 1e-9 ? (x - pts[k].x)/dx : 0;
+      v = pts[k].v + q*(pts[k+1].v - pts[k].v); break;
+    }
+  }
+  return w.hMesh(w.st[i].s) + v;
+}
+/* Grasbüschel und Steine am Streckenrand: zwei InstancedMeshes, zwei Draw Calls. */
+function baueDeko(w){
+  const hash = n => { const s = Math.sin(n*127.1)*43758.5453; return s - Math.floor(s); };
+  // Grasbüschel: drei gekreuzte Halme-Dreiecke
+  const gp = [];
+  for(let k = 0; k < 3; k++){
+    const a = k*Math.PI/3, cx = Math.cos(a)*0.09, cz = Math.sin(a)*0.09;
+    gp.push(-cx, 0, -cz,  cx, 0, cz,  0, 0.36, 0);
+  }
+  const grasG = new THREE.BufferGeometry();
+  grasG.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3)); grasG.computeVertexNormals();
+  const steinG = new THREE.IcosahedronGeometry(0.2, 0);
+  const NG = 1500, NS = 700;
+  const gras = new THREE.InstancedMesh(grasG, new THREE.MeshStandardMaterial({color:0xffffff, roughness:1, side:THREE.DoubleSide}), NG);
+  const stein = new THREE.InstancedMesh(steinG, new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.9, flatShading:true}), NS);
+  gras.name = 'gras'; stein.name = 'steine'; stein.castShadow = SCHATTEN;
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), c = new THREE.Color();
+  const setze = (mesh, n, seed, groesse, farbe) => {
+    for(let j = 0; j < n; j++){
+      const i = Math.floor(hash(seed + j*1.7)*(w.st.length-1)), st = w.st[i], qs = w.qsBei(st.s);
+      const links = hash(seed + j*2.9) < 0.5, ab = 0.3 + hash(seed + j*3.3)*3.4;
+      const x = links ? -qs.breite/2 - ab : aussenGrenze(qs) + ab;   // Profilkoordinate, außerhalb der Fahrfläche
+      const u = x*qs.aussen, rx = -Math.cos(st.psi), rz = Math.sin(st.psi);
+      P.set(st.x + rx*u, meshHoeheAn(w, i, x) - 0.03, st.z + rz*u);
+      Q.setFromAxisAngle(_Y, hash(seed + j*4.1)*6.28);
+      groesse(S, seed + j);
+      M.compose(P, Q, S); mesh.setMatrixAt(j, M);
+      mesh.setColorAt(j, farbe(c, seed + j));
+    }
+    mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+  };
+  setze(gras, NG, 11, (S, n) => { const g = 0.7 + hash(n*5.3)*0.8; S.set(g, 0.7 + hash(n*6.1)*0.9, g); },
+        (c, n) => c.setHex(0x2f5226).offsetHSL(hash(n*7.7)*0.06 - 0.03, 0, hash(n*8.3)*0.12 - 0.06));
+  setze(stein, NS, 101, (S, n) => S.set(0.5 + hash(n*5.3)*1.3, 0.35 + hash(n*6.1)*0.8, 0.5 + hash(n*6.7)*1.3),
+        (c, n) => c.setHex(0x5a544c).offsetHSL(0, 0, hash(n*8.3)*0.16 - 0.08));
+  return [gras, stein];
+}
+
+/* ===========================================================================
+   8. FAHRZEUGE
+   Die GLB-Datei wird geladen, wenn sie neben der HTML liegt. Über ihren INHALT
+   wird nichts angenommen: keine Node-Namen, keine Achsenkonvention, keine
+   Materialien werden gesucht oder überschrieben. Sie wird nur eingemessen,
+   auf 1,80 m Gesamthöhe skaliert und auf den Boden gestellt.
+   Fehlt die Datei, wird das Rad hier aus Rohren gebaut — mit Rahmen, Gabel,
+   Speichen, Kurbel und einer Fahrerin in Angriffsposition. Nur dieses Modell
+   wird animiert (Räder, Kurbel, Federung, Hocke); bei der GLB weiß ich nicht,
+   welche Nodes es gäbe.
+   =========================================================================== */
+const GLB_PFAD  = GLB_PFAD_HAUPT;
+const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
+                         // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
+const RAD_R = 0.37;            // Laufradradius außen, m — die GLB hat 0,37; Rohrmodell auf denselben Wert
+
+const _Y = new THREE.Vector3(0, 1, 0);
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+/* Rohr von Punkt a nach Punkt b. Grundlage für Rahmen, Gabel, Speichen. */
+function rohr(a, b, r, segs = 8){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  const g = new THREE.CylinderGeometry(r, r, len, segs, 1);
+  g.translate(0, len/2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(_Y, d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+/* Kapsel von a nach b — Gliedmaßen. CapsuleGeometry ist um den Ursprung
+   zentriert und insgesamt height + 2r lang. */
+function glied(a, b, r){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  const g = new THREE.CapsuleGeometry(r, Math.max(0.01, len - 2*r), 3, 10);
+  g.translate(0, len/2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(_Y, d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+function kugel(p, r){ const g = new THREE.SphereGeometry(r, 14, 10); g.translate(p.x, p.y, p.z); return g; }
+function kasten(p, w, h, d, rx = 0){ const g = new THREE.BoxGeometry(w, h, d); if(rx) g.rotateX(rx); g.translate(p.x, p.y, p.z); return g; }
+function mesh(geos, mat){ return new THREE.Mesh(mergeGeometries(geos, false), mat); }
+
+/* Laufrad: Reifen, Felge, Speichen, Nabe — ein Mesh pro Material, dreht um x. */
+function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false){
+  const g = new THREE.Group();
+  const dicke = scheibe ? 0.045 : 0.038;
+  const reifen = new THREE.TorusGeometry(R - dicke, dicke, 10, 28); reifen.rotateY(Math.PI/2);
+  g.add(new THREE.Mesh(reifen, matReifen));
+  if(scheibe){
+    const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 20); disk.rotateZ(Math.PI/2);
+    g.add(new THREE.Mesh(disk, matMetall));
+    return g;
+  }
+  const felge  = new THREE.TorusGeometry(R - 0.08, 0.012, 6, 28);          felge.rotateY(Math.PI/2);
+  const nabe   = new THREE.CylinderGeometry(0.03, 0.03, 0.10, 10);         nabe.rotateZ(Math.PI/2);
+  const speichen = [];
+  for(let i = 0; i < 16; i++){
+    const a = i/16 * Math.PI*2, seite = i % 2 ? 0.035 : -0.035;
+    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*(R - 0.085), Math.cos(a)*(R - 0.085)), 0.0035, 4));
+  }
+  g.add(mesh([felge, nabe, ...speichen], matMetall));
+  return g;
+}
+
+/* Fahrerin: eine Funktion für alle Fahrzeuge. `farben` kommt aus CHARAKTERE,
+   `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien und die
+   umschaltbaren Teile (Zopf, Helmschirm) werden in userData abgelegt, damit ein
+   Charakterwechsel nur Farben setzt und nichts neu baut. */
+function baueFahrerin(farben, pose = 'angriff'){
+  const F = farben || CHARAKTERE[0];
+  const matJersey = new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}); matJersey.name = 'jersey';
+  const matHose   = new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9});    matHose.name = 'kit_pants';
+  const matHaut   = new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7});    matHaut.name = 'skin';
+  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}); matHelm.name = 'helmet';
+  const matHaar   = new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9});    matHaar.name = 'hair';
+  const matSchw   = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const g = new THREE.Group(); g.name = 'rider_female';
+
+  let P;   // Gelenkpunkte je Pose
+  if(pose === 'stehend'){
+    P = {huefte:V(0,1.02,-0.05), schulter:V(0,1.42,0.02), kopf:V(0,1.62,0.06),
+         schL:V(-0.19,1.40,0.02), ellL:V(-0.26,1.22,0.18), handL:V(-0.24,1.08,0.32),
+         schR:V( 0.19,1.40,0.02), ellR:V( 0.26,1.22,0.18), handR:V( 0.24,1.08,0.32),
+         hueL:V(-0.09,1.00,-0.05), knieL:V(-0.10,0.60,0.02), fussL:V(-0.10,0.22,0.06),
+         hueR:V( 0.09,1.00,-0.05), knieR:V( 0.10,0.60,-0.10), fussR:V( 0.10,0.22,-0.16),
+         schuhL:V(-0.10,0.19,0.09), schuhR:V(0.10,0.19,-0.13), hals:V(0,1.50,0.04), rumpfR:0.14};
+  } else {
+    P = {huefte:V(0,1.00,-0.14), schulter:V(0,1.24,0.16), kopf:V(0,1.42,0.28),
+         schL:V(-0.20,1.22,0.16), ellL:V(-0.34,1.10,0.28), handL:V(-0.36,1.04,0.40),
+         schR:V( 0.20,1.22,0.16), ellR:V( 0.34,1.10,0.28), handR:V( 0.36,1.04,0.40),
+         hueL:V(-0.09,0.98,-0.12), knieL:V(-0.16,0.72,0.12), fussL:V(-0.16,0.42,0.14),
+         hueR:V( 0.09,0.98,-0.12), knieR:V( 0.17,0.70,-0.02), fussR:V( 0.16,0.42,-0.12),
+         schuhL:V(-0.16,0.37,0.16), schuhR:V(0.16,0.37,-0.12), hals:V(0,1.30,0.20), rumpfR:0.15};
+  }
+  g.add(mesh([glied(P.huefte, P.schulter, P.rumpfR), kugel(P.huefte, 0.135),
+    glied(P.schL, P.ellL, 0.052), glied(P.schR, P.ellR, 0.052)], matJersey));
+  g.add(mesh([glied(P.ellL, P.handL, 0.042), glied(P.ellR, P.handR, 0.042),
+    kugel(P.handL, 0.045), kugel(P.handR, 0.045), glied(P.hals, P.kopf, 0.05)], matHaut));
+  g.add(new THREE.Mesh(kugel(P.kopf, 0.115), matHaut));
+  g.add(mesh([glied(P.hueL, P.knieL, 0.075), glied(P.hueR, P.knieR, 0.075),
+    glied(P.knieL, P.fussL, 0.058), glied(P.knieR, P.fussR, 0.058)], matHose));
+  g.add(mesh([kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
+  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(P.kopf.x, P.kopf.y + 0.01, P.kopf.z);
+  g.add(new THREE.Mesh(helm, matHelm));
+  const schirm = new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.08, P.kopf.z + 0.14), 0.20, 0.012, 0.09, -0.3), matHelm);
+  schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; g.add(schirm);
+  g.add(new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.01, P.kopf.z + 0.12), 0.17, 0.05, 0.04), matSchw));   // Brille
+  const zopf = new THREE.Mesh(glied(V(P.kopf.x, P.kopf.y + 0.02, P.kopf.z - 0.10), V(P.kopf.x, P.kopf.y - 0.22, P.kopf.z - 0.20), 0.032), matHaar);
+  zopf.name = 'ponytail'; zopf.visible = !!F.zopf; g.add(zopf);
+  g.userData.charakter = {materialien:{jersey:matJersey, kit_pants:matHose, helmet:matHelm, skin:matHaut, hair:matHaar}, zopf, schirm};
+  return g;
+}
+
+/* Baukasten für alle Räder. Schalter aus bike.modell.bau:
+   gabel 'einfach'|'doppel', hinterbau 'luft'|'coil'|'starr', motor, sattelHoch,
+   lenkerBreite, radR, radstand. Der Roller ist eine eigene Funktion. */
+function baueRad(bike, farben){
+  const bau = Object.assign({gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}, (bike.modell && bike.modell.bau) || {});
+  const R = bau.radR, RS = bau.radstand, accent = bike.accent;
+  const matRahmen = veredle(new THREE.MeshStandardMaterial({color:accent, roughness:0.32, metalness:0.55}), 'frame_charcoal');
+  const matMetall = veredle(new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}), 'raw_alu');
+  const matGold   = veredle(new THREE.MeshStandardMaterial({color:0xd9a441, roughness:0.3, metalness:0.8}), 'anodized_gold');
+  const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matReifen = veredle(new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}), 'tire_rubber');
+  const matGummi  = new THREE.MeshStandardMaterial({color:0x26282c, roughness:0.9});
+
+  // Geometrie in Metern, Fahrtrichtung +z, Boden bei y = 0. Radstand skaliert die Länge.
+  const hinten = V(0, R, -0.60*RS), vorn = V(0, R, 0.64*RS);
+  const tret   = V(0, 0.32, -0.02);
+  const sitzO  = V(0, 0.80, -0.20*RS);
+  const kopfO  = V(0, 0.98, 0.42*RS), kopfU = V(0, 0.82, 0.50*RS);
+
+  const halter = new THREE.Group();
+  const koerper = new THREE.Group();
+  halter.add(koerper);
+
+  const rUnter = bau.motor ? 0.048 : 0.022;
+  const rahmen = [
+    rohr(sitzO, kopfO, 0.02), rohr(tret, kopfU, rUnter), rohr(tret, sitzO, 0.02), rohr(kopfU, kopfO, 0.028),
+    rohr(V( 0.06, 0.33, -0.02), V( 0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V(-0.06, 0.33, -0.02), V(-0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V( 0.03, 0.79, sitzO.z - 0.01), V( 0.05, R, hinten.z + 0.02), 0.010),
+    rohr(V(-0.03, 0.79, sitzO.z - 0.01), V(-0.05, R, hinten.z + 0.02), 0.010),
+  ];
+  if(bau.hinterbau === 'luft'){
+    rahmen.push(rohr(V(0, 0.74, -0.08), V(0, 0.48, -0.30*RS), 0.016));                 // Luftdämpfer, schlank
+  } else if(bau.hinterbau === 'coil'){
+    rahmen.push(rohr(V(0, 0.76, -0.06), V(0, 0.46, -0.32*RS), 0.014));
+  }
+  if(bau.motor){
+    const motor = new THREE.CylinderGeometry(0.095, 0.095, 0.17, 14); motor.rotateZ(Math.PI/2); motor.translate(0, 0.34, -0.02);
+    rahmen.push(motor);
+  }
+  koerper.add(mesh(rahmen, matRahmen));
+  if(bau.hinterbau === 'coil'){
+    // Stahlfeder: Ringe um den Dämpfer, goldfarben wie am DH-Rad
+    const ringe = [];
+    const a = V(0, 0.74, -0.075), b = V(0, 0.50, -0.30*RS), d = new THREE.Vector3().subVectors(b, a);
+    for(let i = 0; i < 7; i++){
+      const c = a.clone().addScaledVector(d, 0.1 + 0.8*i/6);
+      const t = new THREE.TorusGeometry(0.036, 0.007, 6, 14);
+      t.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), d.clone().normalize()));
+      t.translate(c.x, c.y, c.z); ringe.push(t);
+    }
+    koerper.add(mesh(ringe, matGold));
+  }
+  const sattelY = bau.sattelHoch ? 0.98 : 0.86;
+  const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(-0.05, 0.32, -0.02);
+  koerper.add(mesh([
+    kettenblatt,
+    kasten(V(0, sattelY, sitzO.z - 0.05), 0.09, 0.04, 0.25),                  // Sattel
+    rohr(V(0, 0.80, sitzO.z - 0.01), V(0, sattelY - 0.01, sitzO.z - 0.04), 0.014),
+    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.014),                                   // Vorbau
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.012),
+  ], matSchwarz));
+  koerper.add(mesh([
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 + 0.13, 1.04, 0.36*RS), 0.016),
+    rohr(V( bau.lenkerBreite/2 - 0.13, 1.04, 0.36*RS), V( bau.lenkerBreite/2, 1.04, 0.36*RS), 0.016),
+  ], matGummi));
+  if(bau.motor){
+    const led = new THREE.Mesh(kasten(V(0.06, 1.07, 0.36*RS), 0.07, 0.012, 0.045),
+      new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
+    koerper.add(led);
+  }
+  // Gabel
+  const gabel = [
+    kasten(V(0, 0.80, kopfU.z + 0.01), 0.15, 0.05, 0.06),
+    rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, R, vorn.z), 0.017),
+    rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, R, vorn.z), 0.017),
+  ];
+  if(bau.gabel === 'doppel'){
+    // Doppelbrücke: zweite Brücke über dem Steuerrohr, Standrohre laufen durch
+    gabel.push(kasten(V(0, 1.02, kopfO.z + 0.02), 0.17, 0.045, 0.06));
+    gabel.push(rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, 1.05, kopfO.z + 0.03), 0.019));
+    gabel.push(rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, 1.05, kopfO.z + 0.03), 0.019));
+  }
+  koerper.add(mesh(gabel, bau.gabel === 'doppel' ? matGold : matMetall));
+
+  // Kurbel (dreht). Kettenblatt und rechter Arm bei −x: nach der Yaw-Korrektur ist
+  // lokal −x die rechte Seite der Fahrerin.
+  const kurbel = new THREE.Group(); kurbel.position.copy(tret);
+  kurbel.add(mesh([rohr(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.012), rohr(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.012),
+    rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014)], matMetall));
+  kurbel.add(mesh([kasten(V(-0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
+  koerper.add(kurbel);
+
+  const radH = laufrad(matReifen, matMetall, R); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R); radV.position.copy(vorn);
+  halter.add(radH, radV);
+
+  const fahrerin = baueFahrerin(farben, 'angriff');
+  koerper.add(fahrerin);
+
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  return halter;
+}
+
+/* Der E-Roller: andere Topologie, deshalb eigene Funktion. Trittbrett, Lenkstange,
+   zwei kleine Räder, Fahrerin stehend. */
+function baueRoller(bike, farben){
+  const R = (bike.modell && bike.modell.bau && bike.modell.bau.radR) || 0.16;
+  const matRahmen = veredle(new THREE.MeshStandardMaterial({color:bike.accent, roughness:0.35, metalness:0.5}), 'frame_charcoal');
+  const matMetall = veredle(new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}), 'raw_alu');
+  const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matReifen = veredle(new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}), 'tire_rubber');
+  const halter = new THREE.Group(), koerper = new THREE.Group(); halter.add(koerper);
+  const hinten = V(0, R, -0.42), vorn = V(0, R, 0.42);
+  koerper.add(mesh([
+    kasten(V(0, 0.12, -0.02), 0.16, 0.05, 0.62),                                   // Trittbrett
+    rohr(V(0, 0.14, 0.28), V(0, 1.02, 0.36), 0.022),                                // Lenkstange
+    rohr(V(0, 0.10, -0.32), V(0, R, hinten.z), 0.016),                              // Hinterradaufnahme
+    rohr(V(0, 0.62, 0.34), V(0, R, vorn.z), 0.018),                                 // Vorderradgabel
+  ], matRahmen));
+  koerper.add(mesh([rohr(V(-0.25, 1.04, 0.36), V(0.25, 1.04, 0.36), 0.012), kasten(V(0, 1.0, 0.40), 0.06, 0.03, 0.05)], matSchwarz));
+  koerper.add(mesh([kasten(V(0, 0.10, -0.02), 0.17, 0.008, 0.64)], matMetall));      // Deckplatte
+  const radH = laufrad(matReifen, matMetall, R, true); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R, true); radV.position.copy(vorn);
+  halter.add(radH, radV);
+  const fahrerin = baueFahrerin(farben, 'stehend'); fahrerin.position.y = 0.15;   // steht auf dem Brett
+  koerper.add(fahrerin);
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel:null, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
+  return halter;
+}
+
+/* Die GLB wird EINMAL geladen; jedes Rad bekommt einen Klon des Szenenbaums.
+   Nur load() steht im try — Fehler in der eigenen Verarbeitung müssen in der
+   Konsole landen, sonst sieht man „Rohrmodell aktiv" und sucht an der falschen Stelle. */
+let glbVersprechen = null;
+/* Ladezustand für den Ladebildschirm. Wird schon beim Vorladen gefüllt, das
+   Overlay liest ihn nur. gesamt = 0 heißt: der Server hat keine Content-Length
+   geschickt (chunked) — dann läuft der Balken unbestimmt statt auf 100 % zu springen. */
+const ladeStand = {
+  fahrzeug: {zustand:'offen', geladen:0, gesamt:0, text:''},
+  strecke:  {zustand:'offen'},
+  wald:     {zustand:'offen'},
+};
+function ladeGLB(){
+  if(!glbVersprechen){
+    ladeStand.fahrzeug.zustand = 'läuft'; zeichneLadestand();
+    const manager = new THREE.LoadingManager();
+    glbVersprechen = new Promise((ok, no) => new GLTFLoader(manager).load(GLB_PFAD, ok,
+      ev => { ladeStand.fahrzeug.geladen = ev.loaded; ladeStand.fahrzeug.gesamt = ev.lengthComputable ? ev.total : 0; zeichneLadestand(); },
+      no));
+    glbVersprechen.then(
+      () => { ladeStand.fahrzeug.zustand = 'fertig'; ladeStand.fahrzeug.text = 'geladen'; zeichneLadestand(); },
+      () => { ladeStand.fahrzeug.zustand = 'fehler'; ladeStand.fahrzeug.text = 'Modell nicht gefunden, Rohrmodell aktiv'; zeichneLadestand(); });
+  }
+  return glbVersprechen;
+}
+
+/* Weitere GLB-Dateien (fahrzeuge/<id>.glb) werden je Pfad einmal geladen. */
+const glbDateien = new Map();
+function ladeGLBDatei(pfad){
+  if(pfad === GLB_PFAD_HAUPT) return ladeGLB();
+  if(!glbDateien.has(pfad)) glbDateien.set(pfad, new Promise((ok, no) => new GLTFLoader().load(pfad, ok, undefined, no)));
+  return glbDateien.get(pfad);
+}
+function baukasten(bike){
+  return bike.id === 'roller' ? baueRoller(bike, aktCharakter()) : baueRad(bike, aktCharakter());
+}
+async function ladeFahrzeug(bike){
+  const pfad = bike.modell && bike.modell.glb;
+  if(!pfad) return baukasten(bike);
+  let gltf;
+  try{ gltf = await ladeGLBDatei(pfad); }
+  catch(e){
+    // Die Hauptdatei fehlt: laut sagen. Eine optionale fahrzeuge/<id>.glb fehlt: normal, leise.
+    if(pfad === GLB_PFAD_HAUPT) console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
+    else console.info('Kein ' + pfad + ' — Baukasten für ' + bike.id);
+    return baukasten(bike);
+  }
+  const halter = richteGLB(gltf.scene.clone(true), bike);
+  wendeCharakterAn(halter, aktCharakter());
+  return halter;
+}
+
+/* Alle Nodes eines Namens (getObjectByName liefert nur den ersten). */
+function alleMitName(root, name){
+  const out = []; root.traverse(o => { if(o.name === name) out.push(o); }); return out;
+}
+/* Pivot-Gruppe ins gemeinsame Zentrum der Nodes setzen und die Nodes umhängen.
+   Nötig, weil z. B. wheel_front ein Identitäts-Transform hat: sein Drehpunkt wäre
+   der Modellursprung, nicht die Nabe. attach() behält die Welt-Transform. */
+function pivotUm(root, nodes, name){
+  if(!nodes.length) return null;
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  for(const n of nodes) box.union(new THREE.Box3().setFromObject(n));
+  const pivot = new THREE.Group(); pivot.name = name;
+  box.getCenter(pivot.position); root.add(pivot);
+  for(const n of nodes) for(const ch of (n.isGroup ? [...n.children] : [n])) pivot.attach(ch);
+  return pivot;
+}
+
+function richteGLB(root, bike){
+  // Die Datei ist in Metern, Boden bei y = 0, in x/z zentriert: keine Skalierung.
+  const halter = new THREE.Group(), koerper = new THREE.Group();
+  halter.add(koerper); koerper.add(root);
+  root.rotation.y = GLB_DREHUNG;
+  root.updateMatrixWorld(true);
+
+  // Materialien klonen — der Loader teilt sie zwischen Meshes und zwischen den beiden Klonen.
+  root.traverse(o => {
+    if(!o.isMesh) return;
+    const k = m => veredle(m.clone(), m.name);   // klonen UND nach Namen veredeln (vor dem Merge, der nach Namen gruppiert)
+    o.material = Array.isArray(o.material) ? o.material.map(k) : k(o.material);
+  });
+  // MTB: kein Motor, kein Akku, Rahmen in Akzentfarbe. eMTB: alles sichtbar, Rahmen bleibt.
+  if(!bike.motor){
+    for(const n of ['motor_box', 'battery_downtube']) for(const o of alleMitName(root, n)) o.visible = false;
+    root.traverse(o => {
+      if(!o.isMesh) return;
+      for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+        if(m.name === 'frame_charcoal') m.color.set(bike.accent);
+    });
+  }
+
+  const pivotV = pivotUm(root, alleMitName(root, 'wheel_front'), 'pivot_wheel_front');
+  const pivotH = pivotUm(root, alleMitName(root, 'wheel_rear'),  'pivot_wheel_rear');
+  const kurbel = pivotUm(root, [...alleMitName(root, 'chainring'), ...alleMitName(root, 'crank_arm'), ...alleMitName(root, 'pedal')], 'pivot_kurbel');
+  const fahrerin = root.getObjectByName('rider_female') || null;
+  if(!pivotV || !pivotH) console.warn('GLB: wheel_front/wheel_rear nicht gefunden — Räder drehen nicht');
+  // Räder hängen am Halter, nicht am federnden Körper
+  for(const pv of [pivotV, pivotH]) if(pv) halter.attach(pv);
+
+  const ausnahmen = new Set();
+  for(const g of [pivotV, pivotH, kurbel, fahrerin]) if(g) g.traverse(o => ausnahmen.add(o));
+  const drawcalls = verschmelzeNachMaterial(root, ausnahmen);
+
+  halter.userData = {quelle:'glb', raeder:[pivotH, pivotV].filter(Boolean), kurbel, koerper, fahrerin,
+                     radR:(bike.modell && bike.modell.bau && bike.modell.bau.radR) || RAD_R,
+                     feder:0, federV:0, letzteLandung:null, drawcalls};
+  return halter;
+}
+
+/* Draw Calls: statische Meshes je Material zusammenlegen (Welt-Transform eingebacken).
+   Gruppen mit ungleichen Attributen werden übersprungen, nicht gehackt. */
+function verschmelzeNachMaterial(root, ausnahmen){
+  root.updateMatrixWorld(true);
+  const gruppen = new Map(), vorher = [];
+  root.traverse(o => {
+    if(!o.isMesh || ausnahmen.has(o) || !o.visible || Array.isArray(o.material)) return;
+    vorher.push(o);
+    // Nach NAME gruppieren: die Materialien wurden vorher pro Mesh geklont, ihre uuids
+    // sind also alle verschieden. Innerhalb eines Rads ist gleicher Name = gleiche Farbe.
+    const k = o.material.name || o.material.uuid;
+    if(!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(o);
+  });
+  let nachher = 0, uebersprungen = 0;
+  for(const [, meshes] of gruppen){
+    if(meshes.length < 2){ nachher += meshes.length; continue; }
+    const attrs = g => Object.keys(g.attributes).sort().join(',') + (g.index ? '|i' : '');
+    const ref = attrs(meshes[0].geometry);
+    if(!meshes.every(m => attrs(m.geometry) === ref)){ nachher += meshes.length; uebersprungen++; continue; }
+    const geos = meshes.map(m => m.geometry.clone().applyMatrix4(m.matrixWorld));
+    const merged = mergeGeometries(geos, false);
+    if(!merged){ nachher += meshes.length; uebersprungen++; continue; }
+    const neu = new THREE.Mesh(merged, meshes[0].material); neu.name = 'merged_' + meshes[0].material.name;
+    for(const m of meshes) m.removeFromParent();
+    root.add(neu); nachher++;
+  }
+  return {vorher: vorher.length, nachher, uebersprungen};
+}
+
+/* Animation des Rohrmodells: Räder drehen mit dem Tempo, die Kurbel beim Treten,
+   Körper und Fahrerin federn — ein Feder-Dämpfer, der bei der Landung einen
+   Stoß bekommt und in der Luft leicht ausfedert. */
+function animiereFahrzeug(halter, f, dt, ein){
+  const u = halter.userData; if(!u || !u.raeder) return;
+  // Rollen nach +z = positive Drehung um die lokale x-Achse: (0,R,0) → (0, R·cos a, R·sin a),
+  // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
+  const spin = (f.boden ? f.vs : f.vs*0.92) / (u.radR || RAD_R) * dt;
+  for(const r of u.raeder) r.rotation.x += spin;
+  if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
+  if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
+    u.letzteLandung = f.letzteLandung;
+    u.federV -= Math.min(2.2, 0.16 * f.letzteLandung.aufprall);
+  }
+  const ziel = f.boden ? 0 : 0.05;
+  const a = -160*(u.feder - ziel) - 16*u.federV;
+  u.federV += a*dt; u.feder = Math.max(-0.14, Math.min(0.06, u.feder + u.federV*dt));
+  u.koerper.position.y = u.feder;
+  // Die Fahrerin geht bei der Kompression tiefer in die Hocke als das Rad einfedert
+  if(u.fahrerin){
+    u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
+    u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+  }
+}
+
+/* Blob-Schatten: zeigt beim Sprung, wie hoch man wirklich ist. Kostet eine
+   Shadow-Map-Berechnung über 1900 m nicht — ein Kreis reicht völlig. */
+function baueSchatten(){
+  const g = new THREE.CircleGeometry(0.62, 20);
+  g.rotateX(-Math.PI/2);
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color:0x000000, transparent:true, opacity:0.42, depthWrite:false, fog:false}));
+}
+
+/* ===========================================================================
+   9. STEUERUNG UND SCHLEIFE
+   =========================================================================== */
+const ein = {gas:false, bremse:0, quer:0};
+const taste = {};
+const KAMERAS = [
+  {name:'Verfolgung', hinten:6.8, hoch:2.5, ziel:9,  roll:0.55},
+  {name:'Cockpit',    hinten:-0.15, hoch:1.5, ziel:14, roll:0.85},
+  {name:'Weit',       hinten:13,  hoch:5.4, ziel:6,  roll:0.30},
+];
+let kamMode = 0;
+
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  taste[k] = true;
+  if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
+  if(k === 'r' && welt) neustart();
+  if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
+  if(k === 'f' && welt){
+    const i = CHARAKTERE.findIndex(c => c.id === aktCharakterId);
+    wechsleCharakter(CHARAKTERE[(i + 1) % CHARAKTERE.length].id);
+  }
+});
+addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
+
+function leseEingabe(){
+  ein.gas    = !!(taste['w'] || taste['arrowup']);
+  ein.bremse = (taste['s'] || taste['arrowdown']) ? 1 : 0;
+  ein.quer   = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+}
+
+/* --------------------------------------------- Position auf der Mittellinie */
+const _p = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3();
+const _camZiel = new THREE.Vector3(), _camPos = new THREE.Vector3(), _up = new THREE.Vector3();
+
+function stInterp(w, s){
+  const f = Math.max(0, Math.min(s/DS, w.st.length - 2));
+  const i = Math.floor(f), t = f - i;
+  const a = w.st[i], b = w.st[i+1];
+  return {x: a.x + t*(b.x-a.x), z: a.z + t*(b.z-a.z), psi: a.psi + t*(b.psi-a.psi)};
+}
+function weltPos(w, s, u, y, out){
+  const st = stInterp(w, s);
+  const rx = -Math.cos(st.psi), rz = Math.sin(st.psi);
+  return out.set(st.x + rx*u, y, st.z + rz*u);
+}
+
+/* ------------------------------------------------------------------ Zustand */
+let welt = null, fahrer = null, halter = null, schatten = null, laeuft = false;
+/* Letzte Wahl merken. localStorage kann fehlen (Private Mode) oder werfen. */
+const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
+const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
+let radCache = {}, aktRad = BIKES[gemerkt('rad', 'mtb')] ? gemerkt('rad', 'mtb') : 'mtb', aktStrecke = 0, hudAn = false;
+if(CHARAKTERE.some(c => c.id === gemerkt('charakter', 'mia'))) aktCharakterId = gemerkt('charakter', 'mia');
+
+/* Charakterwechsel: kein Neuladen, kein Neubau — nur Farben und zwei
+   Sichtbarkeiten auf jedem schon gebauten Fahrzeug (radCache). */
+function wechsleCharakter(id){
+  const ch = CHARAKTERE.find(c => c.id === id);
+  if(!ch) return;
+  aktCharakterId = id; merke('charakter', id);
+  for(const h of Object.values(radCache)) wendeCharakterAn(h, ch);
+  document.querySelectorAll('#chars .card').forEach(c =>
+    c.setAttribute('aria-pressed', String(c.dataset.id === id)));
+  if(hudAn) meldung(ch.name, 1500);
+}
+const timer = new THREE.Timer();
+
+const $ = id => document.getElementById(id);
+
+function neustart(){
+  fahrer = neuerFahrer(BIKES[aktRad]);
+  $('elem').classList.remove('on');
+}
+
+let montiert = null;
+async function wechsleRad(id){
+  if(!BIKES[id] || montiert === id) return;   // auf das MONTIERTE Rad prüfen,
+  aktRad = id;                                // nicht auf das gewählte
+  if(fahrer) fahrer.bike = BIKES[id];
+  if(halter) scene.remove(halter);
+  if(!radCache[id]){
+    radCache[id] = await ladeFahrzeug(BIKES[id]);
+    if(SCHATTEN) radCache[id].traverse(o => { if(o.isMesh) o.castShadow = true; });
+  }
+  halter = radCache[id];
+  scene.add(halter);
+  montiert = id; merke('rad', id);
+  $('vname').textContent = BIKES[id].name;
+  document.querySelectorAll('#bikes .card').forEach(c =>
+    c.setAttribute('aria-pressed', String(c.dataset.id === id)));
+}
+
+/* ------------------------------------------------------------------ Aufbau */
+/* Einen Paint freigeben. rAF allein reicht NICHT: die Fortsetzung eines
+   await'ed rAF läuft als Microtask noch vor dem Paint desselben Frames, und
+   das Overlay würde nie gezeichnet. rAF + setTimeout(0) liegt hinter dem Paint. */
+const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+function zeichneLadestand(){
+  const lade = $('lade'); if(!lade) return;
+  const F = ladeStand.fahrzeug;
+  const zeile = (id, zustand, text) => {
+    const z = lade.querySelector(`.lz[data-s="${id}"]`); z.dataset.z = zustand; z.querySelector('b').textContent = text;
+  };
+  // Geklemmt: FileLoader zählt entpackte Bytes, Content-Length ist bei gzip die
+  // komprimierte Größe — ohne Clamp stünde dort „137 %".
+  const q = F.gesamt > 0 ? Math.min(1, F.geladen/F.gesamt) : 0;
+  let ft = F.zustand === 'offen' ? 'offen' : F.zustand === 'läuft'
+    ? (F.gesamt > 0 ? Math.round(q*100) + ' %' : (F.geladen > 0 ? Math.round(F.geladen/1024) + ' kB …' : 'läuft'))
+    : F.text;
+  zeile('fahrzeug', F.zustand, ft);
+  zeile('strecke', ladeStand.strecke.zustand, ladeStand.strecke.zustand);
+  zeile('wald', ladeStand.wald.zustand, ladeStand.wald.zustand);
+  // Gesamtfortschritt: Fahrzeug 0-50 %, Strecke bis 80 %, Wald bis 100 %
+  const balken = $('ladeBalken'), i = balken.firstElementChild;
+  let p = 0, unbestimmt = false;
+  if(F.zustand === 'läuft'){ if(F.gesamt > 0) p = 50 * q; else unbestimmt = true; }
+  else if(F.zustand !== 'offen') p = 50;
+  if(ladeStand.strecke.zustand === 'läuft') p = 55; else if(ladeStand.strecke.zustand !== 'offen') p = 80;
+  if(ladeStand.wald.zustand === 'läuft') p = 85; else if(ladeStand.wald.zustand !== 'offen') p = 100;
+  balken.classList.toggle('unbestimmt', unbestimmt);
+  if(!unbestimmt) i.style.width = p + '%';
+}
+
+let ladeAusblenden = 0;
+function zeigeLade(an){
+  const lade = $('lade');
+  clearTimeout(ladeAusblenden);
+  if(an){
+    lade.hidden = false; lade.classList.remove('weg'); canvas.setAttribute('aria-busy', 'true');
+    $('ladeFehler').hidden = true; $('ladeZurueck').hidden = true;
+    zeichneLadestand(); lade.focus({preventScroll:true});
+  } else {
+    canvas.setAttribute('aria-busy', 'false'); lade.classList.add('weg');
+    ladeAusblenden = setTimeout(() => { lade.hidden = true; }, reduced ? 0 : 380);
+  }
+}
+function ladeFehler(text){
+  canvas.setAttribute('aria-busy', 'false');
+  $('ladeFehler').textContent = text; $('ladeFehler').hidden = false;
+  $('ladeZurueck').hidden = false; $('ladeZurueck').focus();
+}
+$('ladeZurueck').onclick = () => {
+  ladeStand.strecke.zustand = 'offen'; ladeStand.wald.zustand = 'offen';
+  zeigeLade(false); $('start').classList.remove('gone');
+  $('go').focus({preventScroll:true});   // sonst verschwindet das fokussierte Element unter dem Fokus
+};
+
+async function starte(){
+  const t0 = performance.now(), T = {};   // Prüfhaken: Zeiten je Schritt, lesbar über window.bikepark.ladeStand.zeiten
+  ladeStand.zeiten = T;
+  $('start').classList.add('gone');
+  zeigeLade(true);
+
+  // 1) Fahrzeug — läuft seit dem Öffnen der Seite (Vorladen); hier nur warten
+  let glbOk = true;
+  try{ await ladeGLB(); }catch(e){ glbOk = false; }
+  zeichneLadestand(); T.fahrzeug = Math.round(performance.now() - t0);
+  await frame();
+
+  // 2) Strecke — synchron, friert den Tab ein; vorher einen Paint freigeben
+  ladeStand.strecke.zustand = 'läuft'; zeichneLadestand(); await frame();
+  try{
+    const track = TRACKS[aktStrecke];
+    if(welt){
+      scene.remove(welt.mesh); welt.mesh.geometry.dispose();
+      for(const m of [].concat(welt.mesh.material)) m.dispose();
+      for(const b of (welt.baeume || []).concat(welt.extra || [])){ scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
+    }
+    welt = baueStrecke(track);
+    welt.extra = [];
+    if(GRAFIK.an('schale')){ welt.extra.push(baueSchale(welt), baueFerngebirge(welt)); scene.add(...welt.extra); }
+    welt.baeume = [];
+    scene.add(welt.mesh);
+  }catch(e){
+    console.error('Strecke konnte nicht gebaut werden:', e);
+    ladeStand.strecke.zustand = 'fehler'; zeichneLadestand();
+    ladeFehler('Strecke konnte nicht gebaut werden: ' + ((e && e.message) || e));
+    return;
+  }
+  ladeStand.strecke.zustand = 'fertig'; zeichneLadestand(); T.strecke = Math.round(performance.now() - t0); await frame();
+
+  // 3) Wald
+  ladeStand.wald.zustand = 'läuft'; zeichneLadestand(); await frame();
+  welt.baeume = baueBaeume(welt).concat(GRAFIK.an('wald') ? baueDeko(welt) : []);
+  scene.add(...welt.baeume);
+  ladeStand.wald.zustand = 'fertig'; zeichneLadestand(); T.wald = Math.round(performance.now() - t0);
+
+  await frame();                                   // Radaufbau (Klon, Pivots, Merge) ist synchron
+  if(!schatten && !SCHATTEN){ schatten = baueSchatten(); scene.add(schatten); }   // Blob nur ohne echten Schatten
+  if(BEWEGUNG && !staub){ staub = baueStaub(); scene.add(staub); }
+  await wechsleRad(aktRad); T.rad = Math.round(performance.now() - t0);
+  neustart();
+
+  // Mindestens 600 ms sichtbar, sonst flackert es bei vorgeladener GLB
+  const rest = 600 - (performance.now() - t0);
+  if(rest > 0) await new Promise(r => setTimeout(r, rest));
+  zeigeLade(false);
+
+  $('hud').classList.add('on'); $('right').classList.add('on');
+  hudAn = true; laeuft = true;
+  timer.update(performance.now()); timer.getDelta();
+  if(!glbOk) meldung('Modell nicht gefunden (' + GLB_PFAD + '), Rohrmodell aktiv', 4500);
+}
+
+let meldungTimer = 0;
+function meldung(text, ms){
+  const el = $('elem');
+  el.textContent = text; el.classList.add('on');
+  meldungTimer = performance.now() + ms;
+}
+
+/* ------------------------------------------------------------- Elementinfo */
+let letztesElement = null;
+function pruefeElement(){
+  let treffer = null;
+  for(const e of welt.track.elemente){
+    const b = e._geo ? e._geo.ende : e.start_m + (e.laenge_m || 1.5);
+    if(fahrer.s >= e.start_m - 2 && fahrer.s <= b + 2){ treffer = e; break; }
+  }
+  if(treffer !== letztesElement){
+    letztesElement = treffer;
+    if(treffer) meldung(treffer.typ.replace('_','-') + ' · ' + treffer.notiz, 4200);
+  }
+}
+
+/* ---------------------------------------------------------------- HUD */
+let hudTakt = 0;
+function schreibeHud(dt){
+  hudTakt += dt;
+  if(hudTakt < 0.08) return;
+  hudTakt = 0;
+  $('kmh').textContent = Math.round(fahrer.vs * 3.6);
+  const t = fahrer.zeit;
+  $('t').textContent = Math.floor(t/60) + ':' + (t%60 < 10 ? '0' : '') + (t%60).toFixed(1);
+  $('d').textContent = Math.round(Math.min(fahrer.s, welt.L)) + ' / ' + welt.L + ' m';
+  $('h').textContent = Math.round(welt.hArr(Math.min(fahrer.s, welt.L))) + ' m';
+  $('air').textContent = (fahrer.boden ? fahrer.luftGesamt : fahrer.luftGesamt + fahrer.luftZeit)
+    .toFixed(1).replace('.', ',') + ' s';
+  $('bar').firstElementChild.style.width = Math.min(100, fahrer.s/welt.L*100) + '%';
+  // Nächste Lippe voraus: Abstand und das Tempo, mit dem man die Landung trifft.
+  const nx = welt.spruenge.find(j => j.g.lippe > fahrer.s && j.g.lippe - fahrer.s < 70);
+  const row = $('nextRow');
+  if(nx){
+    row.hidden = false;
+    $('nextName').textContent = nx.g.typ.replace('_','-') + ' in ' + Math.round(nx.g.lippe - fahrer.s) + ' m';
+    const dv = fahrer.vs - nx.vFuss;
+    $('next').textContent = 'Ziel ' + Math.round(nx.vFuss*3.6) + ' km/h';
+    $('next').style.color = dv > 2.5 ? 'var(--jump)' : dv < -2.5 ? '#8fb0dd' : 'var(--line)';
+  } else row.hidden = true;
+}
+
+/* ---------------------------------------------------------------- Schleife */
+let sichtbar = true;
+document.addEventListener('visibilitychange', () => { sichtbar = !document.hidden; });
+
+/* Kamera-Basis getrennt vom Shake: der Lerp läuft auf der Basis, der Shake
+   kommt jeden Frame frisch obendrauf und kann sich nicht aufschaukeln. */
+const camBasis = new THREE.Vector3();
+let shakeAmp = 0, shakeT = 9, shakeLandung = null;
+function wackle(dt){
+  if(fahrer.letzteLandung && fahrer.letzteLandung !== shakeLandung){
+    shakeLandung = fahrer.letzteLandung;
+    shakeAmp = Math.min(0.004, 0.002 + 0.0004*fahrer.letzteLandung.aufprall);   // 2–4 mm, abklingend über ~0,3 s
+    shakeT = 0;
+  }
+  shakeT += dt;
+  let a = shakeAmp*Math.exp(-shakeT/0.3);
+  if(letztesElement && letztesElement.typ === 'steinfeld' && fahrer.boden && fahrer.vs > 3) a = Math.max(a, 0.002 + 0.0001*fahrer.vs);
+  if(a < 1e-5) return;
+  const q = fahrer.zeit;
+  camera.position.x += a*noise(q*41.0); camera.position.y += a*noise(q*53.0 + 11.3); camera.position.z += a*noise(q*47.0 + 5.1);
+}
+
+/* Staub hinterm Hinterrad: ein Points-Objekt, 400 Partikel, ein Draw Call. */
+const STAUB_N = 400;
+let staub = null;
+function baueStaub(){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(STAUB_N*3).fill(-9999), 3));
+  const cv = document.createElement('canvas'); cv.width = cv.height = 32;
+  const cx = cv.getContext('2d'), gr = cx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  cx.fillStyle = gr; cx.fillRect(0, 0, 32, 32);
+  const m = new THREE.Points(g, new THREE.PointsMaterial({color:0x9a8a74, size:0.5, map:new THREE.CanvasTexture(cv),
+    transparent:true, opacity:0.5, depthWrite:false, sizeAttenuation:true}));
+  m.name = 'staub'; m.frustumCulled = false;
+  m.userData = {vel:new Float32Array(STAUB_N*3), leben:new Float32Array(STAUB_N), next:0};
+  return m;
+}
+function staube(dt, fx, fz){
+  if(!staub) return;
+  const u = staub.userData, p = staub.geometry.attributes.position.array, v = u.vel, L = u.leben;
+  if(fahrer.boden && fahrer.vs > 6){
+    const n = Math.min(6, Math.ceil(fahrer.vs*dt*1.6));
+    for(let k = 0; k < n; k++){
+      const i = u.next; u.next = (u.next + 1) % STAUB_N;
+      const rr = fahrer.zeit*7.3 + i;
+      p[3*i] = _p.x - fx*0.55 + noise(rr)*0.12; p[3*i+1] = _p.y + 0.1; p[3*i+2] = _p.z - fz*0.55 + noise(rr+3)*0.12;
+      const sp = 0.6 + Math.abs(noise(rr+9))*1.2;
+      v[3*i] = -fx*sp + noise(rr+17)*0.5; v[3*i+1] = 0.6 + Math.abs(noise(rr+23)); v[3*i+2] = -fz*sp + noise(rr+31)*0.5;
+      L[i] = 0.7 + Math.abs(noise(rr+37))*0.5;
+    }
+  }
+  const d = Math.max(0, 1 - 1.8*dt);
+  for(let i = 0; i < STAUB_N; i++){
+    if(L[i] <= 0) continue;
+    L[i] -= dt;
+    if(L[i] <= 0){ p[3*i+1] = -9999; continue; }
+    p[3*i] += v[3*i]*dt; p[3*i+1] += v[3*i+1]*dt; p[3*i+2] += v[3*i+2]*dt;
+    v[3*i] *= d; v[3*i+1] = v[3*i+1]*d - 0.4*dt; v[3*i+2] *= d;
+  }
+  staub.geometry.attributes.position.needsUpdate = true;
+}
+
+/* Post-Processing nur auf `hoch`: Render → GTAO (Kontaktschatten) → SMAA → Output. */
+let composer = null, gtao = null;
+if(GRAFIK.hoch && GRAFIK.an('post')){
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  gtao = new GTAOPass(scene, camera, 1, 1);   // Größe kommt aus resize()
+  gtao.blendIntensity = 0.7;
+  gtao.updateGtaoMaterial({radius:0.5, distanceExponent:1, thickness:1, scale:1, samples:12, distanceFallOff:1, screenSpaceRadius:false});
+  composer.addPass(gtao);
+  composer.addPass(new SMAAPass());
+  composer.addPass(new OutputPass());
+}
+const stat = {frames:0, ms:0, reset(){ this.frames = 0; this.ms = 0; }};   // Prüfhaken: mittlere Frame-Zeit (CPU-Seite inkl. Render-Aufruf)
+
+renderer.setAnimationLoop(() => {
+  if(!sichtbar) return;
+  const tFrame = performance.now();
+  renderer.info.reset();
+  timer.update(performance.now());
+  const dt = Math.min(timer.getDelta(), 0.1);
+
+  if(laeuft && welt && fahrer){
+    leseEingabe();
+    // Feste Teilschritte: bei 30 fps sonst andere Physik als bei 144 fps
+    const n = Math.max(1, Math.ceil(dt/0.008));
+    for(let i = 0; i < n; i++) schritt(welt, fahrer, dt/n, ein);
+
+    if(fahrer.s >= welt.L){
+      laeuft = false;
+      meldung('Ziel · ' + Math.floor(fahrer.zeit/60) + ':' +
+              (fahrer.zeit%60 < 10 ? '0' : '') + (fahrer.zeit%60).toFixed(1) +
+              ' · ' + fahrer.luftGesamt.toFixed(1).replace('.',',') + ' s Luft' +
+              ' · ' + fahrer.stuerze + ' Randkontakte · R für neu', 99999);
+    }
+    pruefeElement();
+    schreibeHud(dt);
+
+    // --- Fahrer setzen ---
+    const st = stInterp(welt, fahrer.s);
+    weltPos(welt, fahrer.s, fahrer.u, fahrer.y, _p);
+    if(halter){
+      animiereFahrzeug(halter, fahrer, dt, ein);
+      halter.position.copy(_p);
+      // Fahrtrichtung an der Station ist (sin ψ, 0, cos ψ); Rohrmodell und GLB schauen
+      // lokal nach +z. rotateY(ψ) dreht +z genau dorthin. Vorher stand hier
+      // rotateY(π − ψ): das liefert (sin ψ, −cos ψ), eine z-Spiegelung — Fehler 180°+2ψ.
+      halter.rotation.set(0, 0, 0);
+      halter.rotateY(st.psi);
+      halter.rotateX(fahrer.tilt);     // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
+      halter.rotateZ(-fahrer.roll);
+    }
+    if(schatten){
+      const sy = welt.flaeche(Math.min(fahrer.s, welt.L), fahrer.u);
+      weltPos(welt, fahrer.s, fahrer.u, sy + 0.05, schatten.position);
+      const hoch = Math.max(0, fahrer.y - sy);
+      const sk = 1 + hoch*0.16;
+      schatten.scale.set(sk, 1, sk);
+      schatten.material.opacity = 0.42 / (1 + hoch*0.5);
+    }
+
+    if(SCHATTEN){ sonne.target.position.copy(_p); sonne.position.copy(_p).addScaledVector(SONNE_DIR, 120); }
+    if(BEWEGUNG) staube(dt, Math.sin(st.psi), Math.cos(st.psi));
+
+    // --- Kamera ---
+    const km = KAMERAS[kamMode];
+    const fx = Math.sin(st.psi), fz = Math.cos(st.psi);
+    _camPos.set(_p.x - fx*km.hinten, _p.y + km.hoch, _p.z - fz*km.hinten);
+    // Nicht in den Hang: am 37-%-Start liegt der Hang 6,8 m hinter dem Fahrer 2,5 m höher als er
+    // (gemessen: Kamera im Gelände bei s ≈ 34–45 m auf Downhill Republic).
+    const bodenKam = welt.flaeche(Math.max(0, Math.min(welt.L, fahrer.s - km.hinten)), fahrer.u);
+    if(_camPos.y < bodenKam + 0.9) _camPos.y = bodenKam + 0.9;
+    _camZiel.set(_p.x + fx*km.ziel, _p.y + 0.7, _p.z + fz*km.ziel);
+    camBasis.lerp(_camPos, Math.min(1, dt*(kamMode === 1 ? 26 : 9)));
+    camera.position.copy(camBasis);
+    if(BEWEGUNG) wackle(dt);   // nur die Position, nie das Ziel
+    // Die Kamera rollt nur teilweise mit: ohne Rollen ist ein Wallride nicht
+    // lesbar, mit vollem Rollen wird einem schlecht.
+    const roll = fahrer.roll * km.roll;
+    _up.set(-Math.cos(st.psi)*Math.sin(-roll), Math.cos(roll), Math.sin(st.psi)*Math.sin(-roll));
+    camera.up.copy(_up);
+    camera.lookAt(_camZiel);
+  }
+
+  if(meldungTimer && performance.now() > meldungTimer){
+    $('elem').classList.remove('on'); meldungTimer = 0;
+  }
+  if(composer) composer.render(dt); else renderer.render(scene, camera);
+  stat.ms += performance.now() - tFrame; stat.frames++;
+});
+
+/* ---------------------------------------------------------------- Resize */
+function resize(){
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if(!w || !h) return;
+  renderer.setSize(w, h, false);
+  if(composer) composer.setSize(w, h);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+resize();
+
+/* ---------------------------------------------------------------- Startmenü */
+function karte(html, id, gedrueckt){
+  const b = document.createElement('button');
+  b.className = 'card'; b.type = 'button'; b.dataset.id = id;
+  b.setAttribute('aria-pressed', String(gedrueckt));
+  b.innerHTML = html;
+  return b;
+}
+
+TRACKS.forEach((t, i) => {
+  const spr = t.elemente.filter(e =>
+    ['kicker','tabletop','step_up','step_down','drop','hip'].includes(e.typ)).length;
+  const wr = t.elemente.filter(e => e.typ === 'wallride').length;
+  const b = karte(
+    `<div class="n">${t.name}</div><div class="d">${t.laenge_m} m · ${t.hoehendifferenz_m} hm · ` +
+    `${(t.hoehendifferenz_m/t.laenge_m*100).toFixed(1)} % Gefälle<br>` +
+    `${t.elemente.length} Elemente · ${spr} Sprünge · ${wr} Wallride${wr === 1 ? '' : 's'}</div>`,
+    String(i), i === 0);
+  b.onclick = () => {
+    aktStrecke = i;
+    document.querySelectorAll('#tracks .card').forEach((c, j) =>
+      c.setAttribute('aria-pressed', String(j === i)));
+  };
+  $('tracks').appendChild(b);
+});
+
+BIKE_IDS.forEach((id, n) => {
+  const bk = BIKES[id];
+  const b = karte(`<div class="n"><span class="k">${n+1}</span> ${bk.name}</div><div class="d">${bk.d}<br>${bk.masse} kg Systemmasse` +
+                  (bk.motor ? ` · Motor bis ${Math.round(bk.motorBis*3.6)} km/h` : '') + `</div>`,
+                  bk.id, bk.id === aktRad);
+  b.onclick = () => {
+    aktRad = bk.id; merke('rad', bk.id);
+    document.querySelectorAll('#bikes .card').forEach(c =>
+      c.setAttribute('aria-pressed', String(c.dataset.id === bk.id)));
+  };
+  $('bikes').appendChild(b);
+});
+
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+CHARAKTERE.forEach(ch => {
+  const b = karte(`<div class="n">${ch.name}</div><div class="d">` +
+                  `<span class="sw" style="background:${hex(ch.jersey)}"></span>Trikot ` +
+                  `<span class="sw" style="background:${hex(ch.helm)}"></span>Helm` +
+                  (ch.zopf ? ' · Zopf' : '') + (ch.schirm ? '' : ' · ohne Schirm') + `</div>`,
+                  ch.id, ch.id === aktCharakterId);
+  b.onclick = () => wechsleCharakter(ch.id);
+  $('chars').appendChild(b);
+});
+
+$('note').innerHTML =
+  'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen und auf 1,80 m ' +
+  'eingemessen. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
+  'Doppelklick reicht: Three.js kommt vom CDN mit CORS-Freigabe. Nur die GLB-Datei lässt sich ' +
+  'unter <code>file://</code> nicht laden — dafür <code>python3 -m http.server</code> im Ordner starten.';
+
+$('go').onclick = () => { starte().catch(e => {
+  console.error(e);
+  for(const k of ['strecke', 'wald']) if(ladeStand[k].zustand === 'läuft') ladeStand[k].zustand = 'fehler';
+  zeichneLadestand();
+  ladeFehler('Aufbau fehlgeschlagen: ' + e.message);
+}); };
+ladeGLB().catch(() => {});   // Vorladen: die Datei liegt beim Klick auf „Abfahrt" schon im Cache
+
+if(reduced){
+  // Die Bewegung hier ist vom Nutzer ausgelöst, nicht dekorativ — die Fahrt
+  // bleibt. Nur der Kameranachlauf wird härter, damit weniger geschwebt wird.
+  KAMERAS.forEach(k => k.roll *= 0.4);
+}
+
+/* Prüfhaken: erlaubt es, die Geometrie von außen nachzumessen, statt sie
+   aus dem Bild zu raten. Kostet nichts und hilft beim Einbau in ein anderes Spiel. */
+window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, baseHoehe,
+                   baueStrecke, neuerFahrer, schritt, stInterp, wechsleRad, renderer,
+                   get welt(){ return welt; }, get fahrer(){ return fahrer; },
+                   get halter(){ return halter; },
+                   get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
+                   get charakter(){ return aktCharakterId; }, wechsleCharakter,
+                   GRAFIK, stat, get composer(){ return composer; }, get staub(){ return staub; }, SONNE_DIR, HORIZONT,
+                   get texturMs(){ return TEX ? TEX.ms : null; },
+                   get horizontLinear(){ return [HORIZONT.r, HORIZONT.g, HORIZONT.b].map(v => +v.toFixed(3)); },
+                   TRACKS, BIKES, CHARAKTERE};
+$('gq').textContent = 'Grafik ' + GRAFIK.stufe + (GRAFIK.hoch ? ' · ?q=niedrig für schwache Rechner' : ' · ?q=hoch erzwingt volle Grafik');
+
+addEventListener('pagehide', () => {
+  renderer.setAnimationLoop(null);
+  scene.traverse(o => {
+    if(o.geometry) o.geometry.dispose();
+    if(o.material){
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+        Object.values(m).forEach(v => v && v.isTexture && v.dispose());
+        m.dispose();
+      });
+    }
+  });
+  renderer.dispose();
+});
+</script>
+</body>
+</html>
