@@ -205,6 +205,16 @@ Federung (Feder-Dämpfer, Stoß bei der Landung, Ausfedern in der Luft) und die 
 Fahrerin. Gemessen: 20–25 Draw Calls für die ganze Szene mit Baukasten-Rad, 48–49 mit der
 (synthetischen) GLB.
 
+## Charaktere
+
+Vier Fahrer:innen (Mia, Lenny, Sam, Nora) als dritte Kartenreihe, Taste F wechselt im
+Spiel durch. Ein Charakter ist nur Palette plus zwei Sichtbarkeiten (Zopf, Helmschirm):
+die GLB hat kein Rig, also gibt es keine Posen oder Körpergrößen. Der Wechsel lädt und
+baut nichts neu, er setzt Materialfarben auf allen schon gebauten Fahrzeugen (GLB über
+Materialnamen `jersey`, `kit_pants`, `helmet`, `skin`, `hair`; Baukasten über abgelegte
+Referenzen). Die Wahl bleibt in `localStorage` (`bikepark.charakter`). Draw Calls ändern
+sich nur um die ein- oder ausgeblendeten Meshes (47–49 an der synthetischen GLB).
+
 ## Die GLB-Datei
 
 Liegt `mtb-emtb-fahrerin.glb` neben der HTML, wird sie einmal geladen, je Fahrzeug geklont

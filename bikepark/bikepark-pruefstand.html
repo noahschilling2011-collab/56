@@ -70,6 +70,9 @@
   .card .n{font-size:15px;margin-bottom:5px}
   .card .n .k{display:inline-block;padding:0 6px;border:1px solid var(--stroke);border-radius:4px;color:var(--dim);font-size:12px;margin-right:4px}
   .card .d{font-size:11px;color:var(--dim);line-height:1.55}
+  #chars{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .card .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;
+    border:1px solid rgba(255,255,255,.18)}
   #go{width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
     background:rgba(79,209,197,.13);color:var(--fg);font:inherit;font-size:14px;cursor:pointer;
     transition:background .2s ease}
@@ -129,7 +132,7 @@
   <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
   <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
   <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
-  <div>Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+  <div>Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
 </div>
 
 <div id="elem" class="glass"></div>
@@ -146,6 +149,9 @@
     <p class="lbl">Rad</p>
     <div class="grid" id="bikes"></div>
 
+    <p class="lbl">Fahrer:in</p>
+    <div class="grid" id="chars"></div>
+
     <button id="go">Abfahrt</button>
     <p id="note"></p>
     <div id="err"></div>
@@ -159,7 +165,7 @@
   <div class="lz" data-s="wald"     data-z="offen"><span>Wald</span><b>offen</b></div>
   <div id="ladeBalken"><i></i></div>
   <p class="ltip">Gas<span class="k">W</span> Bremse<span class="k">S</span> Linie<span class="k">A</span><span class="k">D</span>
-    Kamera<span class="k">C</span> Neustart<span class="k">R</span> Rad<span class="k">1</span><span class="k">2</span></p>
+    Kamera<span class="k">C</span> Neustart<span class="k">R</span> Rad<span class="k">1</span>–<span class="k">5</span> Fahrer:in<span class="k">F</span></p>
   <div id="ladeFehler" hidden></div>
   <button id="ladeZurueck" type="button" hidden>Zurück</button>
 </div>
@@ -1467,6 +1473,10 @@ addEventListener('keydown', e => {
   if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
   if(k === 'r' && welt) neustart();
   if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
+  if(k === 'f' && welt){
+    const i = CHARAKTERE.findIndex(c => c.id === aktCharakterId);
+    wechsleCharakter(CHARAKTERE[(i + 1) % CHARAKTERE.length].id);
+  }
 });
 addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
@@ -1499,6 +1509,19 @@ let welt = null, fahrer = null, halter = null, schatten = null, laeuft = false;
 const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
 const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
 let radCache = {}, aktRad = BIKES[gemerkt('rad', 'mtb')] ? gemerkt('rad', 'mtb') : 'mtb', aktStrecke = 0, hudAn = false;
+if(CHARAKTERE.some(c => c.id === gemerkt('charakter', 'mia'))) aktCharakterId = gemerkt('charakter', 'mia');
+
+/* Charakterwechsel: kein Neuladen, kein Neubau — nur Farben und zwei
+   Sichtbarkeiten auf jedem schon gebauten Fahrzeug (radCache). */
+function wechsleCharakter(id){
+  const ch = CHARAKTERE.find(c => c.id === id);
+  if(!ch) return;
+  aktCharakterId = id; merke('charakter', id);
+  for(const h of Object.values(radCache)) wendeCharakterAn(h, ch);
+  document.querySelectorAll('#chars .card').forEach(c =>
+    c.setAttribute('aria-pressed', String(c.dataset.id === id)));
+  if(hudAn) meldung(ch.name, 1500);
+}
 const timer = new THREE.Timer();
 
 const $ = id => document.getElementById(id);
@@ -1796,6 +1819,17 @@ BIKE_IDS.forEach((id, n) => {
   $('bikes').appendChild(b);
 });
 
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+CHARAKTERE.forEach(ch => {
+  const b = karte(`<div class="n">${ch.name}</div><div class="d">` +
+                  `<span class="sw" style="background:${hex(ch.jersey)}"></span>Trikot ` +
+                  `<span class="sw" style="background:${hex(ch.helm)}"></span>Helm` +
+                  (ch.zopf ? ' · Zopf' : '') + (ch.schirm ? '' : ' · ohne Schirm') + `</div>`,
+                  ch.id, ch.id === aktCharakterId);
+  b.onclick = () => wechsleCharakter(ch.id);
+  $('chars').appendChild(b);
+});
+
 $('note').innerHTML =
   'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen und auf 1,80 m ' +
   'eingemessen. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
@@ -1823,7 +1857,8 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    get welt(){ return welt; }, get fahrer(){ return fahrer; },
                    get halter(){ return halter; },
                    get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
-                   TRACKS, BIKES};
+                   get charakter(){ return aktCharakterId; }, wechsleCharakter,
+                   TRACKS, BIKES, CHARAKTERE};
 
 addEventListener('pagehide', () => {
   renderer.setAnimationLoop(null);
