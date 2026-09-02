@@ -947,7 +947,7 @@ function baueBaeume(w){
 const GLB_PFAD  = 'mtb-emtb-fahrerin.glb';
 const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
                          // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
-const RAD_R = 0.36;            // Laufradradius außen (29", Reifen mitgerechnet), m
+const RAD_R = 0.37;            // Laufradradius außen, m — die GLB hat 0,37; Rohrmodell auf denselben Wert
 
 const _Y = new THREE.Vector3(0, 1, 0);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -1095,45 +1095,129 @@ function baueRad(bike){
   fahrerin.add(new THREE.Mesh(kasten(V(0, 1.43, 0.40), 0.17, 0.05, 0.04), matSchwarz));   // Brille
   koerper.add(fahrerin);
 
-  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, feder:0, federV:0, letzteLandung:null};
+  halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, feder:0, federV:0, letzteLandung:null, drawcalls:null};
   return halter;
 }
 
-function einmessen(objekt, zielHoehe){
-  const box = new THREE.Box3().setFromObject(objekt);
-  const gr = new THREE.Vector3(); box.getSize(gr);
-  if(!isFinite(gr.y) || gr.y < 1e-4) return objekt;
-  const f = zielHoehe / gr.y;
-  const wrap = new THREE.Group();
-  objekt.scale.setScalar(f);
-  objekt.position.set(-(box.min.x + gr.x/2)*f, -box.min.y*f, -(box.min.z + gr.z/2)*f);
-  wrap.add(objekt);
-  return wrap;
+/* Die GLB wird EINMAL geladen; jedes Rad bekommt einen Klon des Szenenbaums.
+   Nur load() steht im try — Fehler in der eigenen Verarbeitung müssen in der
+   Konsole landen, sonst sieht man „Rohrmodell aktiv" und sucht an der falschen Stelle. */
+let glbVersprechen = null;
+function ladeGLB(){
+  if(!glbVersprechen){
+    glbVersprechen = new Promise((ok, no) => new GLTFLoader().load(GLB_PFAD, ok, undefined, no));
+  }
+  return glbVersprechen;
 }
 
 async function ladeFahrzeug(bike){
-  try{
-    const gltf = await new Promise((ok, no) =>
-      new GLTFLoader().load(GLB_PFAD, ok, undefined, no));
-    const halter = new THREE.Group();
-    const modell = einmessen(gltf.scene, 1.80);
-    modell.rotation.y = GLB_DREHUNG;
-    halter.add(modell);
-    halter.userData = {quelle:'glb'};
-    return halter;
-  }catch(e){
+  let gltf;
+  try{ gltf = await ladeGLB(); }
+  catch(e){
+    console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
     return baueRad(bike);
   }
+  return richteGLB(gltf.scene.clone(true), bike);
+}
+
+/* Alle Nodes eines Namens (getObjectByName liefert nur den ersten). */
+function alleMitName(root, name){
+  const out = []; root.traverse(o => { if(o.name === name) out.push(o); }); return out;
+}
+/* Pivot-Gruppe ins gemeinsame Zentrum der Nodes setzen und die Nodes umhängen.
+   Nötig, weil z. B. wheel_front ein Identitäts-Transform hat: sein Drehpunkt wäre
+   der Modellursprung, nicht die Nabe. attach() behält die Welt-Transform. */
+function pivotUm(root, nodes, name){
+  if(!nodes.length) return null;
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  for(const n of nodes) box.union(new THREE.Box3().setFromObject(n));
+  const pivot = new THREE.Group(); pivot.name = name;
+  box.getCenter(pivot.position); root.add(pivot);
+  for(const n of nodes) for(const ch of (n.isGroup ? [...n.children] : [n])) pivot.attach(ch);
+  return pivot;
+}
+
+function richteGLB(root, bike){
+  // Die Datei ist in Metern, Boden bei y = 0, in x/z zentriert: keine Skalierung.
+  const halter = new THREE.Group(), koerper = new THREE.Group();
+  halter.add(koerper); koerper.add(root);
+  root.rotation.y = GLB_DREHUNG;
+  root.updateMatrixWorld(true);
+
+  // Materialien klonen — der Loader teilt sie zwischen Meshes und zwischen den beiden Klonen.
+  root.traverse(o => {
+    if(!o.isMesh) return;
+    const k = m => { const c = m.clone(); c.name = m.name; return c; };
+    o.material = Array.isArray(o.material) ? o.material.map(k) : k(o.material);
+  });
+  // MTB: kein Motor, kein Akku, Rahmen in Akzentfarbe. eMTB: alles sichtbar, Rahmen bleibt.
+  if(!bike.motor){
+    for(const n of ['motor_box', 'battery_downtube']) for(const o of alleMitName(root, n)) o.visible = false;
+    root.traverse(o => {
+      if(!o.isMesh) return;
+      for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
+        if(m.name === 'frame_charcoal') m.color.set(bike.accent);
+    });
+  }
+
+  const pivotV = pivotUm(root, alleMitName(root, 'wheel_front'), 'pivot_wheel_front');
+  const pivotH = pivotUm(root, alleMitName(root, 'wheel_rear'),  'pivot_wheel_rear');
+  const kurbel = pivotUm(root, [...alleMitName(root, 'chainring'), ...alleMitName(root, 'crank_arm'), ...alleMitName(root, 'pedal')], 'pivot_kurbel');
+  const fahrerin = root.getObjectByName('rider_female') || null;
+  if(!pivotV || !pivotH) console.warn('GLB: wheel_front/wheel_rear nicht gefunden — Räder drehen nicht');
+  // Räder hängen am Halter, nicht am federnden Körper
+  for(const pv of [pivotV, pivotH]) if(pv) halter.attach(pv);
+
+  const ausnahmen = new Set();
+  for(const g of [pivotV, pivotH, kurbel, fahrerin]) if(g) g.traverse(o => ausnahmen.add(o));
+  const drawcalls = verschmelzeNachMaterial(root, ausnahmen);
+
+  halter.userData = {quelle:'glb', raeder:[pivotH, pivotV].filter(Boolean), kurbel, koerper, fahrerin,
+                     feder:0, federV:0, letzteLandung:null, drawcalls};
+  return halter;
+}
+
+/* Draw Calls: statische Meshes je Material zusammenlegen (Welt-Transform eingebacken).
+   Gruppen mit ungleichen Attributen werden übersprungen, nicht gehackt. */
+function verschmelzeNachMaterial(root, ausnahmen){
+  root.updateMatrixWorld(true);
+  const gruppen = new Map(), vorher = [];
+  root.traverse(o => {
+    if(!o.isMesh || ausnahmen.has(o) || !o.visible || Array.isArray(o.material)) return;
+    vorher.push(o);
+    // Nach NAME gruppieren: die Materialien wurden vorher pro Mesh geklont, ihre uuids
+    // sind also alle verschieden. Innerhalb eines Rads ist gleicher Name = gleiche Farbe.
+    const k = o.material.name || o.material.uuid;
+    if(!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(o);
+  });
+  let nachher = 0, uebersprungen = 0;
+  for(const [, meshes] of gruppen){
+    if(meshes.length < 2){ nachher += meshes.length; continue; }
+    const attrs = g => Object.keys(g.attributes).sort().join(',') + (g.index ? '|i' : '');
+    const ref = attrs(meshes[0].geometry);
+    if(!meshes.every(m => attrs(m.geometry) === ref)){ nachher += meshes.length; uebersprungen++; continue; }
+    const geos = meshes.map(m => m.geometry.clone().applyMatrix4(m.matrixWorld));
+    const merged = mergeGeometries(geos, false);
+    if(!merged){ nachher += meshes.length; uebersprungen++; continue; }
+    const neu = new THREE.Mesh(merged, meshes[0].material); neu.name = 'merged_' + meshes[0].material.name;
+    for(const m of meshes) m.removeFromParent();
+    root.add(neu); nachher++;
+  }
+  return {vorher: vorher.length, nachher, uebersprungen};
 }
 
 /* Animation des Rohrmodells: Räder drehen mit dem Tempo, die Kurbel beim Treten,
    Körper und Fahrerin federn — ein Feder-Dämpfer, der bei der Landung einen
    Stoß bekommt und in der Luft leicht ausfedert. */
 function animiereFahrzeug(halter, f, dt, ein){
-  const u = halter.userData; if(u.quelle !== 'rohr') return;
+  const u = halter.userData; if(!u || !u.raeder) return;
+  // Rollen nach +z = positive Drehung um die lokale x-Achse: (0,R,0) → (0, R·cos a, R·sin a),
+  // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
   const spin = (f.boden ? f.vs : f.vs*0.92) / RAD_R * dt;
-  for(const r of u.raeder) r.rotation.x -= spin;
-  if(ein.gas && f.boden) u.kurbel.rotation.x -= spin * 0.42;
+  for(const r of u.raeder) r.rotation.x += spin;
+  if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
   if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
     u.letzteLandung = f.letzteLandung;
     u.federV -= Math.min(2.2, 0.16 * f.letzteLandung.aufprall);
@@ -1143,8 +1227,10 @@ function animiereFahrzeug(halter, f, dt, ein){
   u.federV += a*dt; u.feder = Math.max(-0.14, Math.min(0.06, u.feder + u.federV*dt));
   u.koerper.position.y = u.feder;
   // Die Fahrerin geht bei der Kompression tiefer in die Hocke als das Rad einfedert
-  u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
-  u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+  if(u.fahrerin){
+    u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
+    u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+  }
 }
 
 /* Blob-Schatten: zeigt beim Sprung, wie hoch man wirklich ist. Kostet eine
