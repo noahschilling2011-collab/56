@@ -71,6 +71,14 @@
   .card .n .k{display:inline-block;padding:0 6px;border:1px solid var(--stroke);border-radius:4px;color:var(--dim);font-size:12px;margin-right:4px}
   .card .d{font-size:11px;color:var(--dim);line-height:1.55}
   #chars{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 58%,rgba(0,0,0,.42) 100%)}
+  #touch{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 14px 18px;pointer-events:none;z-index:5}
+  #touch[hidden]{display:none}
+  #touch .tg{display:flex;gap:10px;align-items:flex-end;pointer-events:none}
+  #touch .tb{pointer-events:auto;width:70px;height:70px;border-radius:50%;border:1px solid var(--stroke);background:var(--glass);
+    backdrop-filter:blur(8px);color:var(--fg);font:600 14px/1 system-ui;touch-action:none;user-select:none;-webkit-user-select:none}
+  #touch .tb.an{background:rgba(79,209,197,.28);border-color:var(--line)}
+  #touch .gas{width:88px;height:88px}
   .card .sw{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;
     border:1px solid rgba(255,255,255,.18)}
   #go{width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
@@ -132,11 +140,17 @@
   <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
   <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
   <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
-  <div>Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+  <div>Hop<span class="k">Leer</span> Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+  <div>Maus ziehen dreht die Kamera, Rad zoomt · Gamepad: Stick, RT/LT, A</div>
   <div id="gq" style="margin-top:6px"></div>
 </div>
 
 <div id="elem" class="glass"></div>
+<div id="vignette"></div>
+<div id="touch" hidden>
+  <div class="tg"><button class="tb" data-k="a" aria-label="Links">◀</button><button class="tb" data-k="d" aria-label="Rechts">▶</button></div>
+  <div class="tg"><button class="tb" data-k=" " aria-label="Hop">Hop</button><button class="tb" data-k="s" aria-label="Bremse">Bremse</button><button class="tb gas" data-k="w" aria-label="Gas">Gas</button></div>
+</div>
 
 <div id="start">
   <div id="panel" class="glass">
@@ -1161,6 +1175,8 @@ function veredle(m, name){
   } else if(name === 'tire_rubber'){
     m.roughness = 0.95; m.metalness = 0;
     if(TEX){ m.normalMap = TEX.normal; m.normalScale = new THREE.Vector2(0.5, 0.5); }
+  } else if(name === 'helmet'){
+    n = new THREE.MeshPhysicalMaterial({color:m.color, clearcoat:1, clearcoatRoughness:0.15, metalness:0.05, roughness:0.35});
   } else if(name === 'visor_glass'){
     n = new THREE.MeshPhysicalMaterial({color:m.color, transparent:true, opacity:0.45, roughness:0.08, metalness:0, clearcoat:1});
   }
@@ -1397,74 +1413,190 @@ function kugel(p, r){ const g = new THREE.SphereGeometry(r, 14, 10); g.translate
 function kasten(p, w, h, d, rx = 0){ const g = new THREE.BoxGeometry(w, h, d); if(rx) g.rotateX(rx); g.translate(p.x, p.y, p.z); return g; }
 function mesh(geos, mat){ return new THREE.Mesh(mergeGeometries(geos, false), mat); }
 
-/* Laufrad: Reifen, Felge, Speichen, Nabe — ein Mesh pro Material, dreht um x. */
-function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false){
+/* Konisches Rohr: Radius r1 bei a, r2 bei b. */
+function rohrK(a, b, r1, r2, segs = 10){
+  const d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  const g = new THREE.CylinderGeometry(r2, r1, len, segs, 1);
+  g.translate(0, len/2, 0);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(_Y, d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+
+/* Laufrad: Reifen mit Stollen, Hohlkammerfelge (Drehprofil), 28 gekreuzte
+   Speichen, Nabe mit Flanschen, Bremsscheibe links — ein Mesh pro Material, dreht um x. */
+function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false, matDunkel = null){
   const g = new THREE.Group();
-  const dicke = scheibe ? 0.045 : 0.038;
-  const reifen = new THREE.TorusGeometry(R - dicke, dicke, 10, 28); reifen.rotateY(Math.PI/2);
-  g.add(new THREE.Mesh(reifen, matReifen));
+  const dicke = scheibe ? 0.045 : 0.034;
+  const reifen = [new THREE.TorusGeometry(R - dicke, dicke, 10, 36)]; reifen[0].rotateY(Math.PI/2);
+  if(!scheibe){
+    // Stollen: zwei versetzte Reihen auf der Lauffläche. Ring liegt in der yz-Ebene, Achse x.
+    for(let i = 0; i < 36; i++) for(const s of [-1, 1]){
+      const k = new THREE.BoxGeometry(0.013, 0.011, 0.022);
+      k.translate(s*0.013 + (i % 2 ? 0.005 : -0.005), R - 0.004, 0);
+      k.rotateX(i/36*Math.PI*2);
+      reifen.push(k);
+    }
+  }
+  g.add(new THREE.Mesh(mergeGeometries(reifen, false), matReifen));
   if(scheibe){
     const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 20); disk.rotateZ(Math.PI/2);
     g.add(new THREE.Mesh(disk, matMetall));
     return g;
   }
-  const felge  = new THREE.TorusGeometry(R - 0.08, 0.012, 6, 28);          felge.rotateY(Math.PI/2);
-  const nabe   = new THREE.CylinderGeometry(0.03, 0.03, 0.10, 10);         nabe.rotateZ(Math.PI/2);
+  const ri = R - 0.082, ra = R - 0.052;
+  const felge = new THREE.LatheGeometry([new THREE.Vector2(ri, -0.013), new THREE.Vector2(ra, -0.011), new THREE.Vector2(ra, 0.011),
+                                         new THREE.Vector2(ri, 0.013), new THREE.Vector2(ri, -0.013)], 36);
+  felge.rotateZ(Math.PI/2);                                            // Drehachse y → x
+  const nabe = new THREE.CylinderGeometry(0.026, 0.026, 0.12, 12); nabe.rotateZ(Math.PI/2);
+  const flansche = [-0.045, 0.045].map(x => { const c = new THREE.CylinderGeometry(0.036, 0.036, 0.008, 12); c.rotateZ(Math.PI/2); c.translate(x, 0, 0); return c; });
   const speichen = [];
-  for(let i = 0; i < 16; i++){
-    const a = i/16 * Math.PI*2, seite = i % 2 ? 0.035 : -0.035;
-    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*(R - 0.085), Math.cos(a)*(R - 0.085)), 0.0035, 4));
+  for(let i = 0; i < 28; i++){
+    const a = i/28*Math.PI*2, seite = i % 2 ? 0.042 : -0.042, kreuz = (i % 4 < 2 ? 1 : -1)*0.22;   // 2-fach gekreuzt
+    speichen.push(rohr(V(seite, Math.sin(a)*0.034, Math.cos(a)*0.034),
+                       V(seite*0.15, Math.sin(a + kreuz)*(ri + 0.004), Math.cos(a + kreuz)*(ri + 0.004)), 0.0022, 3));
   }
-  g.add(mesh([felge, nabe, ...speichen], matMetall));
+  g.add(mesh([felge, nabe, ...flansche, ...speichen], matMetall));
+  if(matDunkel){
+    const rotor = new THREE.CylinderGeometry(0.09, 0.09, 0.003, 24); rotor.rotateZ(Math.PI/2); rotor.translate(0.062, 0, 0);
+    const spinne = new THREE.CylinderGeometry(0.045, 0.045, 0.005, 6); spinne.rotateZ(Math.PI/2); spinne.translate(0.062, 0, 0);
+    g.add(new THREE.Mesh(mergeGeometries([rotor, spinne], false), matDunkel));
+  }
   return g;
 }
 
-/* Fahrerin: eine Funktion für alle Fahrzeuge. `farben` kommt aus CHARAKTERE,
-   `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien und die
-   umschaltbaren Teile (Zopf, Helmschirm) werden in userData abgelegt, damit ein
-   Charakterwechsel nur Farben setzt und nichts neu baut. */
-function baueFahrerin(farben, pose = 'angriff'){
+/* ===========================================================================
+   FAHRERIN: Gelenke statt starrer Kapseln. Rumpf als Drehprofil, Kopf mit
+   Fullface-Helm und Brille (das Gesicht bleibt darunter — so sieht ein
+   Downhill-Fahrer aus, und es erspart ein Gesicht aus Primitiven), Arme und
+   Beine als Ober-/Unterglied mit Zweibein-IK: die Hände bleiben an den Griffen,
+   die Füße auf den Pedalen, auch wenn Rumpf und Kurbel sich bewegen.
+   =========================================================================== */
+const RID = {oberarm:0.30, unterarm:0.27, oberschenkel:0.43, unterschenkel:0.41};
+const POSEN = {
+  angriff: {huefte:V(0, 0.90, -0.30), neigung:0.85, kopfNick:-0.12,
+            griffe:[V(0.32, 1.04, 0.36), V(-0.32, 1.04, 0.36)], fuesse:null},
+  stehend: {huefte:V(0, 0.95, -0.03), neigung:0.22, kopfNick:0.02,
+            griffe:[V(0.22, 1.04, 0.36), V(-0.22, 1.04, 0.36)], fuesse:[V(0.10, 0.155, 0.12), V(-0.10, 0.155, -0.10)]},
+};
+const _ikA = new THREE.Vector3(), _ikB = new THREE.Vector3(), _ikC = new THREE.Vector3();
+/* Zweibein-IK: Gelenk zwischen a und b bei Gliedlängen l1, l2; `biege` sagt,
+   wohin das Gelenk ausweicht (Knie nach vorn, Ellbogen nach außen). Ist b
+   außer Reichweite, wird das Glied gestreckt und endet auf der Linie a→b. */
+function ik2(a, b, l1, l2, biege, gelenk, ende){
+  const d = _ikA.subVectors(b, a); let L = d.length();
+  const maxL = (l1 + l2)*0.995;
+  if(L > maxL){ d.multiplyScalar(maxL/L); L = maxL; }
+  if(L < 1e-4){ gelenk.copy(a).addScaledVector(biege, l1); ende.copy(a); return; }
+  const x = (L*L + l1*l1 - l2*l2)/(2*L), h = Math.sqrt(Math.max(0, l1*l1 - x*x));
+  const dn = _ikB.copy(d).divideScalar(L);
+  const n = _ikC.copy(biege).addScaledVector(dn, -biege.dot(dn));
+  if(n.lengthSq() < 1e-6) n.set(0, 0, 1).addScaledVector(dn, -dn.z);
+  n.normalize();
+  gelenk.copy(a).addScaledVector(dn, x).addScaledVector(n, h);
+  ende.copy(a).add(d);
+}
+function gliedGruppe(l, r, mat, extra){
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(glied(V(0, 0, 0), V(0, l, 0), r), mat));
+  if(extra) g.add(extra);
+  return g;
+}
+const _dir = new THREE.Vector3();
+function richte(g, a, b){ g.position.copy(a); _dir.subVectors(b, a).normalize(); g.quaternion.setFromUnitVectors(_Y, _dir); }
+
+function baueFahrerin(farben, pose = 'angriff', anker = {}){
   const F = farben || CHARAKTERE[0];
-  const matJersey = new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}); matJersey.name = 'jersey';
-  const matHose   = new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9});    matHose.name = 'kit_pants';
-  const matHaut   = new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7});    matHaut.name = 'skin';
-  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}); matHelm.name = 'helmet';
-  const matHaar   = new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9});    matHaar.name = 'hair';
-  const matSchw   = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const mats = {
+    jersey:    new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}),
+    kit_pants: new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9}),
+    skin:      new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7}),
+    helmet:    veredle(new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}), 'helmet'),
+    hair:      new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9}),
+  };
+  for(const [n, m] of Object.entries(mats)) m.name = n;
+  const matPads = new THREE.MeshStandardMaterial({color:0x15171a, roughness:0.95}); matPads.name = 'armor_pads';
+  const matHandschuh = new THREE.MeshStandardMaterial({color:0x202226, roughness:0.9}); matHandschuh.name = 'gloves';
+  const matSchw = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  const matLinse = veredle(new THREE.MeshStandardMaterial({color:0x0e1216, roughness:0.1, metalness:0.4}), 'visor_glass');
+  const P = POSEN[pose] || POSEN.angriff;
+  const A = Object.assign({griffe:P.griffe, fuesse:P.fuesse, tret:V(0, 0.32, -0.02), kurbelR:0.17, kurbelSeite:0.14}, anker);
   const g = new THREE.Group(); g.name = 'rider_female';
 
-  let P;   // Gelenkpunkte je Pose
-  if(pose === 'stehend'){
-    P = {huefte:V(0,1.02,-0.05), schulter:V(0,1.42,0.02), kopf:V(0,1.62,0.06),
-         schL:V(-0.19,1.40,0.02), ellL:V(-0.26,1.22,0.18), handL:V(-0.24,1.08,0.32),
-         schR:V( 0.19,1.40,0.02), ellR:V( 0.26,1.22,0.18), handR:V( 0.24,1.08,0.32),
-         hueL:V(-0.09,1.00,-0.05), knieL:V(-0.10,0.60,0.02), fussL:V(-0.10,0.22,0.06),
-         hueR:V( 0.09,1.00,-0.05), knieR:V( 0.10,0.60,-0.10), fussR:V( 0.10,0.22,-0.16),
-         schuhL:V(-0.10,0.19,0.09), schuhR:V(0.10,0.19,-0.13), hals:V(0,1.50,0.04), rumpfR:0.14};
-  } else {
-    P = {huefte:V(0,1.00,-0.14), schulter:V(0,1.24,0.16), kopf:V(0,1.42,0.28),
-         schL:V(-0.20,1.22,0.16), ellL:V(-0.34,1.10,0.28), handL:V(-0.36,1.04,0.40),
-         schR:V( 0.20,1.22,0.16), ellR:V( 0.34,1.10,0.28), handR:V( 0.36,1.04,0.40),
-         hueL:V(-0.09,0.98,-0.12), knieL:V(-0.16,0.72,0.12), fussL:V(-0.16,0.42,0.14),
-         hueR:V( 0.09,0.98,-0.12), knieR:V( 0.17,0.70,-0.02), fussR:V( 0.16,0.42,-0.12),
-         schuhL:V(-0.16,0.37,0.16), schuhR:V(0.16,0.37,-0.12), hals:V(0,1.30,0.20), rumpfR:0.15};
+  // Rumpf: Drehprofil, im Beckenpunkt gelagert, nach vorn geneigt. Becken in Hosenfarbe.
+  const profil = [[0.11,0],[0.135,0.06],[0.125,0.16],[0.13,0.27],[0.15,0.38],[0.15,0.46],[0.085,0.51],[0.045,0.53]]
+    .map(q => new THREE.Vector2(q[0], q[1]));
+  const rumpfG = new THREE.LatheGeometry(profil, 18); rumpfG.scale(1.15, 1, 0.78);
+  const rumpf = new THREE.Group(); rumpf.name = 'torso';
+  rumpf.add(new THREE.Mesh(rumpfG, mats.jersey));
+  rumpf.add(new THREE.Mesh(kugel(V(0, 0.02, 0), 0.125), mats.kit_pants));
+  rumpf.add(new THREE.Mesh(kasten(V(0, 0.30, -0.10), 0.12, 0.26, 0.03), matPads));   // Rückenprotektor
+  g.add(rumpf);
+
+  // Kopf: Fullface-Helm über der Kugel, Brille, Schirm, Band, Zopf
+  const kopf = new THREE.Group(); kopf.name = 'head';
+  kopf.add(new THREE.Mesh(kugel(V(0, 0, 0), 0.105), mats.skin));
+  const schale = new THREE.SphereGeometry(0.135, 20, 14); schale.scale(1, 1.02, 1.08); schale.translate(0, 0.01, 0.01);
+  const kinn = new THREE.TorusGeometry(0.115, 0.032, 8, 16, Math.PI); kinn.rotateX(Math.PI/2); kinn.translate(0, -0.045, 0.015);
+  kopf.add(new THREE.Mesh(mergeGeometries([schale, kinn], false), mats.helmet));
+  const schirm = new THREE.Mesh(kasten(V(0, 0.10, 0.13), 0.21, 0.012, 0.11, -0.35), mats.helmet);
+  schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; kopf.add(schirm);
+  const band = new THREE.TorusGeometry(0.142, 0.01, 6, 24); band.rotateX(Math.PI/2); band.translate(0, 0.025, 0.01);
+  kopf.add(new THREE.Mesh(mergeGeometries([kasten(V(0, 0.025, 0.125), 0.20, 0.075, 0.035), band], false), matSchw));   // Brillenrahmen + Band
+  kopf.add(new THREE.Mesh(kasten(V(0, 0.025, 0.146), 0.185, 0.055, 0.012), matLinse));                                  // Linse
+  const zopf = new THREE.Mesh(glied(V(0, -0.02, -0.12), V(0, -0.26, -0.20), 0.032), mats.hair);
+  zopf.name = 'ponytail'; zopf.visible = !!F.zopf; kopf.add(zopf);
+  g.add(kopf);
+
+  // Gliedmaßen: Kapseln in Gruppen, jede Gruppe wird per IK ausgerichtet
+  const oa = [0, 1].map(() => gliedGruppe(RID.oberarm, 0.052, mats.jersey));
+  const ua = [0, 1].map(() => gliedGruppe(RID.unterarm, 0.045, mats.jersey, new THREE.Mesh(glied(V(0, -0.03, 0), V(0, 0.07, 0), 0.062), matPads)));
+  const os = [0, 1].map(() => gliedGruppe(RID.oberschenkel, 0.078, mats.kit_pants));
+  const us = [0, 1].map(() => gliedGruppe(RID.unterschenkel, 0.06, mats.kit_pants, new THREE.Mesh(glied(V(0, -0.04, 0), V(0, 0.09, 0), 0.075), matPads)));
+  const haende = [0, 1].map(() => new THREE.Mesh(mergeGeometries([kugel(V(0, 0, 0), 0.045), kasten(V(0, -0.02, 0.03), 0.07, 0.05, 0.06)], false), matHandschuh));
+  const fuesse = [0, 1].map(() => new THREE.Mesh(kasten(V(0, 0.035, 0.02), 0.09, 0.065, 0.27), matSchw));
+  g.add(...oa, ...ua, ...os, ...us, ...haende, ...fuesse);
+
+  const schulter = [V(0.19, 0.46, 0.02), V(-0.19, 0.46, 0.02)], hals = V(0, 0.55, 0.045);
+  const tmp = {sch:new THREE.Vector3(), hue:new THREE.Vector3(), gel:new THREE.Vector3(), end:new THREE.Vector3(),
+               ped:new THREE.Vector3(), biege:new THREE.Vector3()};
+  /* Pro Frame: Hocke aus der Federung, Lehnen aus der Lenkung, Füße folgen der Kurbel. */
+  function animiere(f, ein, u, dt, kurbelWinkel){
+    const hocke = u ? Math.max(0, Math.min(1, -u.feder/0.14)) : 0;
+    const luft = f && !f.boden ? 1 : 0;
+    const quer = ein ? ein.quer : 0;
+    rumpf.position.set(-quer*0.03, P.huefte.y - 0.10*hocke + 0.03*luft, P.huefte.z - 0.04*hocke);
+    rumpf.rotation.set(P.neigung + 0.22*hocke, 0, quer*0.12);
+    rumpf.updateMatrix();
+    kopf.position.copy(hals).applyMatrix4(rumpf.matrix);
+    kopf.rotation.set(P.kopfNick + 0.05*hocke, quer*0.35, 0);
+    for(const i of [0, 1]){
+      const sch = tmp.sch.copy(schulter[i]).applyMatrix4(rumpf.matrix);
+      tmp.biege.set(i ? -1 : 1, 0.7, -0.3);
+      ik2(sch, A.griffe[i], RID.oberarm, RID.unterarm, tmp.biege, tmp.gel, tmp.end);
+      richte(oa[i], sch, tmp.gel); richte(ua[i], tmp.gel, tmp.end);
+      haende[i].position.copy(tmp.end);
+    }
+    for(const i of [0, 1]){
+      const hue = tmp.hue.set(i ? -0.09 : 0.09, 0, -0.02).applyMatrix4(rumpf.matrix);
+      let fuss;
+      if(A.fuesse) fuss = A.fuesse[i];
+      else {
+        // rechter Kurbelarm (−x, i = 1) zeigt bei Winkel 0 nach +z, der linke gegenüber
+        const w = (kurbelWinkel || 0) + (i ? 0 : Math.PI);
+        fuss = tmp.ped.set(i ? -A.kurbelSeite : A.kurbelSeite, -Math.sin(w)*A.kurbelR + 0.02, Math.cos(w)*A.kurbelR).add(A.tret);
+      }
+      tmp.biege.set(i ? -0.25 : 0.25, 0.15, 1);
+      ik2(hue, fuss, RID.oberschenkel, RID.unterschenkel, tmp.biege, tmp.gel, tmp.end);
+      richte(os[i], hue, tmp.gel); richte(us[i], tmp.gel, tmp.end);
+      fuesse[i].position.copy(tmp.end);
+    }
   }
-  g.add(mesh([glied(P.huefte, P.schulter, P.rumpfR), kugel(P.huefte, 0.135),
-    glied(P.schL, P.ellL, 0.052), glied(P.schR, P.ellR, 0.052)], matJersey));
-  g.add(mesh([glied(P.ellL, P.handL, 0.042), glied(P.ellR, P.handR, 0.042),
-    kugel(P.handL, 0.045), kugel(P.handR, 0.045), glied(P.hals, P.kopf, 0.05)], matHaut));
-  g.add(new THREE.Mesh(kugel(P.kopf, 0.115), matHaut));
-  g.add(mesh([glied(P.hueL, P.knieL, 0.075), glied(P.hueR, P.knieR, 0.075),
-    glied(P.knieL, P.fussL, 0.058), glied(P.knieR, P.fussR, 0.058)], matHose));
-  g.add(mesh([kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
-  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(P.kopf.x, P.kopf.y + 0.01, P.kopf.z);
-  g.add(new THREE.Mesh(helm, matHelm));
-  const schirm = new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.08, P.kopf.z + 0.14), 0.20, 0.012, 0.09, -0.3), matHelm);
-  schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; g.add(schirm);
-  g.add(new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.01, P.kopf.z + 0.12), 0.17, 0.05, 0.04), matSchw));   // Brille
-  const zopf = new THREE.Mesh(glied(V(P.kopf.x, P.kopf.y + 0.02, P.kopf.z - 0.10), V(P.kopf.x, P.kopf.y - 0.22, P.kopf.z - 0.20), 0.032), matHaar);
-  zopf.name = 'ponytail'; zopf.visible = !!F.zopf; g.add(zopf);
-  g.userData.charakter = {materialien:{jersey:matJersey, kit_pants:matHose, helmet:matHelm, skin:matHaut, hair:matHaar}, zopf, schirm};
+  animiere(null, null, null, 0, 0);
+  g.userData.charakter = {materialien:{jersey:mats.jersey, kit_pants:mats.kit_pants, helmet:mats.helmet, skin:mats.skin, hair:mats.hair}, zopf, schirm};
+  g.userData.animiere = animiere;
+  g.userData.anker = A;
+  g.userData.teile = {rumpf, kopf, oa, ua, os, us, haende, fuesse};
   return g;
 }
 
@@ -1493,12 +1625,18 @@ function baueRad(bike, farben){
 
   const rUnter = bau.motor ? 0.048 : 0.022;
   const rahmen = [
-    rohr(sitzO, kopfO, 0.02), rohr(tret, kopfU, rUnter), rohr(tret, sitzO, 0.02), rohr(kopfU, kopfO, 0.028),
-    rohr(V( 0.06, 0.33, -0.02), V( 0.05, R, hinten.z + 0.02), 0.011),
-    rohr(V(-0.06, 0.33, -0.02), V(-0.05, R, hinten.z + 0.02), 0.011),
-    rohr(V( 0.03, 0.79, sitzO.z - 0.01), V( 0.05, R, hinten.z + 0.02), 0.010),
+    rohrK(sitzO, kopfO, 0.019, 0.024),                                   // Oberrohr, zum Steuerrohr hin breiter
+    rohrK(tret, kopfU, rUnter, rUnter + 0.012),                           // Unterrohr, konisch
+    rohr(tret, sitzO, 0.019),
+    rohr(V(0, kopfU.y - 0.03, kopfU.z - 0.005), V(0, kopfO.y + 0.03, kopfO.z - 0.005), 0.03),   // Steuerrohr
+    rohr(V( 0.055, 0.33, -0.02), V( 0.05, R, hinten.z + 0.02), 0.011),   // Kettenstreben
+    rohr(V(-0.055, 0.33, -0.02), V(-0.05, R, hinten.z + 0.02), 0.011),
+    rohr(V( 0.03, 0.79, sitzO.z - 0.01), V( 0.05, R, hinten.z + 0.02), 0.010),   // Sitzstreben
     rohr(V(-0.03, 0.79, sitzO.z - 0.01), V(-0.05, R, hinten.z + 0.02), 0.010),
+    kasten(V(0, 0.33, -0.02), 0.11, 0.07, 0.09),                          // Tretlagergehäuse
+    ...[0.055, -0.055].map(x => { const c = new THREE.CylinderGeometry(0.03, 0.03, 0.016, 10); c.rotateZ(Math.PI/2); c.translate(x, R, hinten.z); return c; }),   // Ausfallenden
   ];
+  if(bau.hinterbau !== 'starr') rahmen.push(kasten(V(0, 0.71, sitzO.z + 0.04), 0.06, 0.05, 0.09));   // Umlenkhebel
   if(bau.hinterbau === 'luft'){
     rahmen.push(rohr(V(0, 0.74, -0.08), V(0, 0.48, -0.30*RS), 0.016));                 // Luftdämpfer, schlank
   } else if(bau.hinterbau === 'coil'){
@@ -1523,28 +1661,45 @@ function baueRad(bike, farben){
   }
   const sattelY = bau.sattelHoch ? 0.98 : 0.86;
   const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(-0.05, 0.32, -0.02);
+  const sattel = new THREE.SphereGeometry(1, 14, 8); sattel.scale(0.055, 0.025, 0.14); sattel.translate(0, sattelY, sitzO.z - 0.06);
+  const W = bau.lenkerBreite, bz = 0.36*RS, by = 1.04;
+  // Lenker mit Rise und Backsweep, Griffe außen, Bremshebel davor, Vorbau
+  const lenkerL = V(-W/2, by + 0.015, bz - 0.035), lenkerR = V(W/2, by + 0.015, bz - 0.035);
+  const kassette = [0.05, 0.04, 0.032].map((r, i) => { const c = new THREE.CylinderGeometry(r, r, 0.011, 18); c.rotateZ(Math.PI/2); c.translate(-0.055 - i*0.012, R, hinten.z); return c; });
   koerper.add(mesh([
-    kettenblatt,
-    kasten(V(0, sattelY, sitzO.z - 0.05), 0.09, 0.04, 0.25),                  // Sattel
+    kettenblatt, sattel,
     rohr(V(0, 0.80, sitzO.z - 0.01), V(0, sattelY - 0.01, sitzO.z - 0.04), 0.014),
-    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.014),                                   // Vorbau
-    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.012),
+    rohr(kopfO, V(0, by - 0.01, bz), 0.014),                                            // Vorbau
+    rohr(V(-0.12, by, bz), V(0.12, by, bz), 0.016),
+    rohr(V(-0.12, by, bz), lenkerL, 0.012), rohr(V(0.12, by, bz), lenkerR, 0.012),
+    rohr(V(-(W/2 - 0.16), by, bz - 0.01), V(-(W/2 - 0.22), by - 0.03, bz + 0.09), 0.006),   // Bremshebel
+    rohr(V( (W/2 - 0.16), by, bz - 0.01), V( (W/2 - 0.22), by - 0.03, bz + 0.09), 0.006),
+    ...kassette,
+    rohr(V(-0.05, 0.32 + 0.085, -0.02), V(-0.05, R + 0.05, hinten.z), 0.005),          // Kette oben
+    rohr(V(-0.05, 0.32 - 0.085, -0.02), V(-0.05, R - 0.05, hinten.z), 0.005),          // Kette unten
+    kasten(V(-0.07, R - 0.08, hinten.z + 0.04), 0.03, 0.07, 0.05),                     // Schaltwerk
+    kasten(V( 0.075, R + 0.045, hinten.z + 0.03), 0.03, 0.05, 0.05),                    // Bremssattel hinten
+    kasten(V( 0.078, R + 0.05, vorn.z - 0.03), 0.03, 0.06, 0.05),                       // Bremssattel vorn
   ], matSchwarz));
   koerper.add(mesh([
-    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 + 0.13, 1.04, 0.36*RS), 0.016),
-    rohr(V( bau.lenkerBreite/2 - 0.13, 1.04, 0.36*RS), V( bau.lenkerBreite/2, 1.04, 0.36*RS), 0.016),
+    rohr(lenkerL, V(-W/2 + 0.13, by + 0.012, bz - 0.03), 0.016),
+    rohr(lenkerR, V( W/2 - 0.13, by + 0.012, bz - 0.03), 0.016),
   ], matGummi));
   if(bau.motor){
     const led = new THREE.Mesh(kasten(V(0.06, 1.07, 0.36*RS), 0.07, 0.012, 0.045),
       new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
     koerper.add(led);
   }
-  // Gabel
-  const gabel = [
-    kasten(V(0, 0.80, kopfU.z + 0.01), 0.15, 0.05, 0.06),
-    rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, R, vorn.z), 0.017),
-    rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, R, vorn.z), 0.017),
-  ];
+  // Gabel: Brücke + Standrohre (Metall/Gold) oben, Tauchrohre mit Brücke (schwarz) unten
+  const gO = x => V(x, 0.80, kopfU.z + 0.01), gU = x => V(x, R, vorn.z);
+  const gP = (x, q) => gO(x).lerp(gU(x), q);
+  const gabel = [kasten(V(0, 0.80, kopfU.z + 0.01), 0.16, 0.05, 0.06)];
+  const tauch = [];
+  for(const x of [0.055, -0.055]){
+    gabel.push(rohr(gO(x), gP(x, 0.48), 0.017));
+    tauch.push(rohrK(gU(x), gP(x, 0.42), 0.026, 0.024));
+  }
+  tauch.push(kasten(gP(0, 0.5), 0.15, 0.03, 0.045));   // Gabelbrücke unten
   if(bau.gabel === 'doppel'){
     // Doppelbrücke: zweite Brücke über dem Steuerrohr, Standrohre laufen durch
     gabel.push(kasten(V(0, 1.02, kopfO.z + 0.02), 0.17, 0.045, 0.06));
@@ -1552,20 +1707,21 @@ function baueRad(bike, farben){
     gabel.push(rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, 1.05, kopfO.z + 0.03), 0.019));
   }
   koerper.add(mesh(gabel, bau.gabel === 'doppel' ? matGold : matMetall));
+  koerper.add(mesh(tauch, matSchwarz));
 
   // Kurbel (dreht). Kettenblatt und rechter Arm bei −x: nach der Yaw-Korrektur ist
   // lokal −x die rechte Seite der Fahrerin.
   const kurbel = new THREE.Group(); kurbel.position.copy(tret);
-  kurbel.add(mesh([rohr(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.012), rohr(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.012),
+  kurbel.add(mesh([rohrK(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.016, 0.011), rohrK(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.016, 0.011),
     rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014)], matMetall));
   kurbel.add(mesh([kasten(V(-0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
   koerper.add(kurbel);
 
-  const radH = laufrad(matReifen, matMetall, R); radH.position.copy(hinten);
-  const radV = laufrad(matReifen, matMetall, R); radV.position.copy(vorn);
+  const radH = laufrad(matReifen, matMetall, R, false, matSchwarz); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R, false, matSchwarz); radV.position.copy(vorn);
   halter.add(radH, radV);
 
-  const fahrerin = baueFahrerin(farben, 'angriff');
+  const fahrerin = baueFahrerin(farben, 'angriff', {griffe:[V(W/2 - 0.07, by + 0.012, bz - 0.03), V(-(W/2 - 0.07), by + 0.012, bz - 0.03)], tret});
   koerper.add(fahrerin);
 
   halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
@@ -1593,7 +1749,8 @@ function baueRoller(bike, farben){
   const radH = laufrad(matReifen, matMetall, R, true); radH.position.copy(hinten);
   const radV = laufrad(matReifen, matMetall, R, true); radV.position.copy(vorn);
   halter.add(radH, radV);
-  const fahrerin = baueFahrerin(farben, 'stehend'); fahrerin.position.y = 0.15;   // steht auf dem Brett
+  const fahrerin = baueFahrerin(farben, 'stehend', {griffe:[V(0.22, 1.04, 0.36), V(-0.22, 1.04, 0.36)],
+                                                    fuesse:[V(0.10, 0.155, 0.12), V(-0.10, 0.155, -0.10)]});   // steht auf dem Brett
   koerper.add(fahrerin);
   halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel:null, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
   return halter;
@@ -1749,7 +1906,11 @@ function animiereFahrzeug(halter, f, dt, ein){
   // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
   const spin = (f.boden ? f.vs : f.vs*0.92) / (u.radR || RAD_R) * dt;
   for(const r of u.raeder) r.rotation.x += spin;
-  if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
+  if(u.kurbel){
+    if(ein.gas && f.boden && f.vs > 0.5) u.kurbel.rotation.x += spin * 0.42;
+    else { const phi = u.kurbel.rotation.x, ziel = Math.round(phi/Math.PI)*Math.PI;   // beim Rollen Pedale waagerecht
+           u.kurbel.rotation.x += (ziel - phi)*Math.min(1, dt*5); }
+  }
   if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
     u.letzteLandung = f.letzteLandung;
     u.federV -= Math.min(2.2, 0.16 * f.letzteLandung.aufprall);
@@ -1760,8 +1921,11 @@ function animiereFahrzeug(halter, f, dt, ein){
   u.koerper.position.y = u.feder;
   // Die Fahrerin geht bei der Kompression tiefer in die Hocke als das Rad einfedert
   if(u.fahrerin){
-    u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
-    u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+    if(u.fahrerin.userData.animiere) u.fahrerin.userData.animiere(f, ein, u, dt, u.kurbel ? u.kurbel.rotation.x : 0);
+    else {   // GLB-Fahrerin ohne Gelenke: nur Hocke
+      u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
+      u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+    }
   }
 }
 
@@ -1781,15 +1945,17 @@ const ein = {gas:false, bremse:0, quer:0};
 const taste = {};
 const KAMERAS = [
   {name:'Verfolgung', hinten:6.8, hoch:2.5, ziel:9,  roll:0.55},
-  {name:'Cockpit',    hinten:-0.15, hoch:1.5, ziel:14, roll:0.85},
+  {name:'Cockpit',    hinten:-0.05, hoch:1.42, ziel:14, roll:0.85, fov:92},   // Helmhöhe, weiter Blick wie eine Helmkamera; der Kopf wird ausgeblendet
   {name:'Weit',       hinten:13,  hoch:5.4, ziel:6,  roll:0.30},
 ];
 let kamMode = 0;
 
+let hopWunsch = false, hopSperre = 0, gpVorher = {hop:false, kamera:false, neustart:false};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
   taste[k] = true;
+  if(k === ' ' && !e.repeat && welt) hopWunsch = true;
   if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
   if(k === 'r' && welt) neustart();
   if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
@@ -1801,11 +1967,62 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
 
-function leseEingabe(){
-  ein.gas    = !!(taste['w'] || taste['arrowup']);
-  ein.bremse = (taste['s'] || taste['arrowdown']) ? 1 : 0;
-  ein.quer   = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+/* Gamepad (Standard-Mapping): linker Stick lenkt, RT Gas, LT Bremse, A Hop, Y Kamera, Start Neustart. */
+function leseGamepad(){
+  if(!navigator.getGamepads) return null;
+  for(const gp of navigator.getGamepads()){
+    if(!gp || !gp.connected) continue;
+    const ax = gp.axes[0] || 0, tot = 0.15;
+    const quer = Math.abs(ax) < tot ? 0 : (ax - Math.sign(ax)*tot)/(1 - tot);
+    const bw = i => gp.buttons[i] ? gp.buttons[i].value : 0, bp = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+    return {quer, gas: bw(7) > 0.2, bremse: bw(6), hop: bp(0), kamera: bp(3), neustart: bp(9)};
+  }
+  return null;
 }
+function leseEingabe(dt){
+  const gp = leseGamepad();
+  const tQuer = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+  const ziel = gp && gp.quer !== 0 ? gp.quer : tQuer;
+  // Lenkglättung: die Taste baut den Einschlag in ~0,25 s auf statt schlagartig — der Fahrer
+  // springt sonst quer über den Trail. Am Stick kommt der Wert schon analog.
+  ein.quer += (ziel - ein.quer)*Math.min(1, dt*8);
+  if(ziel === 0 && Math.abs(ein.quer) < 0.01) ein.quer = 0;
+  ein.gas    = !!(taste['w'] || taste['arrowup'] || (gp && gp.gas));
+  ein.bremse = Math.max((taste['s'] || taste['arrowdown']) ? 1 : 0, gp ? gp.bremse : 0);
+  if(gp){
+    if(gp.hop && !gpVorher.hop) hopWunsch = true;
+    if(gp.kamera && !gpVorher.kamera) kamMode = (kamMode + 1) % KAMERAS.length;
+    if(gp.neustart && !gpVorher.neustart) neustart();
+    gpVorher = gp;
+  }
+  // Bunnyhop: Impuls nach oben, die Physik hebt beim nächsten Schritt von selbst ab
+  // (Aufsaugen greift nur bis 1,5 g, 2,4 m/s in 8 ms sind 30 g).
+  hopSperre = Math.max(0, hopSperre - dt);
+  if(hopWunsch){
+    hopWunsch = false;
+    if(fahrer.boden && hopSperre <= 0){ fahrer.vy += 2.4 + Math.min(0.8, fahrer.vs*0.04); hopSperre = 0.7; fahrer.hops = (fahrer.hops || 0) + 1; }
+  }
+}
+
+/* Touch: Buttons setzen dieselben Tasten wie die Tastatur. Sichtbar nur mit Touch-Eingabe. */
+{
+  const tdiv = document.getElementById('touch');   // $ ist erst weiter unten definiert
+  if(navigator.maxTouchPoints > 0) tdiv.hidden = false;
+  tdiv.querySelectorAll('.tb').forEach(b => {
+    const k = b.dataset.k;
+    const an = e => { e.preventDefault(); try{ b.setPointerCapture(e.pointerId); }catch(x){} taste[k] = true; b.classList.add('an'); if(k === ' ' && welt) hopWunsch = true; };
+    const aus = () => { taste[k] = false; b.classList.remove('an'); };
+    b.addEventListener('pointerdown', an);
+    for(const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, aus);
+  });
+}
+
+/* Maus: Ziehen dreht die Kamera um den Fahrer, Rad zoomt; 1,5 s nach dem Loslassen kehrt sie zurück. */
+let kamYaw = 0, kamZoom = 1, kamZieh = false, kamLetzte = 0, kamX = 0;
+canvas.addEventListener('pointerdown', e => { if(e.pointerType === 'mouse' && e.button === 0 && welt){ kamZieh = true; kamX = e.clientX; } });
+addEventListener('pointermove', e => { if(kamZieh){ kamYaw -= (e.clientX - kamX)*0.006; kamX = e.clientX; kamLetzte = performance.now(); } });
+addEventListener('pointerup', () => { kamZieh = false; });
+canvas.addEventListener('wheel', e => { if(!welt) return; e.preventDefault(); kamZoom = Math.max(0.55, Math.min(1.8, kamZoom*(e.deltaY > 0 ? 1.1 : 0.9))); }, {passive:false});
 
 /* --------------------------------------------- Position auf der Mittellinie */
 const _p = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3();
@@ -2114,7 +2331,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(timer.getDelta(), 0.1);
 
   if(laeuft && welt && fahrer){
-    leseEingabe();
+    leseEingabe(dt);
     // Feste Teilschritte: bei 30 fps sonst andere Physik als bei 144 fps
     const n = Math.max(1, Math.ceil(dt/0.008));
     for(let i = 0; i < n; i++) schritt(welt, fahrer, dt/n, ein);
@@ -2154,16 +2371,24 @@ renderer.setAnimationLoop(() => {
 
     if(SCHATTEN){ sonne.target.position.copy(_p); sonne.position.copy(_p).addScaledVector(SONNE_DIR, 120); }
     if(BEWEGUNG) staube(dt, Math.sin(st.psi), Math.cos(st.psi));
+    { const fa = halter.userData.fahrerin; if(fa && fa.userData.teile) fa.userData.teile.kopf.visible = kamMode !== 1; }
 
     // --- Kamera ---
     const km = KAMERAS[kamMode];
     const fx = Math.sin(st.psi), fz = Math.cos(st.psi);
-    _camPos.set(_p.x - fx*km.hinten, _p.y + km.hoch, _p.z - fz*km.hinten);
+    if(!kamZieh && performance.now() - kamLetzte > 1500) kamYaw *= Math.max(0, 1 - dt*4);
+    const kx = Math.sin(st.psi + kamYaw), kz = Math.cos(st.psi + kamYaw);
+    _camPos.set(_p.x - kx*km.hinten*kamZoom, _p.y + km.hoch*kamZoom, _p.z - kz*km.hinten*kamZoom);
+    // Tempo weitet den Blick: 62° bis 74° zwischen 8 und 20 m/s
+    const fovZiel = (km.fov || 62) + 12*Math.max(0, Math.min(1, (fahrer.vs - 8)/12));
+    if(Math.abs(camera.fov - fovZiel) > 0.05){ camera.fov += (fovZiel - camera.fov)*Math.min(1, dt*3); camera.updateProjectionMatrix(); }
     // Nicht in den Hang: am 37-%-Start liegt der Hang 6,8 m hinter dem Fahrer 2,5 m höher als er
     // (gemessen: Kamera im Gelände bei s ≈ 34–45 m auf Downhill Republic).
     const bodenKam = welt.flaeche(Math.max(0, Math.min(welt.L, fahrer.s - km.hinten)), fahrer.u);
     if(_camPos.y < bodenKam + 0.9) _camPos.y = bodenKam + 0.9;
-    _camZiel.set(_p.x + fx*km.ziel, _p.y + 0.7, _p.z + fz*km.ziel);
+    // Beim Drehen mit der Maus rückt das Ziel vom Weg voraus auf den Fahrer selbst
+    const zielW = km.ziel*Math.max(0, Math.cos(kamYaw));
+    _camZiel.set(_p.x + fx*zielW, _p.y + 0.7, _p.z + fz*zielW);
     camBasis.lerp(_camPos, Math.min(1, dt*(kamMode === 1 ? 26 : 9)));
     camera.position.copy(camBasis);
     if(BEWEGUNG) wackle(dt);   // nur die Position, nie das Ziel
@@ -2272,6 +2497,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
                    get charakter(){ return aktCharakterId; }, wechsleCharakter,
                    GRAFIK, stat, get composer(){ return composer; }, get staub(){ return staub; }, SONNE_DIR, HORIZONT,
+                   ein, get kamYaw(){ return kamYaw; }, set kamYaw(v){ kamYaw = v; kamLetzte = performance.now() + 1e9; }, get kamZoom(){ return kamZoom; }, set kamZoom(v){ kamZoom = v; }, hop(){ hopWunsch = true; }, taste,
                    get texturMs(){ return TEX ? TEX.ms : null; },
                    get horizontLinear(){ return [HORIZONT.r, HORIZONT.g, HORIZONT.b].map(v => +v.toFixed(3)); },
                    TRACKS, BIKES, CHARAKTERE};

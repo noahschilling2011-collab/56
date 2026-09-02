@@ -215,6 +215,44 @@ Materialnamen `jersey`, `kit_pants`, `helmet`, `skin`, `hair`; Baukasten über a
 Referenzen). Die Wahl bleibt in `localStorage` (`bikepark.charakter`). Draw Calls ändern
 sich nur um die ein- oder ausgeblendeten Meshes (47–49 an der synthetischen GLB).
 
+## Fahrerin mit Gelenken, Räder mit Details
+
+Die Fahrerin ist kein starrer Kapselhaufen mehr: Rumpf als Drehprofil, Kopf mit
+Fullface-Helm, Brille und Schirm (das Gesicht bleibt darunter, so sieht ein
+Downhill-Fahrer aus, und es erspart ein Gesicht aus Primitiven), Arme und Beine als
+Ober-/Unterglied mit Zweibein-IK: die Hände bleiben an den Griffen, die Füße auf den
+Pedalen, auch wenn Rumpf und Kurbel sich bewegen. Beim Treten laufen die Beine mit der
+Kurbel, beim Rollen gehen die Pedale waagerecht, in der Hocke geht das Becken runter,
+beim Lenken lehnt der Rumpf und der Kopf schaut in die Kurve. Gemessen: Hand-Griff und
+Fuß-Pedal-Abstand 0,000 m über einen Kurbelumlauf, Kniewinkel 70–152°, Ellbogen 62–75°.
+
+Was das nicht ist: ein echter Mensch. Dafür braucht es ein Modell mit Textur und
+Skelett als GLB daneben. Der Baukasten liefert einen stilisierten Low-Poly-Look.
+
+Räder: Reifen mit 72 Stollen, Hohlkammerfelge als Drehprofil, 28 zweifach gekreuzte
+Speichen, Nabe mit Flanschen, Bremsscheibe links. Rahmen mit konischem Unterrohr,
+Steuerrohr, Tretlagergehäuse, Ausfallenden, Umlenkhebel; Gabel mit Tauchrohren und
+Brücke; Lenker mit Rise und Backsweep, Bremshebel; Kassette, Kette, Schaltwerk,
+Bremssättel. Das kostet Draw Calls: die Fahrerin besteht aus 24 eigenständig bewegten
+Meshes. `hoch` liegt mit dem V10 bei 195 Calls (vorher 119), unter dem Ziel von 350.
+
+## Steuerung
+
+| Eingabe | Wirkung |
+|---|---|
+| W/S, ↑/↓ | Gas, Bremse |
+| A/D, ←/→ | Linie links/rechts; der Einschlag baut sich in ~0,25 s auf statt schlagartig |
+| Leertaste | Bunnyhop, nur am Boden, 0,7 s Sperre; gemessen 0,34 m an flacher Stelle |
+| Maus ziehen / Rad | Kamera um den Fahrer drehen / zoomen; kehrt 1,5 s nach dem Loslassen zurück |
+| C | Kamera: Verfolgung, Cockpit (Helmkamera, 92°, Kopf ausgeblendet), Weit |
+| Gamepad | linker Stick lenkt analog, RT Gas, LT Bremse, A Hop, Y Kamera, Start Neustart |
+| Touch | Buttons unten (◀ ▶ · Hop, Bremse, Gas), nur sichtbar mit Touch-Eingabe |
+
+Der Blickwinkel weitet sich mit dem Tempo von 62° auf 74° zwischen 8 und 20 m/s. Der
+Hop kommt ohne Änderung an `schritt()` aus: ein Impuls von 2,4 m/s nach oben übersteigt
+die 1,5 g, bis zu denen die Physik den Fahrer an der Fläche hält, und er hebt beim
+nächsten Schritt von selbst ab.
+
 ## Die GLB-Datei
 
 Liegt `mtb-emtb-fahrerin.glb` neben der HTML, wird sie einmal geladen, je Fahrzeug geklont
