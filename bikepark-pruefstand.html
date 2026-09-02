@@ -690,7 +690,7 @@ const FARBE = {
   fern:   new THREE.Color(0x18231a),
 };
 
-function baueStreckenMesh(track, st, hArr, qsArr, bergBei){
+function baueStreckenMesh(track, st, hArr, qsArr, bergBei, profile){
   const cols = N_QUER + 2*SKIRT.length;
   const pos = [], col = [], idx = [];
   const c = new THREE.Color();
@@ -699,7 +699,7 @@ function baueStreckenMesh(track, st, hArr, qsArr, bergBei){
     const s = st[i].s, qs = qsArr[i];
     const cx = st[i].x, cz = st[i].z, cy = hArr(s);
     const rx = -Math.cos(st[i].psi), rz = Math.sin(st[i].psi);   // rechts = vorwärts × oben
-    const pts = profilPunkte(qs, bergBei(i));
+    const pts = profile ? profile[i] : profilPunkte(qs, bergBei(i));
     const kante = qs.breite/2 - FILLET;
 
     for(const p of pts){
@@ -808,13 +808,18 @@ function baueStrecke(track){
   const qsBei = s => qsArr[Math.max(0, Math.min(Math.round(s/DS), qsArr.length-1))];
   const stBei = s => st[Math.max(0, Math.min(Math.round(s/DS), st.length-1))];
 
-  const mesh = baueStreckenMesh(track, st, hMesh, qsArr, bergBei);
+  // Querprofile je Station einmal berechnen: fürs Mesh UND für hoeheWelt
+  // (Objekte neben der Strecke stehen damit exakt auf der Schürze).
+  const profile = st.map((p, i) => profilPunkte(qsArr[i], bergBei(i)));
+  const mesh = baueStreckenMesh(track, st, hMesh, qsArr, bergBei, profile);
 
   // Höhe der Fahrfläche an (s, u) — analytisch, kein Raycast.
   // Das ist stabiler als ein Raycast gegen das Mesh und an der Drop-Kante eindeutig.
   const flaeche = (s, u) => hArr(s) + querV(qsBei(s), u);
 
-  const welt = {track, st, hArr, dhds, qsBei, stBei, mesh, flaeche, L, bergAt};
+  const welt = {track, st, hArr, hMesh, dhds, qsBei, stBei, mesh, flaeche, L, bergAt, profile};
+  welt.naechste = baueStationsSuche(st);
+  welt.hoehe = (s, u) => hoeheWelt(welt, s, u);
   // Zieltempo je Sprung: die Geschwindigkeit an der Lippe, mit der man genau
   // auf der Landung ankommt. Für HUD und Prüfung.
   welt.spruenge = track.elemente
@@ -826,6 +831,82 @@ function baueStrecke(track){
       return {g, vZiel, vFuss: Math.sqrt(vZiel*vZiel + 2*G*g.H)};
     });
   return welt;
+}
+
+/* Höhe der Oberfläche — Trail UND Geländeschürze — an Station s, Querposition u
+   (rechts +). Zum Platzieren von Objekten neben der Strecke. Außerhalb der Schürze
+   (mehr als 45 m + halbe Breite vom Rand) wird der letzte Stützpunkt gehalten. */
+function hoeheWelt(w, s, u){
+  const i = Math.max(0, Math.min(Math.round(s/DS), w.st.length-1));
+  const pts = w.profile[i], qs = w.qsBei(s);
+  const x = u * qs.aussen;                       // Profil ist in „außen-positiven“ Koordinaten
+  let v;
+  if(x <= pts[0].x) v = pts[0].v;
+  else if(x >= pts[pts.length-1].x) v = pts[pts.length-1].v;
+  else {
+    let j = 0;
+    while(j < pts.length-2 && pts[j+1].x < x) j++;
+    const a = pts[j], b = pts[j+1], t = (x-a.x)/Math.max(1e-6, b.x-a.x);
+    v = a.v + t*(b.v-a.v);
+  }
+  return w.hMesh(s) + v;
+}
+
+/* Untergrund an (s, u): 'erde' | 'stein' | 'holz' | 'beton' | 'gras'. Eine Quelle
+   für Audio, Partikel, Physik und Kamera — Wände tragen ihr Material, das Steinfeld
+   ist Stein, neben dem Trail wächst Gras. */
+function untergrundBei(w, s, u){
+  const qs = w.qsBei(s), halb = qs.breite/2, x = u * qs.aussen;
+  if(x > aussenGrenze(qs) + 0.2 || x < -halb - 0.2) return 'gras';
+  if(qs.wandH > 0.3 && x > halb - FILLET) return qs.material === 'beton' ? 'beton' : qs.material === 'holz' ? 'holz' : 'erde';
+  for(const e of w.track.elemente)
+    if(e.typ === 'steinfeld' && s >= e.start_m && s <= e.start_m + e.laenge_m) return 'stein';
+  return 'erde';
+}
+
+/* Wo stehen Zuschauer? An den großen Sprüngen, an Wallrides, am Start und im Ziel.
+   Dieselbe Regel für Park-Elemente (Figuren, Absperrungen) und Audio (Jubel, Kuhglocken).
+   seite: +1 rechts, −1 links (talseits bevorzugt, da sieht man mehr), groesse 0..1. */
+function zuschauerZonen(w){
+  const zonen = [];
+  for(const e of w.track.elemente){
+    const g = e._geo;
+    const gross = g && (g.H >= 1.5 || (g.gap || 0) >= 8) || e.typ === 'drop' || e.typ === 'step_down';
+    if(e.typ === 'wallride' || gross){
+      const s0 = g ? g.lippe - 6 : e.start_m - 4, s1 = g ? g.ende + 8 : e.start_m + (e.laenge_m || 10) + 6;
+      const seite = w.bergAt((s0+s1)/2) >= 0 ? 1 : -1;
+      zonen.push({s0, s1, seite, groesse: e.typ === 'wallride' ? 0.6 : Math.min(1, ((g && g.H) || 1.5)/2.3)});
+    }
+  }
+  zonen.push({s0:0, s1:40, seite:1, groesse:0.5});
+  zonen.push({s0:w.L - 70, s1:w.L + 10, seite:1, groesse:1});
+  zonen.push({s0:w.L - 70, s1:w.L + 10, seite:-1, groesse:0.8});
+  return zonen;
+}
+
+/* Nächste Station zu einem Weltpunkt (x, z) über ein Raster — für Gelände, das an
+   die Strecke anschließen soll. Liefert {i, s, u, d}: Stationsindex, Bogenlänge,
+   Querposition (rechts +) und Abstand zur Mittellinie; null, wenn nichts im Radius. */
+function baueStationsSuche(st){
+  const CELL = 24, raster = new Map();
+  const key = (cx, cz) => cx*200003 + cz;
+  for(let i = 0; i < st.length; i++){
+    const k = key(Math.floor(st[i].x/CELL), Math.floor(st[i].z/CELL));
+    if(!raster.has(k)) raster.set(k, []);
+    raster.get(k).push(i);
+  }
+  return (x, z, radius = 140) => {
+    const r = Math.ceil(radius/CELL), cx = Math.floor(x/CELL), cz = Math.floor(z/CELL);
+    let best = -1, bd = Infinity;
+    for(let a = -r; a <= r; a++) for(let b = -r; b <= r; b++){
+      const arr = raster.get(key(cx+a, cz+b)); if(!arr) continue;
+      for(const i of arr){ const dx = st[i].x - x, dz = st[i].z - z, d = dx*dx + dz*dz; if(d < bd){ bd = d; best = i; } }
+    }
+    if(best < 0 || bd > radius*radius) return null;
+    const p = st[best], rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
+    return {i:best, s:p.s + (x - p.x)*Math.sin(p.psi) + (z - p.z)*Math.cos(p.psi),
+            u:(x - p.x)*rx + (z - p.z)*rz, d:Math.sqrt(bd)};
+  };
 }
 
 /* ===========================================================================
@@ -980,7 +1061,51 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b232c);
 scene.fog = new THREE.FogExp2(0x1b232c, 0.0019);
 
-const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 900);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 2600);
+
+/* ---------------------------------------------------------------- Qualität
+   Wird beim Bauen der Welt gelesen (Dichte von Gras, Vegetation, Details) und
+   zur Laufzeit für Schatten, Post-Effekte und Pixel-Ratio umgeschaltet. */
+const QUALITAETEN = {
+  hoch:    {pixelRatio:2,   schatten:2048, ao:true,  bloom:true,  gras:1.0, vegetation:1.0, partikel:1.0, details:1.0},
+  mittel:  {pixelRatio:1.5, schatten:1024, ao:false, bloom:true,  gras:0.5, vegetation:0.7, partikel:0.6, details:0.7},
+  niedrig: {pixelRatio:1,   schatten:0,    ao:false, bloom:false, gras:0.0, vegetation:0.4, partikel:0.3, details:0.4},
+};
+const QUALITAET = Object.assign({stufe:'hoch'}, QUALITAETEN.hoch);
+function setzeQualitaet(stufe){
+  if(!QUALITAETEN[stufe]) return;
+  Object.assign(QUALITAET, QUALITAETEN[stufe], {stufe});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITAET.pixelRatio));
+  for(const h of HOOKS.qualitaet) h(QUALITAET);
+}
+
+/* ---------------------------------------------------------------- Sichtweite
+   Objekte melden Mittelpunkt und Radius an; pro Frame wird nur `visible`
+   umgeschaltet. Das Frustum-Culling pro Objekt macht three.js danach selbst. */
+const SICHTWEITE = {nah:220, mittel:420, fern:900};
+function sichtSystem(){
+  const eintraege = [];
+  return {
+    melde(obj, zentrum, radius, weite = 'mittel'){
+      eintraege.push({obj, x:zentrum.x, y:zentrum.y, z:zentrum.z, r:radius, w:SICHTWEITE[weite] || weite});
+      return obj;
+    },
+    aktualisiere(pos){
+      for(const e of eintraege){
+        const dx = e.x-pos.x, dy = e.y-pos.y, dz = e.z-pos.z;
+        e.obj.visible = Math.sqrt(dx*dx + dy*dy + dz*dz) - e.r < e.w;
+      }
+    },
+    vergiss(obj){ const i = eintraege.findIndex(e => e.obj === obj); if(i >= 0) eintraege.splice(i, 1); },
+    leere(){ for(const e of eintraege) e.obj.visible = true; eintraege.length = 0; },
+    get anzahl(){ return eintraege.length; }
+  };
+}
+const sicht = sichtSystem();
+
+/* Erweiterungspunkte: Module (Vegetation, Partikel, Audio, …) hängen sich hier ein.
+   update(dt, zustand) läuft pro Frame, solange gefahren wird; qualitaet(q) beim Umschalten. */
+const HOOKS = {update:[], qualitaet:[]};
 
 scene.add(new THREE.HemisphereLight(0xbcd4ea, 0x1e2618, 1.85));
 const sonne = new THREE.DirectionalLight(0xffe8cc, 2.05);
@@ -992,16 +1117,25 @@ scene.add(fill);
 
 // Himmel als Kuppel mit Farbverlauf über Vertexfarben — ein Draw Call, kein Shader.
 {
-  const g = new THREE.SphereGeometry(700, 24, 16);
+  const g = new THREE.SphereGeometry(2400, 24, 16);
   const p = g.attributes.position, c = [], oben = new THREE.Color(0x33506e), unten = new THREE.Color(0x1b232c);
   const tmp = new THREE.Color();
   for(let i = 0; i < p.count; i++){
-    tmp.copy(unten).lerp(oben, Math.max(0, Math.min(1, p.getY(i)/700*1.5 + 0.35)));
+    tmp.copy(unten).lerp(oben, Math.max(0, Math.min(1, p.getY(i)/2400*1.5 + 0.35)));
     c.push(tmp.r, tmp.g, tmp.b);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
   scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false})));
 }
+
+/* Gemeinsamer Kontext für die Welt-Module (Gelände, Vegetation, Park, Partikel,
+   Licht, Audio, Kamera): alles, was sie aus dem Spiel brauchen, an einer Stelle. */
+const KONTEXT = {
+  scene, camera, renderer, sonne, fill, sicht, HOOKS, QUALITAET, reduced,
+  noise, hoeheWelt, weltPos, stInterp, querV, aussenGrenze, untergrundBei, zuschauerZonen,
+  G, RHO, DS, N_QUER, SKIRT, SKIRT_AB, SKIRT_AUF, FILLET, FARBE, TRACKS,
+  texturen: null,          // wird von texBaue gefüllt
+};
 
 /* --------------------------------------------------------------- Bäume */
 function baueBaeume(w){
@@ -1730,6 +1864,7 @@ renderer.setAnimationLoop(() => {
     // --- Fahrer setzen ---
     const st = stInterp(welt, fahrer.s);
     weltPos(welt, fahrer.s, fahrer.u, fahrer.y, _p);
+    for(const h of HOOKS.update) h(dt, {fahrer, welt, pos:_p, psi:st.psi, ein});
     if(halter){
       animiereFahrzeug(halter, fahrer, dt, ein);
       halter.position.copy(_p);
@@ -1767,6 +1902,7 @@ renderer.setAnimationLoop(() => {
   if(meldungTimer && performance.now() > meldungTimer){
     $('elem').classList.remove('on'); meldungTimer = 0;
   }
+  sicht.aktualisiere(camera.position);
   renderer.render(scene, camera);
 });
 
@@ -1853,7 +1989,12 @@ if(reduced){
 /* Prüfhaken: erlaubt es, die Geometrie von außen nachzumessen, statt sie
    aus dem Bild zu raten. Kostet nichts und hilft beim Einbau in ein anderes Spiel. */
 window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, baseHoehe,
-                   baueStrecke, neuerFahrer, schritt, stInterp, wechsleRad, renderer,
+                   baueStrecke, neuerFahrer, schritt, stInterp, weltPos, hoeheWelt, wechsleRad, renderer,
+                   scene, camera, sonne, fill, noise, DS, N_QUER, SKIRT, SKIRT_AB, SKIRT_AUF, FILLET, FARBE,
+                   sicht, HOOKS, QUALITAET, QUALITAETEN, setzeQualitaet, KAMERAS, ein, timer, baueBaeume,
+                   untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO,
+                   get kamMode(){ return kamMode; }, set kamMode(v){ kamMode = v % KAMERAS.length; },
+                   get schatten(){ return schatten; },
                    get welt(){ return welt; }, get fahrer(){ return fahrer; },
                    get halter(){ return halter; },
                    get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
