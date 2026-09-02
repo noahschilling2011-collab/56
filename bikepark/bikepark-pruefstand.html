@@ -80,7 +80,32 @@
     border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a;display:none}
   #err.on{display:block}
 
-  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+  /* --- Ladebildschirm --- */
+  #lade{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,calc(100% - 32px));
+    padding:22px 24px;z-index:11;opacity:1;transition:opacity .35s ease}
+  #lade.weg{opacity:0;pointer-events:none}
+  #lade .lt{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+  #lade .lz{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--dim)}
+  #lade .lz b{font-weight:400;color:var(--dim)}
+  #lade .lz[data-z="läuft"] b{color:var(--line)}
+  #lade .lz[data-z="fertig"]{color:var(--fg)} #lade .lz[data-z="fertig"] b{color:var(--fg)}
+  #lade .lz[data-z="fehler"] b{color:var(--jump)}
+  #ladeBalken{height:4px;background:rgba(255,255,255,.09);border-radius:2px;margin:12px 0 14px;overflow:hidden;position:relative}
+  #ladeBalken i{display:block;height:100%;width:0;background:var(--line);transition:width .25s ease}
+  #ladeBalken.unbestimmt i{width:35%;animation:ladeLauf 1.2s ease-in-out infinite}
+  @keyframes ladeLauf{0%{transform:translateX(-100%)}100%{transform:translateX(290%)}}
+  #lade .ltip{margin:0;font-size:11px;color:var(--dim);line-height:1.7}
+  #lade .ltip .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;color:var(--fg);margin:0 3px 0 1px}
+  #ladeFehler{margin-top:12px;padding:10px 12px;border-radius:9px;font-size:12px;line-height:1.6;
+    border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a}
+  #ladeZurueck{margin-top:12px;width:100%;padding:11px;border-radius:10px;border:1px solid var(--stroke);
+    background:var(--glass);color:var(--fg);font:inherit;cursor:pointer}
+  #ladeZurueck:focus-visible,#lade:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms!important}
+    #ladeBalken.unbestimmt i{animation:none;width:100%;opacity:.35}
+  }
 </style>
 </head>
 <body>
@@ -123,6 +148,18 @@
     <p id="note"></p>
     <div id="err"></div>
   </div>
+</div>
+
+<div id="lade" class="glass" role="status" aria-live="polite" aria-busy="true" tabindex="-1" hidden>
+  <div class="lt">Wird geladen</div>
+  <div class="lz" data-s="fahrzeug" data-z="offen"><span>Fahrzeug</span><b>offen</b></div>
+  <div class="lz" data-s="strecke"  data-z="offen"><span>Strecke</span><b>offen</b></div>
+  <div class="lz" data-s="wald"     data-z="offen"><span>Wald</span><b>offen</b></div>
+  <div id="ladeBalken"><i></i></div>
+  <p class="ltip">Gas<span class="k">W</span> Bremse<span class="k">S</span> Linie<span class="k">A</span><span class="k">D</span>
+    Kamera<span class="k">C</span> Neustart<span class="k">R</span> Rad<span class="k">1</span><span class="k">2</span></p>
+  <div id="ladeFehler" hidden></div>
+  <button id="ladeZurueck" type="button" hidden>Zurück</button>
 </div>
 
 <script type="importmap">
@@ -1103,9 +1140,24 @@ function baueRad(bike){
    Nur load() steht im try — Fehler in der eigenen Verarbeitung müssen in der
    Konsole landen, sonst sieht man „Rohrmodell aktiv" und sucht an der falschen Stelle. */
 let glbVersprechen = null;
+/* Ladezustand für den Ladebildschirm. Wird schon beim Vorladen gefüllt, das
+   Overlay liest ihn nur. gesamt = 0 heißt: der Server hat keine Content-Length
+   geschickt (chunked) — dann läuft der Balken unbestimmt statt auf 100 % zu springen. */
+const ladeStand = {
+  fahrzeug: {zustand:'offen', geladen:0, gesamt:0, text:''},
+  strecke:  {zustand:'offen'},
+  wald:     {zustand:'offen'},
+};
 function ladeGLB(){
   if(!glbVersprechen){
-    glbVersprechen = new Promise((ok, no) => new GLTFLoader().load(GLB_PFAD, ok, undefined, no));
+    ladeStand.fahrzeug.zustand = 'läuft'; zeichneLadestand();
+    const manager = new THREE.LoadingManager();
+    glbVersprechen = new Promise((ok, no) => new GLTFLoader(manager).load(GLB_PFAD, ok,
+      ev => { ladeStand.fahrzeug.geladen = ev.loaded; ladeStand.fahrzeug.gesamt = ev.lengthComputable ? ev.total : 0; zeichneLadestand(); },
+      no));
+    glbVersprechen.then(
+      () => { ladeStand.fahrzeug.zustand = 'fertig'; ladeStand.fahrzeug.text = 'geladen'; zeichneLadestand(); },
+      () => { ladeStand.fahrzeug.zustand = 'fehler'; ladeStand.fahrzeug.text = 'Modell nicht gefunden, Rohrmodell aktiv'; zeichneLadestand(); });
   }
   return glbVersprechen;
 }
@@ -1316,25 +1368,110 @@ async function wechsleRad(id){
 }
 
 /* ------------------------------------------------------------------ Aufbau */
-async function starte(){
-  const track = TRACKS[aktStrecke];
-  if(welt){
-    scene.remove(welt.mesh); welt.mesh.geometry.dispose(); welt.mesh.material.dispose();
-    for(const b of welt.baeume){ scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
+/* Einen Paint freigeben. rAF allein reicht NICHT: die Fortsetzung eines
+   await'ed rAF läuft als Microtask noch vor dem Paint desselben Frames, und
+   das Overlay würde nie gezeichnet. rAF + setTimeout(0) liegt hinter dem Paint. */
+const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+const REDUZIERT = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function zeichneLadestand(){
+  const lade = $('lade'); if(!lade) return;
+  const F = ladeStand.fahrzeug;
+  const zeile = (id, zustand, text) => {
+    const z = lade.querySelector(`.lz[data-s="${id}"]`); z.dataset.z = zustand; z.querySelector('b').textContent = text;
+  };
+  let ft = F.zustand === 'offen' ? 'offen' : F.zustand === 'läuft'
+    ? (F.gesamt > 0 ? Math.round(F.geladen/F.gesamt*100) + ' %' : (F.geladen > 0 ? Math.round(F.geladen/1024) + ' kB …' : 'läuft'))
+    : F.text;
+  zeile('fahrzeug', F.zustand, ft);
+  zeile('strecke', ladeStand.strecke.zustand, ladeStand.strecke.zustand);
+  zeile('wald', ladeStand.wald.zustand, ladeStand.wald.zustand);
+  // Gesamtfortschritt: Fahrzeug 0-50 %, Strecke bis 80 %, Wald bis 100 %
+  const balken = $('ladeBalken'), i = balken.firstElementChild;
+  let p = 0, unbestimmt = false;
+  if(F.zustand === 'läuft'){ if(F.gesamt > 0) p = 50 * F.geladen / F.gesamt; else unbestimmt = true; }
+  else if(F.zustand !== 'offen') p = 50;
+  if(ladeStand.strecke.zustand === 'läuft') p = 55; else if(ladeStand.strecke.zustand !== 'offen') p = 80;
+  if(ladeStand.wald.zustand === 'läuft') p = 85; else if(ladeStand.wald.zustand !== 'offen') p = 100;
+  balken.classList.toggle('unbestimmt', unbestimmt);
+  if(!unbestimmt) i.style.width = p + '%';
+}
+
+let ladeAusblenden = 0;
+function zeigeLade(an){
+  const lade = $('lade');
+  clearTimeout(ladeAusblenden);
+  if(an){
+    lade.hidden = false; lade.classList.remove('weg'); lade.setAttribute('aria-busy', 'true');
+    $('ladeFehler').hidden = true; $('ladeZurueck').hidden = true;
+    zeichneLadestand(); lade.focus({preventScroll:true});
+  } else {
+    lade.setAttribute('aria-busy', 'false'); lade.classList.add('weg');
+    ladeAusblenden = setTimeout(() => { lade.hidden = true; }, REDUZIERT ? 0 : 380);
   }
-  welt = baueStrecke(track);
-  welt.baeume = baueBaeume(welt);
-  scene.add(welt.mesh, ...welt.baeume);
-  if(!schatten){ schatten = baueSchatten(); scene.add(schatten); }
-  await wechsleRad(aktRad);
-  neustart();
+}
+function ladeFehler(text){
+  const lade = $('lade');
+  lade.setAttribute('aria-busy', 'false');
+  $('ladeFehler').textContent = text; $('ladeFehler').hidden = false;
+  $('ladeZurueck').hidden = false; $('ladeZurueck').focus();
+}
+$('ladeZurueck').onclick = () => {
+  ladeStand.strecke.zustand = 'offen'; ladeStand.wald.zustand = 'offen';
+  zeigeLade(false); $('start').classList.remove('gone');
+};
+
+async function starte(){
+  const t0 = performance.now(), T = {};   // Zeiten je Schritt, für den Bericht (ladeStand.zeiten)
+  ladeStand.zeiten = T;
   $('start').classList.add('gone');
+  zeigeLade(true);
+
+  // 1) Fahrzeug — läuft seit dem Öffnen der Seite (Vorladen); hier nur warten
+  let glbOk = true;
+  try{ await ladeGLB(); }catch(e){ glbOk = false; }
+  zeichneLadestand(); T.fahrzeug = Math.round(performance.now() - t0);
+  await frame();
+
+  // 2) Strecke — synchron, friert den Tab ein; vorher einen Paint freigeben
+  ladeStand.strecke.zustand = 'läuft'; zeichneLadestand(); await frame();
+  try{
+    const track = TRACKS[aktStrecke];
+    if(welt){
+      scene.remove(welt.mesh); welt.mesh.geometry.dispose(); welt.mesh.material.dispose();
+      for(const b of (welt.baeume || [])){ scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
+    }
+    welt = baueStrecke(track);
+    welt.baeume = [];
+    scene.add(welt.mesh);
+  }catch(e){
+    console.error('Strecke konnte nicht gebaut werden:', e);
+    ladeStand.strecke.zustand = 'fehler'; zeichneLadestand();
+    ladeFehler('Strecke konnte nicht gebaut werden: ' + ((e && e.message) || e));
+    return;
+  }
+  ladeStand.strecke.zustand = 'fertig'; zeichneLadestand(); T.strecke = Math.round(performance.now() - t0); await frame();
+
+  // 3) Wald
+  ladeStand.wald.zustand = 'läuft'; zeichneLadestand(); await frame();
+  welt.baeume = baueBaeume(welt);
+  scene.add(...welt.baeume);
+  ladeStand.wald.zustand = 'fertig'; zeichneLadestand(); T.wald = Math.round(performance.now() - t0);
+
+  if(!schatten){ schatten = baueSchatten(); scene.add(schatten); }
+  await wechsleRad(aktRad); T.rad = Math.round(performance.now() - t0);
+  neustart();
+
+  // Mindestens 600 ms sichtbar, sonst flackert es bei vorgeladener GLB
+  const rest = 600 - (performance.now() - t0);
+  if(rest > 0) await new Promise(r => setTimeout(r, rest));
+  zeigeLade(false);
+
   $('hud').classList.add('on'); $('right').classList.add('on');
   hudAn = true; laeuft = true;
   timer.update(performance.now()); timer.getDelta();
-  if(halter && halter.userData.quelle === 'rohr'){
-    meldung('Rohrmodell aktiv — ' + GLB_PFAD + ' nicht gefunden', 4500);
-  }
+  if(!glbOk) meldung('Modell nicht gefunden, Rohrmodell aktiv', 4500);
 }
 
 let meldungTimer = 0;
@@ -1505,7 +1642,8 @@ $('note').innerHTML =
   'Doppelklick reicht: Three.js kommt vom CDN mit CORS-Freigabe. Nur die GLB-Datei lässt sich ' +
   'unter <code>file://</code> nicht laden — dafür <code>python3 -m http.server</code> im Ordner starten.';
 
-$('go').onclick = () => { starte().catch(e => zeigeFehler('Aufbau fehlgeschlagen: ' + e.message)); };
+$('go').onclick = () => { starte().catch(e => { console.error(e); ladeFehler('Aufbau fehlgeschlagen: ' + e.message); }); };
+ladeGLB().catch(() => {});   // Vorladen: die Datei liegt beim Klick auf „Abfahrt" schon im Cache
 
 if(reduced){
   // Die Bewegung hier ist vom Nutzer ausgelöst, nicht dekorativ — die Fahrt
@@ -1519,7 +1657,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    baueStrecke, neuerFahrer, schritt, stInterp, wechsleRad, renderer,
                    get welt(){ return welt; }, get fahrer(){ return fahrer; },
                    get halter(){ return halter; },
-                   get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; },
+                   get laeuft(){ return laeuft; }, set laeuft(v){ laeuft = !!v; }, ladeStand,
                    TRACKS, BIKES};
 
 addEventListener('pagehide', () => {
