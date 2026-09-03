@@ -129,10 +129,10 @@
 
 <div id="right" class="glass">
   <div><b id="vname">—</b></div>
-  <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span></div>
-  <div>Links/Rechts<span class="k">A</span><span class="k">D</span></div>
-  <div>Rad wechseln<span class="k">1</span>–<span class="k">5</span></div>
-  <div>Fahrer:in<span class="k">F</span> Kamera<span class="k">C</span> Neustart<span class="k">R</span></div>
+  <div style="margin-top:6px">Gas<span class="k">W</span> Bremse<span class="k">S</span> Linie<span class="k">A</span><span class="k">D</span></div>
+  <div>Absprung<span class="k">Leer</span> Pumpen<span class="k">Shift</span></div>
+  <div>Gewicht<span class="k">Q</span><span class="k">E</span> Kamera<span class="k">C</span></div>
+  <div>Rad<span class="k">1</span>–<span class="k">5</span> Fahrer:in<span class="k">F</span> Neustart<span class="k">R</span></div>
 </div>
 
 <div id="elem" class="glass"></div>
@@ -977,7 +977,8 @@ function neuerFahrer(bike){
           luftZeit:0, luftGesamt:0, stuerze:0, zeit:0, roll:0, tilt:0,
           // neu: Fahrzustand für Kamera, Audio, Partikel und HUD
           untergrund:'erde', gLast:1, rutsch:0, feder:0, federV:0, stoss:0, rauheit:0,
-          vMax:0, landungen:0, sauber:0, gecased:0, ueberschossen:0, bremst:false};
+          vMax:0, landungen:0, sauber:0, gecased:0, ueberschossen:0, bremst:false,
+          hops:0, hopBonus:0, pumpGewinn:0, nase:0};
 }
 
 /* Wie war die Landung? Gegen den nächsten Sprung hinter dem Fahrer gerechnet:
@@ -1047,6 +1048,10 @@ function schritt(w, f, dt, ein){
     const brems = Math.min(bremsWunsch, laengsFrei);
     F -= brems * m;
     blockiert = bremsWunsch > laengsFrei + 0.3 ? Math.min(1, (bremsWunsch - laengsFrei) / G) : 0;
+    // Pumpen: in der Senke drücken. Die Kompression steckt schon in gLast — wer
+    // dort abdrückt, holt Tempo, ohne zu treten. Über eine Senke sind das rund
+    // 0,7 m/s, etwa so viel wie ein echter Pump-Zug bringt.
+    if(ein.pump && f.gLast > 1.1) F += m * 1.8 * Math.min(1, (f.gLast - 1.1)*2);
     if(ein.gas) F += Math.min(bike.tritt/Math.max(f.vs,1.2), 900);
     if(ein.gas && bike.motor && f.vs < bike.motorBis) F += Math.min(bike.motor/Math.max(f.vs,1.2), 700);
   }
@@ -1057,6 +1062,26 @@ function schritt(w, f, dt, ein){
   if(f.boden && f.rutsch > 0.02) F -= m * G * 0.30 * f.rutsch;
   f.vs = Math.max(0.4, f.vs + F/m*dt);
   f.bremst = f.boden && ein.bremse > 0 && f.vs > 1.5;
+
+  // --- Absprung (Bunnyhop) ---
+  // Ein Fahrer drückt sich mit Beinen und Federung vom Boden ab: 0,3 m aus dem
+  // Handgelenk, gut 0,6 m mit Vorspannung. Direkt vor einer Lippe zählt das
+  // doppelt — dort geht die Energie in die Rampe statt nach oben.
+  // Bergab hängt das Rad fast dauernd ein paar Zentimeter in der Luft — die
+  // Fläche fällt schneller weg, als der Fahrer nachfällt. Wer den Absprung nur
+  // bei f.boden zulässt, baut eine Taste, die im Gefälle scheinbar klemmt.
+  // Deshalb dieselbe Nachsicht wie in jedem Plattformspiel: kurz nach dem
+  // Abheben und knapp über der Fläche zählt noch als Bodenkontakt.
+  const hopBoden = f.boden || (f.luftZeit < 0.12 && f.y - w.flaeche(f.s, f.u) < 0.45);
+  if(ein.hop > 0 && hopBoden){
+    let bonus = 1;
+    for(const j of w.spruenge){
+      const d = j.g.lippe - f.s;
+      if(d > 0 && d < 2.2){ bonus = 1.3; break; }      // gutes Timing an der Lippe
+    }
+    f.vy += (2.4 + 1.4*ein.hop) * bonus;
+    f.boden = false; f.hops++; f.hopBonus = bonus > 1 ? 1 : 0;
+  }
 
   // --- Hip: seitlicher Impuls auf der Absprungrampe ---
   if(f.boden){
@@ -1104,7 +1129,12 @@ function schritt(w, f, dt, ein){
       // projiziert: auf einer abfallenden Landung wird Fallgeschwindigkeit zu
       // Vortrieb. Die Normalkomponente ist der Aufprall und geht verloren.
       f.vs = Math.max(0.4, f.vs*cL - f.vy*sL);
-      if(aufprall > 2.2) f.vs *= Math.max(0.52, 1 - (aufprall-2.2)*0.038);
+      // Wer die Nase parallel zur Landung stellt, rollt weiter; wer quer
+      // aufsetzt, verliert. Das ist der Grund, in der Luft das Gewicht zu
+      // verlagern — ohne Eingabe steht die Nase im Flugvektor und es bleibt
+      // ungefähr beim alten Verlust.
+      f.nase = Math.abs(f.tilt - Math.atan(-sl));
+      if(aufprall > 2.2) f.vs *= Math.max(0.45, 1 - (aufprall-2.2)*0.038*(1 + Math.min(1.2, f.nase)*0.9));
       const typ = f.luftZeit > 0.12 ? bewerteLandung(w, f.s, aufprall) : 'kurz';
       if(typ === 'case'){ f.vs *= 0.82; f.gecased++; }          // Kuppe frisst den Schwung
       else if(typ === 'ueberschossen'){ f.vs *= 0.90; f.ueberschossen++; }
@@ -1144,7 +1174,11 @@ function schritt(w, f, dt, ein){
   // dem Flugvektor — der Bogen über den Gap sieht so aus, wie er sich anfühlt.
   const zielRoll = Math.atan(dvdu) + Math.max(-0.5, Math.min(0.5, stn.k*f.vs*f.vs/G*0.35));
   f.roll += (zielRoll - f.roll) * Math.min(1, dt*7);
-  const zielTilt = f.boden ? theta : Math.atan2(-f.vy, Math.max(f.vs, 1)) * 0.6;
+  // Am Boden folgt die Nase der Fläche, in der Luft dem Flugvektor — und dem
+  // Gewicht: E drückt sie runter, Q zieht sie hoch, gut 25 Grad in jede Richtung.
+  const gew = ein.gewicht || 0;
+  const zielTilt = f.boden ? theta + gew*0.10
+                           : Math.atan2(-f.vy, Math.max(f.vs, 1)) * 0.6 + gew*0.45;
   f.tilt += (zielTilt - f.tilt) * Math.min(1, dt*(f.boden ? 5 : 3));
   f.zeit += dt;
   return f;
@@ -5606,6 +5640,182 @@ async function audMiss(an, ms){
 }
 
 
+/* ---- Modul steuerung ---- */
+/* ===========================================================================
+   15. STEUERUNG
+   Vorher waren Gas, Bremse und Lenkung drei Ein/Aus-Schalter: die Lenkung
+   sprang in einem Frame von 0 auf 1, und auf dem Handy ging gar nichts. Hier
+   entstehen daraus weiche Achsen aus drei Quellen — Tastatur, Gamepad, Touch —
+   plus die drei Eingaben, die einen Bikepark erst fahrbar machen:
+
+     Absprung   Leertaste halten spannt die Federung vor, Loslassen springt.
+                Wer im letzten Viertelsekunde vor der Lippe abdrückt, bekommt
+                den Bonus, den ein echter Absprung auch gibt.
+     Pumpen     Shift in der Kompression — in der Senke drücken, am Scheitel
+                entlasten. Bringt Tempo ohne zu treten.
+     Gewicht    Q/E (oder der rechte Stick) verlagern das Gewicht. In der Luft
+                dreht das die Nase; wer sie parallel zur Landung stellt,
+                verliert beim Aufsetzen weniger.
+
+   W, A, S, D und die Pfeiltasten tun weiter genau das, was sie vorher taten.
+   =========================================================================== */
+
+/* Anstiegs- und Abfallzeiten in Sekunden. Lenkung baut sich schneller ab als
+   auf — das Rad richtet sich von selbst auf, wenn man loslässt. */
+const STG_RAMPE = {
+  querAuf: 0.13, querAb: 0.07, querGegen: 0.05,   // Gegenlenken darf sofort greifen
+  bremseAuf: 0.10, bremseAb: 0.06,
+  gasAuf: 0.18, gasAb: 0.12,
+  gewichtAuf: 0.12, gewichtAb: 0.09,
+};
+const STG_HOP_LADEN = 0.35;      // so lange lädt der Absprung, s
+const STG_TOTZONE = 0.14;        // Gamepad-Stick
+
+function stgRampe(ist, soll, dt, auf, ab){
+  const rauf = Math.abs(soll) > Math.abs(ist) || Math.sign(soll) !== Math.sign(ist) && soll !== 0;
+  const t = Math.max(1e-4, rauf ? auf : ab);
+  return ist + (soll - ist) * Math.min(1, dt/t);
+}
+function stgTot(v, tot = STG_TOTZONE){
+  const a = Math.abs(v);
+  return a < tot ? 0 : Math.sign(v) * (a - tot)/(1 - tot);
+}
+
+/* Touch: linke Bildhälfte lenkt (relativ zum Aufsetzpunkt), rechte gibt Gas
+   und bremst. Ein Wisch nach oben in der rechten Hälfte ist der Absprung. */
+function stgTouch(canvas, ziel){
+  const zeiger = new Map();
+  const aus = () => { ziel.quer = 0; ziel.gas = 0; ziel.bremse = 0; };
+  const rein = e => {
+    for(const t of e.changedTouches){
+      const links = t.clientX < innerWidth/2;
+      zeiger.set(t.identifier, {links, x0:t.clientX, y0:t.clientY, t0:performance.now(), gewischt:false});
+    }
+    e.preventDefault();
+  };
+  const zieh = e => {
+    for(const t of e.changedTouches){
+      const z = zeiger.get(t.identifier); if(!z) continue;
+      const dx = t.clientX - z.x0, dy = t.clientY - z.y0;
+      if(z.links){
+        ziel.quer = Math.max(-1, Math.min(1, dx/90));
+      } else {
+        // nach oben ziehen = Gas, nach unten = Bremse; ein schneller Wisch springt
+        ziel.gas = Math.max(0, Math.min(1, -dy/70));
+        ziel.bremse = Math.max(0, Math.min(1, dy/70));
+        if(!z.gewischt && -dy > 55 && performance.now() - z.t0 < 260){ z.gewischt = true; ziel.hopFlanke = true; }
+      }
+    }
+    e.preventDefault();
+  };
+  const raus = e => {
+    for(const t of e.changedTouches){
+      const z = zeiger.get(t.identifier); if(!z) continue;
+      zeiger.delete(t.identifier);
+      if(z.links) ziel.quer = 0; else { ziel.gas = 0; ziel.bremse = 0; }
+    }
+    if(!zeiger.size) aus();
+    e.preventDefault();
+  };
+  canvas.addEventListener('touchstart', rein, {passive:false});
+  canvas.addEventListener('touchmove', zieh, {passive:false});
+  canvas.addEventListener('touchend', raus, {passive:false});
+  canvas.addEventListener('touchcancel', raus, {passive:false});
+  return () => {
+    canvas.removeEventListener('touchstart', rein); canvas.removeEventListener('touchmove', zieh);
+    canvas.removeEventListener('touchend', raus); canvas.removeEventListener('touchcancel', raus);
+  };
+}
+
+/* stgBaue liefert `lies(dt, fahrer)`, das `ein` füllt. `taste` ist das
+   Tastenobjekt des Spiels, `canvas` das Spielfeld für Touch. */
+function stgBaue(ein, taste, canvas){
+  // Rohziele je Quelle; Touch schreibt direkt hinein, Tastatur und Gamepad
+  // werden je Frame gelesen.
+  const touchZiel = {quer:0, gas:0, bremse:0, hopFlanke:false};
+  const touchAus = ('ontouchstart' in window) ? stgTouch(canvas, touchZiel) : null;
+  const zustand = {
+    quer:0, bremse:0, gas:0, gewicht:0,
+    hopLadung:0, hopGedrueckt:false, hopFlanke:false,
+    pump:false, quelle:'tastatur', padIndex:-1,
+  };
+
+  function lies(dt, fahrer){
+    // --- Tastatur ---
+    let qSoll = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+    let gSoll = (taste['w'] || taste['arrowup']) ? 1 : 0;
+    let bSoll = (taste['s'] || taste['arrowdown']) ? 1 : 0;
+    let wSoll = ((taste['e']) ? 1 : 0) - ((taste['q']) ? 1 : 0);
+    let hopAn = !!taste[' '];
+    let pump  = !!(taste['shift'] || taste['control']);
+    let quelle = (qSoll || gSoll || bSoll || wSoll || hopAn || pump) ? 'tastatur' : zustand.quelle;
+
+    // --- Gamepad: linker Stick lenkt, Trigger geben Gas und bremsen ---
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for(const p of pads){
+      if(!p || !p.connected) continue;
+      const ax = stgTot(p.axes[0] || 0), ay = stgTot(p.axes[3] !== undefined ? p.axes[3] : 0);
+      const rt = p.buttons[7] ? p.buttons[7].value : 0, lt = p.buttons[6] ? p.buttons[6].value : 0;
+      const a = p.buttons[0] && p.buttons[0].pressed, lb = p.buttons[4] && p.buttons[4].pressed;
+      if(Math.abs(ax) + rt + lt + Math.abs(ay) > 0.06 || a || lb){
+        qSoll = ax; gSoll = Math.max(gSoll, rt); bSoll = Math.max(bSoll, lt);
+        wSoll = wSoll || -ay; hopAn = hopAn || a; pump = pump || lb;
+        quelle = 'gamepad'; zustand.padIndex = p.index;
+      }
+      break;
+    }
+
+    // --- Touch ---
+    if(touchZiel.quer || touchZiel.gas || touchZiel.bremse || touchZiel.hopFlanke){
+      qSoll = touchZiel.quer; gSoll = Math.max(gSoll, touchZiel.gas); bSoll = Math.max(bSoll, touchZiel.bremse);
+      quelle = 'touch';
+    }
+    zustand.quelle = quelle;
+
+    // --- weich machen ---
+    const gegen = qSoll !== 0 && Math.sign(qSoll) !== Math.sign(zustand.quer) && zustand.quer !== 0;
+    zustand.quer = stgRampe(zustand.quer, qSoll, dt, gegen ? STG_RAMPE.querGegen : STG_RAMPE.querAuf, STG_RAMPE.querAb);
+    zustand.bremse = stgRampe(zustand.bremse, bSoll, dt, STG_RAMPE.bremseAuf, STG_RAMPE.bremseAb);
+    zustand.gas = stgRampe(zustand.gas, gSoll, dt, STG_RAMPE.gasAuf, STG_RAMPE.gasAb);
+    zustand.gewicht = stgRampe(zustand.gewicht, Math.max(-1, Math.min(1, wSoll)), dt, STG_RAMPE.gewichtAuf, STG_RAMPE.gewichtAb);
+
+    // --- Absprung: halten lädt, loslassen springt ---
+    // Am Boden geladen und losgelassen → Impuls. Wer in der Luft drückt, lädt
+    // nichts: ohne Boden unter dem Rad gibt es nichts abzudrücken.
+    let flanke = touchZiel.hopFlanke; touchZiel.hopFlanke = false;
+    if(hopAn && !zustand.hopGedrueckt) zustand.hopLadung = 0;
+    if(hopAn && fahrer && fahrer.boden) zustand.hopLadung = Math.min(1, zustand.hopLadung + dt/STG_HOP_LADEN);
+    // Auch ein kurzer Tipp springt: wer die Taste antippt, während das Rad
+    // gerade einen Zentimeter über dem Boden hängt, hat nichts geladen — und
+    // erwartet trotzdem einen Hop.
+    if(!hopAn && zustand.hopGedrueckt) flanke = true;
+    zustand.hopGedrueckt = hopAn;
+    zustand.pump = pump;
+
+    // --- an die Physik ---
+    ein.gas = zustand.gas > 0.12;              // die Tretkraft ist eh geschwindigkeitsabhängig
+    ein.gasWert = zustand.gas;
+    ein.bremse = zustand.bremse;
+    ein.quer = zustand.quer;
+    ein.gewicht = zustand.gewicht;
+    ein.pump = pump;
+    ein.hopLadung = zustand.hopLadung;
+    ein.hop = flanke ? Math.max(0.35, zustand.hopLadung) : 0;   // ein Tipp reicht für einen kleinen Hop
+    if(flanke) zustand.hopLadung = 0;
+    ein.quelle = quelle;
+    return ein;
+  }
+
+  return {
+    lies,
+    get quelle(){ return zustand.quelle; },
+    get hopLadung(){ return zustand.hopLadung; },
+    dispose(){ if(touchAus) touchAus(); },
+    stats: {touch: !!touchAus, rampen: STG_RAMPE},
+  };
+}
+
+
 /* ---- Modul ui ---- */
 /* ===========================================================================
    14. OBERFLÄCHE
@@ -5669,6 +5879,13 @@ const UI_CSS = `
   transition:opacity .25s ease,transform .25s ease;pointer-events:none;z-index:20;
   text-shadow:0 2px 18px rgba(0,0,0,.7)}
 #ui-wertung.an{opacity:1;transform:translate(-50%,0)}
+#ui-hop{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);width:132px;height:7px;
+  border-radius:4px;background:rgba(8,10,14,.55);border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 2px 14px rgba(0,0,0,.5);opacity:0;transition:opacity .18s ease;
+  pointer-events:none;z-index:20;overflow:hidden}
+#ui-hop.an{opacity:1}
+#ui-hop i{display:block;height:100%;width:0;background:var(--line);transition:width .05s linear}
+#ui-hop.voll i{background:var(--jump);box-shadow:0 0 10px var(--jump)}
 #ui-hilfe{position:fixed;right:18px;bottom:18px;padding:9px 14px;font-size:11px;color:var(--dim);
   opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:20}
 #ui-hilfe.an{opacity:.85}
@@ -5755,9 +5972,11 @@ function uiBaue(ctx, spiel){
   const grund = document.createElement('div'); grund.id = 'ui-grund'; grund.className = 'karte';
   grund.innerHTML = '<span>Untergrund</span> <b>—</b>';
   const wertung = document.createElement('div'); wertung.id = 'ui-wertung';
+  const hop = document.createElement('div'); hop.id = 'ui-hop'; hop.innerHTML = '<i></i>';
+  const hopBalken = hop.firstElementChild;
   const hilfe = document.createElement('div'); hilfe.id = 'ui-hilfe'; hilfe.className = 'karte';
   hilfe.innerHTML = 'Pause<span class="k">Esc</span>Kamera<span class="k">C</span>Neustart<span class="k">R</span>Ton<span class="k">M</span>';
-  document.body.append(grund, wertung, hilfe);
+  document.body.append(grund, wertung, hop, hilfe);
 
   const $$ = id => document.getElementById(id);
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
@@ -5844,7 +6063,7 @@ function uiBaue(ctx, spiel){
     get offen(){ return offen; },
     zeigeHud(an){
       grund.classList.toggle('an', an); hilfe.classList.toggle('an', an);
-      if(!an){ wertung.classList.remove('an'); wertungBis = 0; }
+      if(!an){ wertung.classList.remove('an'); wertungBis = 0; hop.classList.remove('an'); }
     },
     pause(f, welt){
       $$('ui-pause-zeit').textContent = uiZeit(f.zeit);
@@ -5877,7 +6096,14 @@ function uiBaue(ctx, spiel){
     },
     /* Pro Frame: Untergrund und Landungsbewertung. Beides ändert sich selten —
        deshalb wird das DOM nur bei echter Änderung angefasst. */
-    takt(f, jetzt){
+    takt(f, jetzt, ein){
+      // Ladeanzeige des Absprungs: erscheint nur, solange geladen wird
+      if(ein){
+        const l = ein.hopLadung || 0;
+        hop.classList.toggle('an', l > 0.01);
+        hop.classList.toggle('voll', l > 0.95);
+        hopBalken.style.width = Math.round(l*100) + '%';
+      }
       const g = UI_GRUND[f.untergrund] || '—';
       const b = grund.querySelector('b');
       if(b.textContent !== g) b.textContent = g;
@@ -5892,7 +6118,7 @@ function uiBaue(ctx, spiel){
       if(wertungBis && jetzt > wertungBis){ wertung.classList.remove('an'); wertungBis = 0; }
     },
     dispose(){
-      lage.remove(); grund.remove(); wertung.remove(); hilfe.remove(); stil.remove();
+      lage.remove(); grund.remove(); wertung.remove(); hop.remove(); hilfe.remove(); stil.remove();
     },
   };
 }
@@ -5901,7 +6127,7 @@ function uiBaue(ctx, spiel){
 /* ===========================================================================
    9. STEUERUNG UND SCHLEIFE
    =========================================================================== */
-const ein = {gas:false, bremse:0, quer:0};
+const ein = {gas:false, gasWert:0, bremse:0, quer:0, gewicht:0, pump:false, hop:0, hopLadung:0, quelle:'tastatur'};
 const taste = {};
 const KAMERAS = [
   {name:'Verfolgung', hinten:6.8, hoch:2.5, ziel:9,  roll:0.55},
@@ -5936,10 +6162,13 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { taste[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for(const k in taste) taste[k] = false; });
 
-function leseEingabe(){
-  ein.gas    = !!(taste['w'] || taste['arrowup']);
-  ein.bremse = (taste['s'] || taste['arrowdown']) ? 1 : 0;
-  ein.quer   = ((taste['d'] || taste['arrowright']) ? 1 : 0) - ((taste['a'] || taste['arrowleft']) ? 1 : 0);
+/* Die weiche Steuerung wird beim ersten Bild gebaut (sie braucht das Canvas für
+   Touch) und ersetzt das frühere Ein/Aus-Lesen. Fehlt sie, greift der einfache
+   Pfad — dann fährt sich das Spiel wie vorher, statt gar nicht. */
+let steuerung = null;
+function leseEingabe(dt){
+  if(!steuerung) steuerung = stgBaue(ein, taste, canvas);
+  steuerung.lies(dt, fahrer);
 }
 
 /* --------------------------------------------- Position auf der Mittellinie */
@@ -6235,10 +6464,15 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(timer.getDelta(), 0.1);
 
   if(laeuft && welt && fahrer){
-    leseEingabe();
+    leseEingabe(dt);
     // Feste Teilschritte: bei 30 fps sonst andere Physik als bei 144 fps
     const n = Math.max(1, Math.ceil(dt/0.008));
-    for(let i = 0; i < n; i++) schritt(welt, fahrer, dt/n, ein);
+    // Der Absprung ist eine Flanke, kein Dauerzustand: er darf nur im ersten
+    // Teilschritt wirken, sonst multipliziert ihn die Schrittzahl.
+    for(let i = 0; i < n; i++){
+      schritt(welt, fahrer, dt/n, ein);
+      if(i === 0) ein.hop = 0;
+    }
 
     if(fahrer.s >= welt.L){
       laeuft = false;
@@ -6247,7 +6481,7 @@ renderer.setAnimationLoop(() => {
     }
     pruefeElement();
     schreibeHud(dt);
-    ui.takt(fahrer, performance.now());
+    ui.takt(fahrer, performance.now(), ein);
 
     // --- Fahrer setzen ---
     const st = stInterp(welt, fahrer.s);
@@ -6374,7 +6608,8 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    baueStrecke, neuerFahrer, schritt, stInterp, weltPos, hoeheWelt, wechsleRad, renderer,
                    scene, camera, sonne, fill, noise, DS, N_QUER, SKIRT, SKIRT_AB, SKIRT_AUF, FILLET, FARBE,
                    sicht, HOOKS, QUALITAET, QUALITAETEN, setzeQualitaet, KAMERAS, ein, timer, baueBaeume,
-                   untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module, ui, THREE,
+                   untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module, ui, THREE, stgBaue,
+                   get steuerung(){ return steuerung; },
                    get kamMode(){ return kamMode; }, set kamMode(v){ kamMode = v % KAMERAS.length; },
                    get schatten(){ return schatten; },
                    get welt(){ return welt; }, get fahrer(){ return fahrer; },
