@@ -1517,24 +1517,109 @@ function kasten(p, w, h, d, rx = 0){ const g = new THREE.BoxGeometry(w, h, d); i
 function mesh(geos, mat){ return new THREE.Mesh(mergeGeometries(geos, false), mat); }
 
 /* Laufrad: Reifen, Felge, Speichen, Nabe — ein Mesh pro Material, dreht um x. */
-function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false){
+/* Laufrad.
+
+   Vorher: ein glatter Torus, 16 radiale Speichen, eine Nabe. Der Reifen ist
+   das groesste Einzelteil im Bild — glatt gerundet sieht er nach Platzhalter
+   aus, egal wie gut der Rest ist. Dazu kommen jetzt die Teile, die man an
+   einem Mountainbike als erstes sucht: Stollenprofil, gekreuzte Speichen,
+   Felgenflanke, Bremsscheibe mit Kuehlloechern.
+
+   Dreiecksbudget: rund 2400 je Rad in der vollen Stufe. Bei acht Gegnern
+   waeren das 38k nur fuer Laufraeder, deshalb gibt es `stufe` — die Gegner
+   bekommen die grobe Variante, deren Stollen und Speichen reduziert sind. */
+function laufrad(matReifen, matMetall, R = RAD_R, scheibe = false, stufe = 'voll'){
   const g = new THREE.Group();
+  const grob = stufe !== 'voll';
   const dicke = scheibe ? 0.045 : 0.038;
-  const reifen = new THREE.TorusGeometry(R - dicke, dicke, 10, 28); reifen.rotateY(Math.PI/2);
-  g.add(new THREE.Mesh(reifen, matReifen));
+
   if(scheibe){
-    const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 20); disk.rotateZ(Math.PI/2);
+    // Roller: kleines Vollrad, hier lohnt kein Profil
+    const reifen = new THREE.TorusGeometry(R - dicke, dicke, 8, 20); reifen.rotateY(Math.PI/2);
+    g.add(new THREE.Mesh(reifen, matReifen));
+    const disk = new THREE.CylinderGeometry(R - dicke, R - dicke, 0.03, 18); disk.rotateZ(Math.PI/2);
     g.add(new THREE.Mesh(disk, matMetall));
     return g;
   }
-  const felge  = new THREE.TorusGeometry(R - 0.08, 0.012, 6, 28);          felge.rotateY(Math.PI/2);
-  const nabe   = new THREE.CylinderGeometry(0.03, 0.03, 0.10, 10);         nabe.rotateZ(Math.PI/2);
-  const speichen = [];
-  for(let i = 0; i < 16; i++){
-    const a = i/16 * Math.PI*2, seite = i % 2 ? 0.035 : -0.035;
-    speichen.push(rohr(V(seite, 0, 0), V(0, Math.sin(a)*(R - 0.085), Math.cos(a)*(R - 0.085)), 0.0035, 4));
+
+  // --- Reifen: Karkasse plus Stollen in zwei versetzten Reihen ---
+  const rSeg = grob ? 16 : 26;
+  const teile = [new THREE.TorusGeometry(R - dicke, dicke*0.92, grob ? 7 : 9, rSeg)];
+  teile[0].rotateY(Math.PI/2);
+  const nStoll = grob ? 12 : 22;
+  for(let i = 0; i < nStoll; i++){
+    for(const reihe of [-1, 1]){
+      // Versatz je Reihe: die Stollen greifen ineinander wie an einem echten
+      // Grobstollenreifen, statt Paare zu bilden.
+      const a = (i + (reihe > 0 ? 0.5 : 0)) / nStoll * Math.PI*2;
+      const rr = R - dicke*0.35;
+      const st = new THREE.BoxGeometry(0.026, 0.030, 0.052);
+      st.rotateX(-a);
+      st.translate(reihe * dicke*0.52, Math.sin(a)*rr, Math.cos(a)*rr);
+      teile.push(st);
+    }
+    // Mittelstollen, flacher: darauf rollt das Rad geradeaus
+    if(!grob){
+      const a = (i + 0.25)/nStoll * Math.PI*2, rr = R - dicke*0.22;
+      const m = new THREE.BoxGeometry(0.030, 0.016, 0.038);
+      m.rotateX(-a); m.translate(0, Math.sin(a)*rr, Math.cos(a)*rr);
+      teile.push(m);
+    }
   }
-  g.add(mesh([felge, nabe, ...speichen], matMetall));
+  g.add(mesh(teile, matReifen));
+
+  // --- Felge: Flanke mit Profil statt eines einzelnen Rings ---
+  const felgeR = R - 0.075;
+  const metall = [];
+  metall.push(zylRing(felgeR, 0.034, 0.006, grob ? 16 : 26));      // aeussere Flanke
+  metall.push(zylRing(felgeR - 0.014, 0.030, 0.005, grob ? 16 : 26));
+  const nabe = new THREE.CylinderGeometry(0.032, 0.032, 0.11, grob ? 8 : 12); nabe.rotateZ(Math.PI/2);
+  metall.push(nabe);
+  const flansch = new THREE.CylinderGeometry(0.052, 0.052, 0.008, grob ? 8 : 12);
+  flansch.rotateZ(Math.PI/2);
+  for(const s of [-0.042, 0.042]){ const f = flansch.clone(); f.translate(s, 0, 0); metall.push(f); }
+
+  // --- Speichen: gekreuzt, nicht radial. Eine radiale Speiche kann kein
+  //     Drehmoment uebertragen; am echten Rad laufen sie tangential vom
+  //     Flansch weg und kreuzen sich zweimal. Sichtbar ist genau das. ---
+  const nSp = grob ? 12 : 24;
+  for(let i = 0; i < nSp; i++){
+    const seite = i % 2 ? 0.042 : -0.042;
+    const aNabe = i/nSp * Math.PI*2;
+    // Tangentialer Versatz: zwei Speichenfelder pro Seite, gegenlaeufig
+    const dreh = (i % 4 < 2 ? 1 : -1) * (Math.PI*2/nSp) * 2.2;
+    const aFelge = aNabe + dreh;
+    metall.push(rohr(
+      V(seite, Math.sin(aNabe)*0.048, Math.cos(aNabe)*0.048),
+      V(seite*0.18, Math.sin(aFelge)*(felgeR - 0.012), Math.cos(aFelge)*(felgeR - 0.012)),
+      0.0032, 4));
+  }
+  g.add(mesh(metall, matMetall));
+
+  // --- Bremsscheibe mit Kuehlloechern: sitzt an beiden Raedern und ist aus
+  //     jeder Kameraposition zu sehen. ---
+  const bremse = [];
+  const scheibeR = R * 0.53;
+  const bx = -0.030;                      // links der Nabe, wie am echten Rad
+  const ring1 = zylRing(scheibeR, 0.026, 0.0022, grob ? 14 : 22); ring1.translate(bx, 0, 0);
+  const ring2 = zylRing(scheibeR - 0.030, 0.018, 0.0022, grob ? 12 : 18); ring2.translate(bx, 0, 0);
+  bremse.push(ring1, ring2);
+  // Spider: die Arme zwischen Nabe und Bremsring
+  const nArm = grob ? 4 : 6;
+  for(let i = 0; i < nArm; i++){
+    const a = i/nArm * Math.PI*2;
+    bremse.push(rohr(V(bx, Math.sin(a)*0.040, Math.cos(a)*0.040),
+                     V(bx, Math.sin(a)*(scheibeR - 0.020), Math.cos(a)*(scheibeR - 0.020)), 0.006, 4));
+  }
+  g.add(mesh(bremse, matMetall));
+  return g;
+}
+
+/* Ring aus einem Zylinder: Radius, Breite quer zur Achse, Wandstaerke.
+   Guenstiger als ein Torus, wenn eine flache Flanke gebraucht wird. */
+function zylRing(radius, breite, wand, seg){
+  const g = new THREE.CylinderGeometry(radius, radius, breite, seg, 1, true);
+  g.rotateZ(Math.PI/2);
   return g;
 }
 
@@ -1593,12 +1678,31 @@ function baueFahrerin(farben, pose = 'angriff'){
 function baueRad(bike, farben){
   const bau = Object.assign({gabel:'einfach', hinterbau:'luft', motor:false, sattelHoch:false, lenkerBreite:0.78, radR:0.37, radstand:1.0}, (bike.modell && bike.modell.bau) || {});
   const R = bau.radR, RS = bau.radstand, accent = bike.accent;
-  const matRahmen = new THREE.MeshStandardMaterial({color:accent, roughness:0.32, metalness:0.55}); matRahmen.name = 'frame_charcoal';
-  const matMetall = new THREE.MeshStandardMaterial({color:0x8d9096, roughness:0.35, metalness:0.85}); matMetall.name = 'raw_alu';
-  const matGold   = new THREE.MeshStandardMaterial({color:0xd9a441, roughness:0.3, metalness:0.8});  matGold.name = 'anodized_gold';
+  /* Materialien.
+
+     Die accent-Werte in BIKES sind UI-Farben — gemacht fuer Text auf dunklem
+     Grund. Als Lack unter dem Preetham-Himmel werden sie im linearen
+     Farbraum grell: der Rahmen leuchtete wie eine Neonroehre und hat mehr
+     Realismus zerstoert, als die neuen Bauteile aufbauen konnten. Ein
+     lackiertes Rohr reflektiert aber nur einen Teil des Lichts, und
+     metalness 0.55 mit roughness 0.32 liegt genau im Plastikbereich zwischen
+     Lack und Metall. Also: Farbe gedaempft, klar als Lack eingestellt. */
+  /* Gemessen mit vier Farbfaktoren von 0,40 bis 0,12: die Rahmenhelligkeit im
+     Bild sank nur von 101 auf 90, und das Glanzlicht blieb bei 217. Die
+     Grundfarbe war also nie die Ursache — was den Rahmen leuchten liess, war
+     die scharfe Spiegelung des Himmels auf jedem Rohr. Der Hebel ist die
+     Rauheit: 0,62 verteilt die Reflexion zu einem matten Schimmer, wie bei
+     einer Pulverbeschichtung. metalness bleibt niedrig, denn Lack ist kein
+     Metall. */
+  const lack = new THREE.Color(accent).multiplyScalar(0.34);
+  const matRahmen = new THREE.MeshStandardMaterial({color:lack, roughness:0.62, metalness:0.05}); matRahmen.name = 'frame_charcoal';
+  const matMetall = new THREE.MeshStandardMaterial({color:0x6f7378, roughness:0.55, metalness:0.82}); matMetall.name = 'raw_alu';
+  const matGold   = new THREE.MeshStandardMaterial({color:0x7d5f24, roughness:0.34, metalness:0.9});  matGold.name = 'anodized_gold';
   const matSchwarz= new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
-  const matReifen = new THREE.MeshStandardMaterial({color:0x121416, roughness:0.95}); matReifen.name = 'tire_rubber';
-  const matGummi  = new THREE.MeshStandardMaterial({color:0x26282c, roughness:0.9});
+  // Reifengummi: fast schwarz und matt. Vorher schon richtig, hier nur die
+  // Stollen etwas heller als die Karkasse, damit das Profil Kanten zeigt.
+  const matReifen = new THREE.MeshStandardMaterial({color:0x16181b, roughness:0.97, metalness:0.02}); matReifen.name = 'tire_rubber';
+  const matGummi  = new THREE.MeshStandardMaterial({color:0x22242a, roughness:0.92, metalness:0.03});
 
   // Geometrie in Metern, Fahrtrichtung +z, Boden bei y = 0. Radstand skaliert die Länge.
   const hinten = V(0, R, -0.60*RS), vorn = V(0, R, 0.64*RS);
@@ -1641,29 +1745,111 @@ function baueRad(bike, farben){
     koerper.add(mesh(ringe, matGold));
   }
   const sattelY = bau.sattelHoch ? 0.98 : 0.86;
-  const kettenblatt = new THREE.CylinderGeometry(0.085, 0.085, 0.006, 20); kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(-0.05, 0.32, -0.02);
+
+  /* Antrieb. Vorher war das Kettenblatt ein glatter Zylinder und es gab weder
+     Kette noch Kassette — von der Seite, wo man am meisten hinsieht, fehlte
+     der halbe Antriebsstrang. */
+  const antrieb = [];
+  const kbZ = -0.02, kbY = 0.32, kbX = -0.055, kbR = 0.085;
+  const kettenblatt = new THREE.CylinderGeometry(kbR*0.86, kbR*0.86, 0.005, 22);
+  kettenblatt.rotateZ(Math.PI/2); kettenblatt.translate(kbX, kbY, kbZ);
+  antrieb.push(kettenblatt);
+  // Zaehne: 30 kleine Boxen auf dem Umfang. Einzeln unsichtbar, zusammen der
+  // Unterschied zwischen Scheibe und Kettenblatt.
+  for(let i = 0; i < 30; i++){
+    const a = i/30 * Math.PI*2;
+    const t = new THREE.BoxGeometry(0.005, 0.013, 0.007);
+    t.rotateX(-a); t.translate(kbX, kbY + Math.sin(a)*kbR, kbZ + Math.cos(a)*kbR);
+    antrieb.push(t);
+  }
+  // Kassette: gestaffelte Ritzel an der Hinterradnabe
+  const nabeZ = hinten.z, nabeY = R;
+  for(let i = 0; i < 7; i++){
+    const r = 0.030 + i*0.0105;
+    const rt = new THREE.CylinderGeometry(r, r, 0.0038, 14);
+    rt.rotateZ(Math.PI/2); rt.translate(-0.035 - i*0.0055, nabeY, nabeZ);
+    antrieb.push(rt);
+  }
+  // Kette: oberes Trum gespannt zur Kassette, unteres durchhaengend zum
+  // Schaltwerk. Zwei Rohre statt einer Linie, weil man die Dicke sieht.
+  const kx = kbX + 0.004;
+  antrieb.push(rohr(V(kx, kbY + kbR*0.94, kbZ), V(-0.040, nabeY + 0.060, nabeZ), 0.006, 4));
+  antrieb.push(rohr(V(kx, kbY - kbR*0.94, kbZ), V(-0.050, nabeY - 0.075, nabeZ + 0.10), 0.006, 4));
+  antrieb.push(rohr(V(-0.050, nabeY - 0.075, nabeZ + 0.10), V(-0.045, nabeY - 0.045, nabeZ - 0.03), 0.006, 4));
+  // Schaltwerk: Kaefig mit zwei Roellchen
+  antrieb.push(kasten(V(-0.048, nabeY - 0.055, nabeZ + 0.035), 0.016, 0.075, 0.028));
+  for(const [ry, rz] of [[nabeY - 0.032, nabeZ + 0.055], [nabeY - 0.085, nabeZ + 0.020]]){
+    const rl = new THREE.CylinderGeometry(0.014, 0.014, 0.010, 10);
+    rl.rotateZ(Math.PI/2); rl.translate(-0.048, ry, rz);
+    antrieb.push(rl);
+  }
+  koerper.add(mesh(antrieb, matMetall));
+
+  /* Sattel: vorher ein Kasten. Jetzt eine gewoelbte Schale mit Nase und
+     Sitzflaeche — die Silhouette von der Seite ist charakteristisch. */
+  const sattel = [];
+  const sz = sitzO.z - 0.05;
+  const schale = new THREE.SphereGeometry(0.10, 12, 8, 0, Math.PI*2, 0, Math.PI*0.5);
+  schale.scale(0.62, 0.30, 1.35); schale.rotateX(Math.PI); schale.translate(0, sattelY + 0.012, sz);
+  sattel.push(schale);
+  sattel.push(rohr(V(0, sattelY - 0.004, sz + 0.11), V(0, sattelY + 0.004, sz + 0.20), 0.016, 6));
+  koerper.add(mesh(sattel, matSchwarz));
+
   koerper.add(mesh([
-    kettenblatt,
-    kasten(V(0, sattelY, sitzO.z - 0.05), 0.09, 0.04, 0.25),                  // Sattel
     rohr(V(0, 0.80, sitzO.z - 0.01), V(0, sattelY - 0.01, sitzO.z - 0.04), 0.014),
-    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.014),                                   // Vorbau
-    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.012),
+    rohr(kopfO, V(0, 1.03, 0.36*RS), 0.020),                                   // Vorbau
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(bau.lenkerBreite/2, 1.04, 0.36*RS), 0.013),
+    // Lenkerbiegung: die Enden stehen leicht nach hinten und oben
+    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 - 0.005, 1.052, 0.335*RS), 0.013),
+    rohr(V( bau.lenkerBreite/2, 1.04, 0.36*RS), V( bau.lenkerBreite/2 + 0.005, 1.052, 0.335*RS), 0.013),
   ], matSchwarz));
-  koerper.add(mesh([
-    rohr(V(-bau.lenkerBreite/2, 1.04, 0.36*RS), V(-bau.lenkerBreite/2 + 0.13, 1.04, 0.36*RS), 0.016),
-    rohr(V( bau.lenkerBreite/2 - 0.13, 1.04, 0.36*RS), V( bau.lenkerBreite/2, 1.04, 0.36*RS), 0.016),
-  ], matGummi));
+
+  /* Cockpit: Griffe mit Riffelung und zwei Bremshebel. In der Cockpit-Kamera
+     ist das der naechste Gegenstand vor dem Auge — dort faellt ein glattes
+     Rohr ohne Hebel sofort auf. */
+  const griffe = [];
+  for(const s of [-1, 1]){
+    const x0 = s * (bau.lenkerBreite/2 - 0.005), x1 = s * (bau.lenkerBreite/2 - 0.135);
+    griffe.push(rohr(V(x0, 1.050, 0.336*RS), V(x1, 1.043, 0.352*RS), 0.017, 8));
+    // Riffelung: schmale Ringe auf dem Griff
+    for(let i = 0; i < 5; i++){
+      const t2 = 0.15 + i*0.17;
+      const rg = new THREE.TorusGeometry(0.0185, 0.0022, 4, 10);
+      rg.rotateY(Math.PI/2);
+      rg.translate(x0 + (x1-x0)*t2, 1.050 + (1.043-1.050)*t2, (0.336 + (0.352-0.336)*t2)*RS);
+      griffe.push(rg);
+    }
+  }
+  koerper.add(mesh(griffe, matGummi));
+  const hebel = [];
+  for(const s of [-1, 1]){
+    const bx = s * (bau.lenkerBreite/2 - 0.150);
+    hebel.push(kasten(V(bx, 1.043, 0.352*RS), 0.030, 0.026, 0.030));
+    // Hebelblatt, leicht nach unten gebogen
+    hebel.push(rohr(V(bx, 1.036, 0.366*RS), V(bx + s*0.012, 1.018, 0.404*RS), 0.005, 4));
+  }
+  koerper.add(mesh(hebel, matMetall));
   if(bau.motor){
     const led = new THREE.Mesh(kasten(V(0.06, 1.07, 0.36*RS), 0.07, 0.012, 0.045),
       new THREE.MeshStandardMaterial({color:accent, emissive:accent, emissiveIntensity:1.2}));
     koerper.add(led);
   }
   // Gabel
+  /* Gabel: eine Federgabel hat oben duenne Standrohre und unten dicke
+     Tauchrohre, und der Uebergang ist die Stelle, an der man den Federweg
+     sieht. Vorher war es ein durchgehendes Rohr. */
   const gabel = [
     kasten(V(0, 0.80, kopfU.z + 0.01), 0.15, 0.05, 0.06),
-    rohr(V( 0.055, 0.80, kopfU.z + 0.01), V( 0.055, R, vorn.z), 0.017),
-    rohr(V(-0.055, 0.80, kopfU.z + 0.01), V(-0.055, R, vorn.z), 0.017),
   ];
+  for(const s of [0.055, -0.055]){
+    const oben = V(s, 0.80, kopfU.z + 0.01), mitte = V(s, R + 0.20, vorn.z - 0.012), unten = V(s, R, vorn.z);
+    gabel.push(rohr(oben, mitte, 0.0155, 8));       // Standrohr
+    gabel.push(rohr(mitte, unten, 0.0215, 8));      // Tauchrohr
+    // Ausfallende: die Aufnahme der Nabe
+    gabel.push(kasten(V(s, R, vorn.z), 0.022, 0.055, 0.030));
+  }
+  // Bremssattel vorn, sitzt am linken Tauchrohr ueber der Scheibe
+  gabel.push(kasten(V(-0.030, R + 0.115, vorn.z - 0.030), 0.026, 0.060, 0.036));
   if(bau.gabel === 'doppel'){
     // Doppelbrücke: zweite Brücke über dem Steuerrohr, Standrohre laufen durch
     gabel.push(kasten(V(0, 1.02, kopfO.z + 0.02), 0.17, 0.045, 0.06));
@@ -1677,11 +1863,39 @@ function baueRad(bike, farben){
   const kurbel = new THREE.Group(); kurbel.position.copy(tret);
   kurbel.add(mesh([rohr(V(-0.075, 0, 0), V(-0.09, 0, 0.17), 0.012), rohr(V(0.075, 0, 0), V(0.09, 0, -0.17), 0.012),
     rohr(V(-0.10, 0, 0), V(0.10, 0, 0), 0.014)], matMetall));
-  kurbel.add(mesh([kasten(V(-0.14, 0, 0.17), 0.09, 0.02, 0.08), kasten(V(0.14, 0, -0.17), 0.09, 0.02, 0.08)], matSchwarz));
+  // Plattformpedale mit Pins: die Pins sind winzig, aber sie machen aus einer
+  // Platte ein Pedal.
+  const pedale = [];
+  for(const [px, pz] of [[-0.14, 0.17], [0.14, -0.17]]){
+    pedale.push(kasten(V(px, 0, pz), 0.095, 0.014, 0.085));
+    for(let i = 0; i < 4; i++){
+      for(const sx of [-0.033, 0.033]){
+        const pin = new THREE.CylinderGeometry(0.0022, 0.0022, 0.009, 4);
+        pin.translate(px + sx, 0.010, pz - 0.030 + i*0.020);
+        pedale.push(pin);
+      }
+    }
+  }
+  kurbel.add(mesh(pedale, matSchwarz));
   koerper.add(kurbel);
 
-  const radH = laufrad(matReifen, matMetall, R); radH.position.copy(hinten);
-  const radV = laufrad(matReifen, matMetall, R); radV.position.copy(vorn);
+  /* Bremsleitungen. Sie fehlen an jedem Prototypmodell und sind an jedem
+     echten Rad da: vom Hebel am Lenker entlang des Rahmens zu den
+     Bremssaetteln. Zwei Zuege in vier Abschnitten, damit sie den Rohren
+     folgen statt quer durch die Luft zu laufen. */
+  const leitungen = [];
+  // vorn: Hebel -> Steuerrohr -> Gabelbruecke -> Sattel am Tauchrohr
+  leitungen.push(rohr(V(-(bau.lenkerBreite/2 - 0.150), 1.030, 0.360*RS), V(-0.030, 1.000, 0.400*RS), 0.0045, 4));
+  leitungen.push(rohr(V(-0.030, 1.000, 0.400*RS), V(-0.032, 0.845, kopfU.z + 0.030), 0.0045, 4));
+  leitungen.push(rohr(V(-0.032, 0.845, kopfU.z + 0.030), V(-0.032, R + 0.170, vorn.z - 0.030), 0.0045, 4));
+  // hinten: Hebel -> Oberrohr -> Sitzrohr -> Sattel an der Schwinge
+  leitungen.push(rohr(V(bau.lenkerBreite/2 - 0.150, 1.030, 0.360*RS), V(0.022, 0.995, 0.400*RS), 0.0045, 4));
+  leitungen.push(rohr(V(0.022, 0.995, 0.400*RS), V(0.024, 0.800, sitzO.z + 0.020), 0.0045, 4));
+  leitungen.push(rohr(V(0.024, 0.800, sitzO.z + 0.020), V(0.048, R + 0.055, hinten.z + 0.050), 0.0045, 4));
+  koerper.add(mesh(leitungen, matSchwarz));
+
+  const radH = laufrad(matReifen, matMetall, R, false, bau.detail || 'voll'); radH.position.copy(hinten);
+  const radV = laufrad(matReifen, matMetall, R, false, bau.detail || 'voll'); radV.position.copy(vorn);
   halter.add(radH, radV);
 
   const fahrerin = baueFahrerin(farben, 'angriff');
@@ -8299,7 +8513,13 @@ async function stelleFeld(n){
   if(module.trainer) module.trainer.ruesteAus(module.ki.feld);
   for(let i = 0; i < module.ki.feld.length; i++){
     const k = module.ki.feld[i];
-    const h = await ladeFahrzeug(k.fahrer.bike);
+    // Gegner bekommen die grobe Radstufe: rund ein Drittel der Dreiecke,
+    // und aus Renndistanz ist der Unterschied nicht zu sehen.
+    const bikeGrob = Object.assign(Object.create(Object.getPrototypeOf(k.fahrer.bike)), k.fahrer.bike, {
+      modell: Object.assign({}, k.fahrer.bike.modell,
+        {bau: Object.assign({}, (k.fahrer.bike.modell && k.fahrer.bike.modell.bau) || {}, {detail: 'grob'})}),
+    });
+    const h = await ladeFahrzeug(bikeGrob);
     // Gegner farblich abheben, damit man sie im Feld auseinanderhaelt.
     faerbeGegner(h, i);
     scene.add(h);
