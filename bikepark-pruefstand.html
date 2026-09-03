@@ -1818,9 +1818,37 @@ function animiereFahrzeug(halter, f, dt, ein){
   const u = halter.userData; if(!u || !u.raeder) return;
   // Rollen nach +z = positive Drehung um die lokale x-Achse: (0,R,0) → (0, R·cos a, R·sin a),
   // die Radoberkante läuft nach +z. Vorher stand hier ein Minus.
-  const spin = (f.boden ? f.vs : f.vs*0.92) / (u.radR || RAD_R) * dt;
-  for(const r of u.raeder) r.rotation.x += spin;
-  if(u.kurbel && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
+  const R = u.radR || RAD_R;
+  const hinten = u.raeder[0], vorne = u.raeder[1] || u.raeder[0];
+
+  // Beide Modellarten liefern raeder = [hinten, vorne]. Damit kann das
+  // Vorderrad um y einschlagen, ohne dass am Modell etwas geändert wird —
+  // die Drehachse ist dann die Nabe statt das Steuerrohr, was bei den hier
+  // gefahrenen Winkeln (max 24°) unter einem Zentimeter Unterschied bleibt.
+  // Die Reihenfolge muss YXZ sein: erst lenken, dann rollen. Bei der
+  // Voreinstellung XYZ würde das Rad um seine schon mitgedrehte Achse
+  // einschlagen und dabei kippen.
+  if(vorne !== hinten && vorne.rotation.order !== 'YXZ') vorne.rotation.order = 'YXZ';
+
+  // --- Rollen. Am Boden nach Fahrtgeschwindigkeit; blockiert das Hinterrad,
+  //     dreht es langsamer als die Fahrt und man sieht den Drift. ---
+  const spin = (f.boden ? f.vs : f.vs*0.92) / R * dt;
+  const blockiert = f.boden ? Math.min(0.85, (f.rutsch || 0) * 0.9) : 0;
+  hinten.rotation.x += spin * (1 - blockiert);
+  if(vorne !== hinten) vorne.rotation.x += spin * (1 - blockiert * 0.25);   // vorne blockiert seltener
+  if(u.kurbel && ein && ein.gas && f.boden) u.kurbel.rotation.x += spin * 0.42;
+
+  // --- Lenkeinschlag. Vorher drehte sich das Vorderrad nie mit; in einer
+  //     Kurve sah das Rad aus wie auf Schienen. Der Einschlag folgt der
+  //     Quereingabe, wird mit dem Tempo kleiner (bei 60 km/h lenkt niemand
+  //     voll ein) und in der Luft weiter zurückgenommen. ---
+  const quer = ein ? (ein.quer || 0) : 0;
+  const tempoDaempfung = 1 / (1 + Math.max(0, f.vs - 6) * 0.10);
+  const lenkZiel = -quer * 0.42 * tempoDaempfung * (f.boden ? 1 : 0.45);
+  u.lenk = (u.lenk || 0) + (lenkZiel - (u.lenk || 0)) * Math.min(1, dt * 9);
+  if(vorne !== hinten) vorne.rotation.y = u.lenk;
+
+  // --- Federung. Der Landungsstoß drückt den Körper ein, danach schwingt er aus. ---
   if(f.letzteLandung && f.letzteLandung !== u.letzteLandung){
     u.letzteLandung = f.letzteLandung;
     u.federV -= Math.min(2.2, 0.16 * f.letzteLandung.aufprall);
@@ -1829,10 +1857,43 @@ function animiereFahrzeug(halter, f, dt, ein){
   const a = -160*(u.feder - ziel) - 16*u.federV;
   u.federV += a*dt; u.feder = Math.max(-0.14, Math.min(0.06, u.feder + u.federV*dt));
   u.koerper.position.y = u.feder;
-  // Die Fahrerin geht bei der Kompression tiefer in die Hocke als das Rad einfedert
+
+  // --- Nicken. Beim Bremsen taucht die Front ein, beim Antreten hebt sie sich.
+  //     Das ist der sichtbarste Unterschied zwischen rollen und fahren. ---
+  const bremse = ein ? (ein.bremse || 0) : 0;
+  const nickZiel = f.boden ? (bremse * 0.085 - (ein && ein.gas ? 0.022 : 0)
+                             + Math.min(0.05, (f.stoss || 0) * 0.012))
+                           : -0.03;
+  u.nick = (u.nick || 0) + (nickZiel - (u.nick || 0)) * Math.min(1, dt * 7);
+  u.koerper.rotation.x = u.nick;
+
+  // --- Die Fahrerin. Nur die ganze Gruppe lässt sich bewegen — das Rohrmodell
+  //     hat keine benannten Gliedmaßen und wird hier auch nicht verändert.
+  //     Position und Neigung reichen aber für die vier Haltungen, die man
+  //     beim Mountainbiken tatsächlich sieht. ---
   if(u.fahrerin){
-    u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
-    u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
+    const fr = u.fahrerin;
+    // Hocke: bei Kompression und in der Luft tiefer als das Rad einfedert
+    const hocke = Math.min(0, u.feder) * 0.9 - (f.boden ? 0 : 0.045);
+    // Gewicht nach hinten beim Bremsen, nach vorn beim Antreten
+    const laengs = -bremse * 0.13 + (f.boden && ein && ein.gas ? 0.03 : 0)
+                   - (f.boden ? 0 : 0.02);
+    // Gegenneigung: beim Mountainbiken bleibt der Oberkörper aufrechter als
+    // das Rad, das Rad wird unter dem Körper weggelegt. f.roll kippt schon den
+    // ganzen Halter — hier wird ein Teil davon zurückgenommen.
+    const gegen = -(f.roll || 0) * 0.38;
+    // Beim Rutschen stützt der Körper gegen die Drift
+    const stuetz = (f.rutsch || 0) * Math.sign(f.vu || 0) * 0.10;
+
+    fr.position.y += (hocke - fr.position.y) * Math.min(1, dt * 10);
+    fr.position.z += (laengs - fr.position.z) * Math.min(1, dt * 8);
+    fr.position.x += ((gegen * 0.22 + stuetz) - fr.position.x) * Math.min(1, dt * 8);
+    // Rumpf: beim Bremsen aufrichten, in der Luft zusammenziehen
+    const beugen = -Math.min(0, u.feder) * 0.6 + bremse * 0.22 + (f.boden ? 0 : 0.30);
+    fr.rotation.x += (beugen - fr.rotation.x) * Math.min(1, dt * 9);
+    fr.rotation.z += (gegen - fr.rotation.z) * Math.min(1, dt * 7);
+    // Blick in die Kurve: der Oberkörper dreht ein wenig mit dem Lenker
+    fr.rotation.y += ((u.lenk * 0.55) - fr.rotation.y) * Math.min(1, dt * 6);
   }
 }
 
@@ -8654,6 +8715,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    trainerBaue, trDiagnose, trZiel, trAbschnitt, trLauf, trMittel, trKosten,
                    trStreckenlauf, trStreckenMittel, trVergleich, KI_VORTRAINIERT,
                    loeseKollisionen, KOLL_LANG, KOLL_QUER, KOLL_STURZ_LAENGS,
+                   animiereFahrzeug, setzeFahrzeug,
                    TR_BEREICHE, TR_PARAMETER, KI_TRAINIERBAR, kiNeutral, kiNeueBeobachtung, kiFahrer,
                    get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
