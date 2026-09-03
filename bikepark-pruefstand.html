@@ -6825,6 +6825,16 @@ const KI_VORTRAINIERT = {
     // -1,6 s, gepaart +3,6 bei 15 von 24
     aggressiv:  {bremsFrueh:-0.12, sprungZiel:0.022, linienRuhe:-0.07, kurvenLenk:-0.05, ueberholMut:0},
   },
+  canyon: {
+    // Die schnellste der drei Strecken (155 bis 174 s gegen 175 bis 200 s auf
+    // Alpin) — entsprechend weniger Luft, entsprechend weniger Treffer.
+    // -6,6 s, Stürze 3,5 -> 2,9, gepaart +10,6 bei 18 von 24
+    anfaenger:  {bremsFrueh:-0.18, sprungZiel:0.044, linienRuhe:0, kurvenLenk:-0.05, ueberholMut:0},
+    // -2,0 s, Stürze 3,5 -> 3,3, gepaart +3,7 bei 16 von 24
+    rund:       {bremsFrueh:0, sprungZiel:0.044, linienRuhe:0.07, kurvenLenk:0, ueberholMut:0},
+    // -1,1 s, Stürze 3,9 -> 3,6, gepaart +2,6 bei 16 von 24
+    vorsichtig: {bremsFrueh:0, sprungZiel:0.044, linienRuhe:0, kurvenLenk:0, ueberholMut:0},
+  },
 };
 
 const TR_BEREICHE = ['kurven', 'spruenge', 'bremsen', 'ueberholen'];
