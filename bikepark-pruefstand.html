@@ -2000,7 +2000,7 @@ function trailAttribute(welt, ctx){
         gras = 1 - steil*0.85; kies = steil*0.85; erde = nah*0.5;
       } else if(qs.wandH > 0.3 && x > kante){
         // Wandfläche: Bohlen oder Beton, unten weicher Übergang in die Erde
-        const hoch = Math.min(1, (p.v - welt.qsBei(s) && 1) * 0 + Math.max(0, (x - kante)/Math.max(0.4, qs.breite*0.12)));
+        const hoch = Math.min(1, Math.max(0, (x - kante)/Math.max(0.4, qs.breite*0.12)));
         wand = Math.min(1, 0.35 + hoch); erde = 1 - wand;
       } else if(sf){
         const rand = Math.min(1, Math.min(s - sf[0] + 1.5, sf[1] + 1.5 - s)/1.5);
@@ -2011,6 +2011,10 @@ function trailAttribute(welt, ctx){
         if(an && x > kante) gras = Math.min(0.5, (x - kante)/Math.max(0.5, halb*0.5))*0.5;
         erde -= gras;
       }
+      // Sicherung: ein einziges NaN im Attribut färbt die ganze Fläche schwarz,
+      // und im Bild sieht das aus wie ein Loch in der Welt, nicht wie ein Rechenfehler.
+      if(!(erde >= 0)) erde = 1; if(!(kies >= 0)) kies = 0;
+      if(!(wand >= 0)) wand = 0; if(!(gras >= 0)) gras = 0;
       const sum = erde + kies + wand + gras || 1;
       gew[k*4] = erde/sum; gew[k*4+1] = kies/sum; gew[k*4+2] = wand/sum; gew[k*4+3] = gras/sum;
 
@@ -2615,8 +2619,21 @@ function gelBaue(welt, ctx){
   meshInnen.receiveShadow = true; meshInnen.castShadow = true;
   const meshRing = new THREE.Mesh(ring.g, material); meshRing.name = 'gelaende_ring';
   meshRing.receiveShadow = true;
-  const objekte = [meshInnen, meshRing];
-  let dreiecke = innen.dreiecke + ring.dreiecke;
+  /* Grundfläche weit unter dem Tal. `welt.naechste` projiziert linear auf die
+     nächste Station; in engen Kehren trifft das die Bogenlänge nicht genau, und
+     der Übergang von der Schürze ins Terrain klafft dort um einige Meter. Durch
+     so ein Loch sähe man in den Himmel UNTERHALB des Horizonts — und der ist im
+     Preetham-Modell praktisch schwarz. Die Scheibe fängt das ab: sie liegt tief
+     genug, um nie eine echte Silhouette zu stören, und wird vom Nebel ohnehin
+     zur Horizontfarbe. Ein Draw Call. */
+  const nebel = ctx.scene.fog && ctx.scene.fog.color ? ctx.scene.fog.color.clone() : new THREE.Color(0x9fb0bd);
+  const grund = new THREE.Mesh(new THREE.CircleGeometry(2600, 10),
+    new THREE.MeshBasicMaterial({color: nebel, fog: true, depthWrite: true}));
+  grund.rotation.x = -Math.PI/2;
+  grund.position.set((gx0 + gx1)/2, GEL_SEE_Y - 140, (gz0 + gz1)/2);
+  grund.name = 'gelaende_grund'; grund.renderOrder = -1;
+  const objekte = [meshInnen, meshRing, grund];
+  let dreiecke = innen.dreiecke + ring.dreiecke + 10;
 
   // --- See im Talboden: flache, leicht spiegelnde Fläche ---
   const seeMat = new THREE.MeshStandardMaterial({color: 0x24414c, roughness: 0.15, metalness: 0.0, transparent: true, opacity: 0.9});
@@ -2864,8 +2881,8 @@ const VEG_KACHEL = {nadeln:0, blatt:1, dichtNadeln:2, dichtLaub:3};
 /* Arten: Referenzhöhe der Vorlage, Höhenspanne der Instanzen, Tönung (linear, multipliziert die Textur) */
 const VEG_ARTEN = [
   {id:'fichte', hRef:14, hMin:8,  hMax:22, anteil:0.52, tint:[0.78, 0.92, 0.72]},
-  {id:'kiefer', hRef:17, hMin:10, hMax:20, anteil:0.28, tint:[1.10, 1.02, 0.70]},
-  {id:'laub',   hRef:11, hMin:6,  hMax:14, anteil:0.20, tint:[1.15, 1.12, 0.80]},
+  {id:'kiefer', hRef:17, hMin:10, hMax:20, anteil:0.28, tint:[0.88, 0.95, 0.62]},
+  {id:'laub',   hRef:11, hMin:6,  hMax:14, anteil:0.20, tint:[0.90, 0.98, 0.66]},
 ];
 const VEG_VARIANTEN = 4;
 
@@ -3080,13 +3097,16 @@ function vegBaumVorlage(art, rnd){
     const ringe = [];
     for(let k = 0; k <= 6; k++){ const t = -1 + 2*k/6; ringe.push({y:hc + Ry*0.72*t, r:Math.max(0.05, R*0.72*Math.sqrt(1 - t*t)), ao:0.45 + 0.35*(t+1)/2, uvV:k/6}); }
     vegRotation(krone, ringe, 8, {kachel:VEG_KACHEL.dichtLaub, tint:art.tint, windFn:y => windH(y, 0)*0.7});
-    const N = 9;
+    // Viele kleine Büschel statt weniger großer: mit neun 3-m-Karten liest sich
+    // jede einzelne als Ballen, erst ab etwa der doppelten Anzahl bei halber
+    // Größe verschmelzen sie zu einer Krone.
+    const N = 18;
     for(let i = 0; i < N; i++){
       const phi = i*golden + (rnd()-0.5)*0.7, t = -0.55 + 1.2*rnd();           // Höhe in der Krone
-      const rr = R*0.55*Math.sqrt(1 - t*t*0.8);
+      const rr = R*0.62*Math.sqrt(1 - t*t*0.8);
       D.set(Math.cos(phi), 0, Math.sin(phi));
       B.set(D.x*rr, hc + Ry*t, D.z*rr);
-      const L = R*(0.75 + 0.3*rnd()), W = L*(0.9 + 0.2*rnd());
+      const L = R*(0.38 + 0.16*rnd()), W = L*(0.9 + 0.2*rnd());
       const neigung = 0.15 + 0.4*t;                                             // oben aufwärts, unten hängend
       vegKarte(krone, B, D, L, W, neigung, -0.02, VEG_KACHEL.blatt, 0.6, 1.0, [art.tint[0]*(0.85+0.3*(t+0.5)), art.tint[1]*(0.85+0.3*(t+0.5)), art.tint[2]*(0.85+0.3*(t+0.5))], (y, tip) => windH(y, tip), {x:1, y:0.6});
       merkBreite(rr + L*Math.cos(neigung));
@@ -3344,7 +3364,7 @@ function vegBaue(welt, ctx){
           }
         }
         // Gras: Band 0,3–12 m neben dem Rand, quadratisch zum Rand hin verdichtet
-        const gRand = rand(qs, seite) + 0.3, nG = Math.round(10*dichteGras*(0.75 + 0.5*rnd()));
+        const gRand = rand(qs, seite) + 0.3, nG = Math.round(15*dichteGras*(0.75 + 0.5*rnd()));
         for(let j = 0; j < nG; j++){
           const q = rnd(), u = seite*(gRand + 11.7*q*q + 0.2*rnd());
           if(Math.abs(u) > halb + 44) continue;
@@ -3990,9 +4010,12 @@ function parkBaue(welt, ctx){
     K(sB).farbe.push(parkBalken(tL, tR, 0.22, 0.22, PARK_FARBE.metall, 'metall'));
     const rectStart = atlas.text(1024, 128, `START · ${track.name}`, {bg:'#c8281e', fg:'#ffffff', stoff:true, groesse:0.62});
     const spann = tL.distanceTo(tR) - 0.6, mitte = tL.clone().lerp(tR, 0.5);
-    for(const seite of [1, -1]){
+    // Ein Banner, beidseitig sichtbar: zwei fast deckungsgleiche Flächen zeigten
+    // vorher Vorder- und Rückseite übereinander, der Schriftzug las sich gespiegelt.
+    // rotateY(π) dreht die Vorderseite dem ankommenden Fahrer entgegen — parkMat
+    // dreht die ganze Station noch einmal um π.
+    for(const seite of [-1]){
       const bn = new THREE.PlaneGeometry(spann, 0.9, 10, 3); bn.translate(0, -0.55, 0.02);
-      if(seite < 0) bn.rotateY(Math.PI);
       parkPrep(bn, PARK_FARBE.weiss, 'matt', rectStart); parkSway(bn, (x, y) => Math.max(0, (-0.1 - y)/0.9)*0.5);
       bn.applyMatrix4(parkMat(welt, ctx, sB, 0, 0, Math.PI)); bn.translate(mitte.x, mitte.y, mitte.z);
       wind.start.push(bn);
@@ -4844,7 +4867,20 @@ function lichtBaue(welt, ctx){
   const stats = {};
 
   // --- Himmel ---
-  const sky = new Sky(); sky.scale.setScalar(2000); sky.name = 'himmel'; sky.frustumCulled = false;
+  // Der Sky ist ein Würfel um seinen Ursprung; die Strecke zieht sich über
+  // 1700 m, die Kamera liefe sonst aus ihm heraus und der Himmel wäre weg.
+  // Deshalb reist er mit — der Shader legt die Fläche ohnehin auf die Far-Plane.
+  const sky = new Sky(); sky.scale.setScalar(4000); sky.name = 'himmel'; sky.frustumCulled = false;
+  /* Unterhalb des Horizonts liefert das Preetham-Modell praktisch Schwarz — es
+     kennt nur Atmosphäre, keinen Boden. Wo der Blick über eine Geländekante ins
+     Tal fällt, klaffte deshalb ein schwarzes Loch. Diese Blende zieht den Himmel
+     dort in die Nebelfarbe, so wie es echter Bodendunst täte. */
+  sky.material.uniforms.uBoden = {value: new THREE.Color(0xc6d3e0)};
+  sky.material.fragmentShader = sky.material.fragmentShader
+    .replace('uniform float cloudCoverage;', 'uniform float cloudCoverage;\nuniform vec3 uBoden;')
+    .replace('gl_FragColor = vec4( texColor, 1.0 );',
+             'texColor = mix( texColor, uBoden, smoothstep( 0.02, -0.10, direction.y ) );\n\t\t\tgl_FragColor = vec4( texColor, 1.0 );');
+  sky.material.needsUpdate = true;
   scene.add(sky);
   const sonnenRichtung = new THREE.Vector3();           // zeigt ZUR Sonne
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -4867,6 +4903,11 @@ function lichtBaue(welt, ctx){
     if(hemi){ hemi.color.set(T.hemiH); hemi.groundColor.set(T.hemiB); hemi.intensity = T.hemiI; }
     if(fill) fill.intensity = T.fill;
     scene.fog = new THREE.FogExp2(T.nebel, T.dichte);
+    sky.material.uniforms.uBoden.value.set(T.nebel).multiplyScalar(0.82);
+    // Der Sky-Würfel lässt bei einer Kamera in seinem Inneren an den Rändern
+    // Lücken (die Ecken liegen hinter der Kamera und werden weggeclippt).
+    // Der Hintergrund muss deshalb selbst schon Himmelsfarbe haben.
+    scene.background = new THREE.Color(T.nebel);
     renderer.toneMappingExposure = T.exposure;
     // Umgebungslicht aus dem Himmel: der Sky-Shader zeichnet auf die Far-Plane, deshalb reicht
     // fromScene mit dem Sky-Mesh allein (so macht es auch das three-Beispiel).
@@ -4933,6 +4974,7 @@ function lichtBaue(welt, ctx){
   const texel = () => (sc.right - sc.left) / sonne.shadow.mapSize.x;
   const zielP = new THREE.Vector3();
   function update(dt, z){
+    sky.position.copy(camera.position);
     const t = texel();
     zielP.copy(z.pos);
     zielP.x = Math.round(zielP.x / t) * t; zielP.z = Math.round(zielP.z / t) * t; zielP.y = Math.round(zielP.y / t) * t;
@@ -5007,7 +5049,20 @@ function kamBaue(welt, ctx){
     const sx = sh*ctx.noise(t*23.0), sy = sh*ctx.noise(t*29.0 + 7), sz = sh*ctx.noise(t*17.0 + 3);
 
     const fx = Math.sin(z.psi), fz = Math.cos(z.psi), rx = -Math.cos(z.psi), rz = Math.sin(z.psi);
-    camPos.set(z.pos.x - fx*akt.hinten + rx*sx, z.pos.y + akt.hoch + dip + sy, z.pos.z - fz*akt.hinten + rz*sx);
+    if(z.kamMode === 1){
+      // Cockpit sitzt am Fahrer, sonst stimmt der Blickpunkt nicht.
+      camPos.set(z.pos.x - fx*akt.hinten + rx*sx, z.pos.y + akt.hoch + dip + sy, z.pos.z - fz*akt.hinten + rz*sx);
+    } else {
+      // Die Verfolgerkameras laufen ENTLANG DER STRECKE, nicht starr hinter dem
+      // Fahrer: fährt er den Anlieger hoch oder auf den Wallride, stünde eine
+      // mitgezogene Kamera in der Wand — man sieht dann nur noch deren dunkle
+      // Rückseite. Auf der Mittellinie bleibt der Blick frei, die Querbewegung
+      // wird nur gedämpft mitgenommen.
+      const sK = Math.max(0.5, f.s - akt.hinten), uK = f.u*0.3;
+      const boden = welt.flaeche(sK, uK);
+      ctx.weltPos(welt, sK, uK, Math.max(z.pos.y, boden) + akt.hoch + dip + sy, camPos);
+      camPos.x += rx*sx; camPos.z += rz*sx;
+    }
     camZiel.set(z.pos.x + fx*akt.ziel + rx*sz*2, z.pos.y + 0.7 - 0.35*luft, z.pos.z + fz*akt.ziel + rz*sz*2);
     if(z.kamMode !== 1) sperre(camPos, 0.9);
     camera.position.lerp(camPos, Math.min(1, dt*(z.kamMode === 1 ? 26 : 9)));
@@ -5482,6 +5537,296 @@ async function audMiss(an, ms){
 }
 
 
+/* ---- Modul ui ---- */
+/* ===========================================================================
+   14. OBERFLÄCHE
+   Das bestehende HUD bleibt, was es war — Tacho, Zeit, Strecke, Höhe, Luft,
+   Fortschritt —, bekommt aber Untergrund und Landungsbewertung dazu und ein
+   Layout, das bei 100 km/h noch lesbar ist. Neu sind die drei Zustände, die
+   vorher fehlten: Pause (Esc), Ziel (mit Bestzeit) und Einstellungen.
+
+   Alles wird zur Laufzeit erzeugt statt in den <body> geschrieben: so bleibt
+   die Oberfläche ein Stück, das man am Stück lesen, ändern oder herausnehmen
+   kann, und das Grundgerüst der Seite bleibt schlank.
+   =========================================================================== */
+const UI_CSS = `
+#ui-lage{position:fixed;inset:0;pointer-events:none;z-index:30;
+  font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg)}
+#ui-lage .karte{background:rgba(14,15,19,.72);border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.75)}
+#ui-lage .schirm{position:absolute;inset:0;display:grid;place-items:center;
+  background:radial-gradient(120% 80% at 50% 30%,rgba(10,10,12,.55),rgba(10,10,12,.88));
+  opacity:0;visibility:hidden;transition:opacity .32s ease,visibility .32s;pointer-events:none}
+#ui-lage .schirm.an{opacity:1;visibility:visible;pointer-events:auto}
+#ui-lage .schirm > .karte{padding:30px 34px;min-width:340px;max-width:min(560px,92vw);
+  transform:translateY(14px) scale(.985);transition:transform .32s cubic-bezier(.2,.8,.3,1)}
+#ui-lage .schirm.an > .karte{transform:none}
+#ui-lage h2{margin:0 0 4px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--line);font-weight:500}
+#ui-lage .gross{font-size:56px;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:10px 0 2px}
+#ui-lage .unter{font-size:12px;color:var(--dim);margin-bottom:20px}
+#ui-lage .zeilen{display:grid;gap:9px;margin:18px 0 22px}
+#ui-lage .zeile{display:flex;justify-content:space-between;gap:20px;font-size:12px;color:var(--dim);
+  border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px}
+#ui-lage .zeile b{color:var(--fg);font-weight:400;font-variant-numeric:tabular-nums}
+#ui-lage .zeile.gut b{color:var(--line)} #ui-lage .zeile.schlecht b{color:var(--jump)}
+#ui-lage .knopfreihe{display:flex;gap:10px;flex-wrap:wrap}
+#ui-lage button{font:inherit;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  padding:11px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);color:var(--fg);cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .12s ease}
+#ui-lage button:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.2)}
+#ui-lage button:active{transform:translateY(1px)}
+#ui-lage button.haupt{background:var(--line);border-color:transparent;color:#08211f;font-weight:600}
+#ui-lage button.haupt:hover{filter:brightness(1.1)}
+#ui-lage button:focus-visible{outline:2px solid var(--line);outline-offset:3px}
+
+/* Einstellungen: Segmente und Schieber */
+#ui-lage .feld{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:12px 0}
+#ui-lage .feld > span{font-size:12px;color:var(--dim);letter-spacing:.04em}
+#ui-lage .segmente{display:flex;gap:4px;background:rgba(255,255,255,.05);padding:4px;border-radius:11px}
+#ui-lage .segmente button{padding:7px 13px;border:0;background:transparent;border-radius:8px;text-transform:none;letter-spacing:.02em}
+#ui-lage .segmente button[aria-pressed="true"]{background:rgba(79,209,197,.16);color:var(--line)}
+#ui-lage input[type=range]{width:150px;accent-color:var(--line);pointer-events:auto}
+
+/* HUD-Ergänzungen */
+#ui-grund{position:fixed;left:18px;bottom:calc(18px + 172px);padding:7px 13px;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim);opacity:0;
+  transition:opacity .3s ease;pointer-events:none;z-index:20}
+#ui-grund.an{opacity:1}
+#ui-grund b{color:var(--fg);font-weight:400}
+#ui-wertung{position:fixed;left:50%;top:26%;transform:translate(-50%,-6px);
+  font-size:22px;letter-spacing:.14em;text-transform:uppercase;opacity:0;
+  transition:opacity .25s ease,transform .25s ease;pointer-events:none;z-index:20;
+  text-shadow:0 2px 18px rgba(0,0,0,.7)}
+#ui-wertung.an{opacity:1;transform:translate(-50%,0)}
+#ui-hilfe{position:fixed;right:18px;bottom:18px;padding:9px 14px;font-size:11px;color:var(--dim);
+  opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:20}
+#ui-hilfe.an{opacity:.85}
+#ui-hilfe .k{display:inline-block;min-width:17px;text-align:center;padding:1px 4px;margin:0 3px;
+  border:1px solid var(--stroke);border-radius:5px;color:var(--fg);font-size:10px}
+@media (prefers-reduced-motion: reduce){
+  #ui-lage .schirm,#ui-lage .schirm > .karte,#ui-grund,#ui-wertung,#ui-hilfe{transition-duration:.01ms}
+}
+@media (max-width: 640px){
+  #ui-lage .gross{font-size:42px} #ui-lage .schirm > .karte{padding:22px 20px;min-width:0;width:92vw}
+  #ui-grund{bottom:calc(18px + 162px)}
+}
+`;
+
+const UI_HTML = `
+<div class="schirm" id="ui-pause" role="dialog" aria-modal="true" aria-labelledby="ui-pause-t">
+  <div class="karte">
+    <h2 id="ui-pause-t">Pause</h2>
+    <div class="gross" id="ui-pause-zeit">0:00.0</div>
+    <div class="unter" id="ui-pause-wo">— / — m</div>
+    <div id="ui-pause-opt"></div>
+    <div class="knopfreihe">
+      <button class="haupt" data-tat="weiter">Weiter</button>
+      <button data-tat="neustart">Neustart</button>
+      <button data-tat="menue">Streckenwahl</button>
+    </div>
+  </div>
+</div>
+<div class="schirm" id="ui-ziel" role="dialog" aria-modal="true" aria-labelledby="ui-ziel-t">
+  <div class="karte">
+    <h2 id="ui-ziel-t">Ziel</h2>
+    <div class="gross" id="ui-ziel-zeit">0:00.0</div>
+    <div class="unter" id="ui-ziel-best">—</div>
+    <div class="zeilen" id="ui-ziel-zeilen"></div>
+    <div class="knopfreihe">
+      <button class="haupt" data-tat="neustart">Noch mal</button>
+      <button data-tat="menue">Streckenwahl</button>
+    </div>
+  </div>
+</div>
+`;
+
+/* Untergrund für die Anzeige — dieselben Namen wie in der Physik, nur lesbar. */
+const UI_GRUND = {erde:'Erde', stein:'Steinfeld', holz:'Holz', beton:'Beton', gras:'Gras'};
+const UI_WERTUNG = {
+  sauber:       {text:'Sauber',        farbe:'var(--line)'},
+  hart:         {text:'Hart gelandet', farbe:'var(--wall)'},
+  case:         {text:'Zu kurz',       farbe:'var(--jump)'},
+  ueberschossen:{text:'Überschossen',  farbe:'var(--jump)'},
+};
+
+function uiZeit(t){
+  const m = Math.floor(t/60), s = t - m*60;
+  return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1).replace('.', ',');
+}
+
+/* Bestzeiten je Strecke und Rad. localStorage kann fehlen oder werfen. */
+function uiBesten(){
+  const schluessel = 'bikepark.bestzeiten';
+  let daten = {};
+  try{ daten = JSON.parse(localStorage.getItem(schluessel) || '{}') || {}; }catch(e){}
+  return {
+    hole: k => daten[k],
+    setze(k, t){
+      const alt = daten[k];
+      if(alt !== undefined && alt <= t) return false;
+      daten[k] = t;
+      try{ localStorage.setItem(schluessel, JSON.stringify(daten)); }catch(e){}
+      return true;
+    },
+  };
+}
+
+/* uiBaue erzeugt die Oberfläche einmal für das ganze Spiel (nicht je Strecke).
+   `spiel` reicht die Rückrufe herein, die nur das Spiel selbst kennt. */
+function uiBaue(ctx, spiel){
+  const stil = document.createElement('style'); stil.textContent = UI_CSS;
+  document.head.appendChild(stil);
+  const lage = document.createElement('div'); lage.id = 'ui-lage';
+  lage.innerHTML = UI_HTML;
+  document.body.appendChild(lage);
+  const grund = document.createElement('div'); grund.id = 'ui-grund'; grund.className = 'karte';
+  grund.innerHTML = '<span>Untergrund</span> <b>—</b>';
+  const wertung = document.createElement('div'); wertung.id = 'ui-wertung';
+  const hilfe = document.createElement('div'); hilfe.id = 'ui-hilfe'; hilfe.className = 'karte';
+  hilfe.innerHTML = 'Pause<span class="k">Esc</span>Kamera<span class="k">C</span>Neustart<span class="k">R</span>Ton<span class="k">M</span>';
+  document.body.append(grund, wertung, hilfe);
+
+  const $$ = id => document.getElementById(id);
+  const pause = $$('ui-pause'), ziel = $$('ui-ziel');
+  const besten = uiBesten();
+  let offen = null;            // null | 'pause' | 'ziel'
+  let wertungBis = 0, letzteLandung = null;
+
+  /* --- Einstellungen: dieselbe Gruppe im Startmenü und in der Pause --- */
+  const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
+  const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
+  const einstellung = {
+    qualitaet: gemerkt('qualitaet', 'hoch'),
+    tageszeit: gemerkt('tageszeit', 'nachmittag'),
+    ton: +gemerkt('ton', '0.7'),
+  };
+  function baueEinstellungen(ziel){
+    const feld = (name, inhalt) => {
+      const d = document.createElement('div'); d.className = 'feld';
+      const s = document.createElement('span'); s.textContent = name;
+      d.append(s, inhalt); return d;
+    };
+    const segmente = (werte, aktuell, beiWahl) => {
+      const g = document.createElement('div'); g.className = 'segmente';
+      for(const [wert, text] of werte){
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = text;
+        b.setAttribute('aria-pressed', String(wert === aktuell));
+        b.onclick = () => {
+          for(const k of g.children) k.setAttribute('aria-pressed', String(k === b));
+          beiWahl(wert);
+        };
+        g.appendChild(b);
+      }
+      return g;
+    };
+    const q = segmente([['hoch','Hoch'],['mittel','Mittel'],['niedrig','Sparsam']], einstellung.qualitaet, v => {
+      einstellung.qualitaet = v; merke('qualitaet', v); spiel.setzeQualitaet(v);
+    });
+    const t = segmente([['morgen','Morgen'],['mittag','Mittag'],['nachmittag','Nachmittag'],['abend','Abend']], einstellung.tageszeit, v => {
+      einstellung.tageszeit = v; merke('tageszeit', v); spiel.setzeTageszeit(v);
+    });
+    const ton = document.createElement('input');
+    ton.type = 'range'; ton.min = 0; ton.max = 1; ton.step = 0.05; ton.value = einstellung.ton;
+    ton.setAttribute('aria-label', 'Lautstärke');
+    ton.oninput = () => { einstellung.ton = +ton.value; merke('ton', ton.value); spiel.setzeTon(+ton.value); };
+    ziel.append(feld('Qualität', q), feld('Tageszeit', t), feld('Ton', ton));
+    return {tonRegler: ton};
+  }
+  const pauseOpt = baueEinstellungen($$('ui-pause-opt'));
+
+  /* --- Schirme --- */
+  let zuletztFokussiert = null;
+  function zeige(name){
+    if(offen === name) return;
+    offen = name;
+    for(const [n, el] of [['pause', pause], ['ziel', ziel]]) el.classList.toggle('an', n === name);
+    if(name){
+      zuletztFokussiert = document.activeElement;
+      const k = (name === 'pause' ? pause : ziel).querySelector('button.haupt');
+      if(k) k.focus({preventScroll:true});
+    } else if(zuletztFokussiert && zuletztFokussiert.focus){
+      zuletztFokussiert.focus({preventScroll:true}); zuletztFokussiert = null;
+    }
+  }
+  for(const el of [pause, ziel]) el.addEventListener('click', e => {
+    const tat = e.target.dataset && e.target.dataset.tat; if(!tat) return;
+    if(tat === 'weiter'){ zeige(null); spiel.fortsetzen(); }
+    if(tat === 'neustart'){ zeige(null); spiel.neustart(); }
+    if(tat === 'menue'){ zeige(null); spiel.zumMenue(); }
+  });
+  // Tab-Falle: ein modaler Schirm gibt den Fokus nicht ans Spiel zurück
+  lage.addEventListener('keydown', e => {
+    if(e.key !== 'Tab' || !offen) return;
+    const el = offen === 'pause' ? pause : ziel;
+    const knoepfe = [...el.querySelectorAll('button, input')].filter(k => k.offsetParent !== null);
+    if(!knoepfe.length) return;
+    const erst = knoepfe[0], letzt = knoepfe[knoepfe.length - 1];
+    if(e.shiftKey && document.activeElement === erst){ e.preventDefault(); letzt.focus(); }
+    else if(!e.shiftKey && document.activeElement === letzt){ e.preventDefault(); erst.focus(); }
+  });
+
+  /* --- Öffentliche Oberfläche --- */
+  return {
+    einstellung,
+    get offen(){ return offen; },
+    zeigeHud(an){
+      grund.classList.toggle('an', an); hilfe.classList.toggle('an', an);
+      if(!an){ wertung.classList.remove('an'); wertungBis = 0; }
+    },
+    pause(f, welt){
+      $$('ui-pause-zeit').textContent = uiZeit(f.zeit);
+      $$('ui-pause-wo').textContent = Math.round(Math.min(f.s, welt.L)) + ' / ' + welt.L + ' m · ' +
+        Math.round(f.vMax*3.6) + ' km/h Spitze';
+      zeige('pause');
+    },
+    weiter(){ zeige(null); },
+    ziel(f, welt, track, bikeName){
+      const k = track.key + '|' + bikeName;
+      const vorher = besten.hole(k), neu = besten.setze(k, f.zeit);
+      $$('ui-ziel-zeit').textContent = uiZeit(f.zeit);
+      $$('ui-ziel-best').textContent = neu
+        ? (vorher === undefined ? 'Erste Zeit auf dieser Strecke' : 'Bestzeit — ' + (vorher - f.zeit).toFixed(1).replace('.', ',') + ' s schneller')
+        : 'Bestzeit ' + uiZeit(vorher);
+      const z = $$('ui-ziel-zeilen'); z.textContent = '';
+      const zeile = (name, wert, art) => {
+        const d = document.createElement('div'); d.className = 'zeile' + (art ? ' ' + art : '');
+        const a = document.createElement('span'); a.textContent = name;
+        const b = document.createElement('b'); b.textContent = wert;
+        d.append(a, b); z.appendChild(d);
+      };
+      zeile('Spitze', Math.round(f.vMax*3.6) + ' km/h');
+      zeile('Luftzeit', f.luftGesamt.toFixed(1).replace('.', ',') + ' s');
+      zeile('Landungen', f.landungen + ' · davon ' + f.sauber + ' sauber', f.sauber >= f.landungen/2 ? 'gut' : '');
+      if(f.gecased) zeile('Zu kurz gesprungen', String(f.gecased), 'schlecht');
+      if(f.ueberschossen) zeile('Überschossen', String(f.ueberschossen), 'schlecht');
+      zeile('Randkontakte', String(f.stuerze), f.stuerze ? 'schlecht' : 'gut');
+      zeige('ziel');
+    },
+    /* Pro Frame: Untergrund und Landungsbewertung. Beides ändert sich selten —
+       deshalb wird das DOM nur bei echter Änderung angefasst. */
+    takt(f, jetzt){
+      const g = UI_GRUND[f.untergrund] || '—';
+      const b = grund.querySelector('b');
+      if(b.textContent !== g) b.textContent = g;
+      if(f.letzteLandung && f.letzteLandung !== letzteLandung){
+        letzteLandung = f.letzteLandung;
+        const w = UI_WERTUNG[letzteLandung.typ];
+        if(w && letzteLandung.luft > 0.35){
+          wertung.textContent = w.text; wertung.style.color = w.farbe;
+          wertung.classList.add('an'); wertungBis = jetzt + 1100;
+        }
+      }
+      if(wertungBis && jetzt > wertungBis){ wertung.classList.remove('an'); wertungBis = 0; }
+    },
+    dispose(){
+      lage.remove(); grund.remove(); wertung.remove(); hilfe.remove(); stil.remove();
+    },
+  };
+}
+
+
 /* ===========================================================================
    9. STEUERUNG UND SCHLEIFE
    =========================================================================== */
@@ -5492,7 +5837,7 @@ const KAMERAS = [
   {name:'Cockpit',    hinten:-0.15, hoch:1.5, ziel:14, roll:0.85},
   {name:'Weit',       hinten:13,  hoch:5.4, ziel:6,  roll:0.30},
 ];
-let kamMode = 0;
+let kamMode = 0, stummGeschaltet = false;
 KONTEXT.KAMERAS = KAMERAS;
 
 addEventListener('keydown', e => {
@@ -5500,7 +5845,17 @@ addEventListener('keydown', e => {
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
   taste[k] = true;
   if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
-  if(k === 'r' && welt) neustart();
+  if(k === 'r' && welt){ neustart(); if(ui.offen) ui.weiter(); laeuft = true; }
+  if((k === 'escape' || k === 'p') && welt && hudAn){
+    // Pause hält nur die Physik an; gerendert wird weiter, sonst friert das Bild ein.
+    if(ui.offen === 'pause'){ ui.weiter(); if(fahrer.s < welt.L) laeuft = true; }
+    else if(!ui.offen){ laeuft = false; ui.pause(fahrer, welt); }
+  }
+  if(k === 'm' && module.audio){
+    stummGeschaltet = !stummGeschaltet;
+    module.audio.stumm(stummGeschaltet);
+    meldung(stummGeschaltet ? 'Ton aus' : 'Ton an', 1200);
+  }
   if(welt && k >= '1' && k <= '9'){ const id = BIKE_IDS[Number(k) - 1]; if(id) wechsleRad(id); }
   if(k === 'f' && welt){
     const i = CHARAKTERE.findIndex(c => c.id === aktCharakterId);
@@ -5725,12 +6080,32 @@ async function starte(){
   zeigeLade(false);
 
   $('hud').classList.add('on'); $('right').classList.add('on');
+  ui.zeigeHud(true); ui.weiter();
   hudAn = true; laeuft = true;
   // Der AudioContext braucht die Geste — der Klick auf „Abfahrt" ist sie.
-  if(module.audio){ module.audio.start().then(() => module.audio.ereignis('start')).catch(() => {}); }
+  if(module.audio){
+    module.audio.lautstaerke(ui.einstellung.ton);
+    module.audio.stumm(stummGeschaltet);
+    module.audio.start().then(() => module.audio.ereignis('start')).catch(() => {});
+  }
+  if(module.licht) module.licht.setzeTageszeit(ui.einstellung.tageszeit);
+  if(ui.einstellung.qualitaet !== QUALITAET.stufe) setzeQualitaet(ui.einstellung.qualitaet);
   timer.update(performance.now()); timer.getDelta();
   if(!glbOk) meldung('Modell nicht gefunden (' + GLB_PFAD + '), Rohrmodell aktiv', 4500);
 }
+
+const ui = uiBaue(KONTEXT, {
+  fortsetzen(){ if(fahrer && fahrer.s < welt.L) laeuft = true; },
+  neustart(){ neustart(); laeuft = true; },
+  zumMenue(){
+    laeuft = false; hudAn = false; ui.zeigeHud(false);
+    $('hud').classList.remove('on'); $('right').classList.remove('on');
+    $('start').classList.remove('gone'); $('go').focus({preventScroll:true});
+  },
+  setzeQualitaet(q){ setzeQualitaet(q); },
+  setzeTageszeit(t){ if(module.licht) module.licht.setzeTageszeit(t); },
+  setzeTon(v){ if(module.audio) module.audio.lautstaerke(v); },
+});
 
 let meldungTimer = 0;
 function meldung(text, ms){
@@ -5797,13 +6172,11 @@ renderer.setAnimationLoop(() => {
     if(fahrer.s >= welt.L){
       laeuft = false;
       if(module.audio) module.audio.ereignis('ziel');
-      meldung('Ziel · ' + Math.floor(fahrer.zeit/60) + ':' +
-              (fahrer.zeit%60 < 10 ? '0' : '') + (fahrer.zeit%60).toFixed(1) +
-              ' · ' + fahrer.luftGesamt.toFixed(1).replace('.',',') + ' s Luft' +
-              ' · ' + fahrer.stuerze + ' Randkontakte · R für neu', 99999);
+      ui.ziel(fahrer, welt, welt.track, BIKES[aktRad].name);
     }
     pruefeElement();
     schreibeHud(dt);
+    ui.takt(fahrer, performance.now());
 
     // --- Fahrer setzen ---
     const st = stInterp(welt, fahrer.s);
@@ -5930,7 +6303,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    baueStrecke, neuerFahrer, schritt, stInterp, weltPos, hoeheWelt, wechsleRad, renderer,
                    scene, camera, sonne, fill, noise, DS, N_QUER, SKIRT, SKIRT_AB, SKIRT_AUF, FILLET, FARBE,
                    sicht, HOOKS, QUALITAET, QUALITAETEN, setzeQualitaet, KAMERAS, ein, timer, baueBaeume,
-                   untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module,
+                   untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module, ui, THREE,
                    get kamMode(){ return kamMode; }, set kamMode(v){ kamMode = v % KAMERAS.length; },
                    get schatten(){ return schatten; },
                    get welt(){ return welt; }, get fahrer(){ return fahrer; },
