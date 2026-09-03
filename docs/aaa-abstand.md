@@ -9,11 +9,19 @@ Was noch offen ist, steht als offen drin — keine Punkte, die nur gut aussehen.
 
 ## Vorbemerkung: drei Grenzen, die bleiben
 
-**Fahrer und Rad sind gesperrt.** Der Fahrer ist ein Rohrmodell mit Kugelkopf,
-das Rad ein Zylinderaufbau. Ein Spieler schaut die ganze Zeit darauf. Solange
-das so bleibt, ist „sieht aus wie ein veröffentlichtes Spiel" nicht erreichbar,
-sondern nur „alles außer Fahrer und Rad ist auf dem Niveau". Das ist keine
-Ausrede für den Rest, aber es ist die Obergrenze.
+**Fahrer und Rad waren gesperrt — sind es nicht mehr.** Der ursprüngliche
+Auftrag klammerte beides aus („werden separat erstellt"). Solange das galt, war
+„sieht aus wie ein veröffentlichtes Spiel" nicht erreichbar, sondern nur „alles
+außer Fahrer und Rad ist auf dem Niveau" — ein Spieler schaut die ganze Zeit
+darauf. Die Sperre wurde später aufgehoben: erst fürs Rad („Fahrradqualität wie
+Riders Republic"), dann für den Fahrer. Beide sind inzwischen ausgebaut, das Rad
+mit echten Bauteilen, der Fahrer mit Fullface-Helm und Proportionen je Charakter.
+
+Was als Grenze bleibt: die Figur besteht weiter aus Primitiven. Kein Rig, also
+keine Gewichtsverlagerung, kein Stoff, keine Texturen auf Trikot oder Rahmen.
+Der Sprung von „Rohrmodell" auf „liest sich als Downhill-Fahrer" ist gemacht;
+der Sprung auf ein geskinntes Modell braucht ein GLB — der Ladeweg dafür steht
+und ist getestet (siehe `glb-modell.md`).
 
 **Bildrate ist hier nicht messbar.** Getestet wird headless mit SwiftShader,
 also Software-Rendering mit Sekunden pro Frame. Draw Calls, Dreiecke, Texturen

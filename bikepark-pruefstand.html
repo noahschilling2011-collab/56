@@ -345,13 +345,26 @@ const BIKES = {
 };
 const BIKE_IDS = Object.keys(BIKES);   // Reihenfolge = Tasten 1–5
 
-/* Charaktere: Palette + Ausstattung. Die GLB hat kein Rig, also keine Posen
-   oder Körpergrößen — vier Fahrer:innen, die man auf 10 m auseinanderhält. */
+/* Vier Fahrerinnen und Fahrer — Palette, Ausstattung, Proportion.
+
+   Unter dem Fullface-Helm gibt es kein Gesicht mehr, das sie unterscheiden
+   koennte — und das ist der Punkt: getrennt werden sie ueber die Silhouette.
+   `figur` sind Faktoren auf das Grundmass, alles um 1 herum. Schulter und
+   Huefte aendern die Breite, arm und bein die Gliedmassenlaenge, groesse die
+   Hoehe, rumpf die Dicke. Die Helmform variiert die Schale.
+
+   Die Kombination macht den Unterschied: schmale Schultern mit breiter Huefte
+   und langen Beinen liest sich anders als das Umgekehrte, auch wenn beide
+   gleich gross sind. */
 const CHARAKTERE = [
-  { id:'mia',   name:'Mia',   jersey:0x0a7a6a, hose:0x0a0d12, helm:0xff3008, haut:0x945a30, haar:0x0a0503, zopf:true,  schirm:true  },
-  { id:'lenny', name:'Lenny', jersey:0x1b1f27, hose:0x1b1f27, helm:0xd9a441, haut:0xe0b090, haar:0x3a2a18, zopf:false, schirm:true  },
-  { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false },
-  { id:'nora',  name:'Nora',  jersey:0xffffff, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true  },
+  { id:'mia',   name:'Mia',   jersey:0x0a7a6a, hose:0x0a0d12, helm:0xff3008, haut:0x945a30, haar:0x0a0503, zopf:true,  schirm:true,
+    figur:{schulter:0.94, huefte:1.06, arm:1.00, bein:1.04, groesse:0.99, rumpf:0.95, helm:'rund'} },
+  { id:'lenny', name:'Lenny', jersey:0x1b1f27, hose:0x1b1f27, helm:0xd9a441, haut:0xe0b090, haar:0x3a2a18, zopf:false, schirm:true,
+    figur:{schulter:1.12, huefte:0.96, arm:1.05, bein:0.98, groesse:1.04, rumpf:1.10, helm:'lang'} },
+  { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false,
+    figur:{schulter:1.04, huefte:0.98, arm:0.96, bein:0.94, groesse:0.95, rumpf:1.02, helm:'flach'} },
+  { id:'nora',  name:'Nora',  jersey:0xdfe4e8, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true,
+    figur:{schulter:0.90, huefte:1.02, arm:1.06, bein:1.08, groesse:1.02, rumpf:0.92, helm:'rund'} },
 ];
 let aktCharakterId = 'mia';
 const aktCharakter = () => CHARAKTERE.find(c => c.id === aktCharakterId) || CHARAKTERE[0];
@@ -1625,18 +1638,43 @@ function zylRing(radius, breite, wand, seg){
   return g;
 }
 
-/* Fahrerin: eine Funktion für alle Fahrzeuge. `farben` kommt aus CHARAKTERE,
-   `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien und die
-   umschaltbaren Teile (Zopf, Helmschirm) werden in userData abgelegt, damit ein
-   Charakterwechsel nur Farben setzt und nichts neu baut. */
+/* Fahrerin und Fahrer: eine Funktion für alle Fahrzeuge. `farben` kommt aus
+   CHARAKTERE, `pose` ist 'angriff' (Rad) oder 'stehend' (Roller). Materialien
+   und die umschaltbaren Teile (Zopf, Helmschirm) liegen in userData, damit ein
+   Farbwechsel ohne Neubau geht — die Proportionen dagegen stecken in der
+   Geometrie, dafür baut wechsleCharakter() die Figur neu.
+
+   Vorher: eine nackte Hautkugel als Kopf, darüber eine Helm-Halbkugel bis
+   0,62π. Das Gesicht schaute unten heraus, und genau dort scheitern
+   prozedurale Figuren immer — Augen, Nase, Mund lassen sich aus Primitiven
+   nicht bauen, und ein angedeutetes Gesicht liest sich schlechter als gar
+   keines.
+
+   Downhill löst das von selbst: dort trägt jeder einen Fullface-Helm mit
+   Brille. Damit fällt die ganze Problemzone weg, und ein Helm IST einfache
+   Geometrie — Schale, Kinnbügel, Visier, Glas. Er liest sich sofort richtig.
+
+   Unterschieden werden die Figuren deshalb über Proportion und Ausrüstung,
+   nicht über Gesichtszüge: Schulterbreite, Hüfte, Gliedmaßenlänge, Körpergröße
+   und Helmform. Das funktioniert gerade WEIL das Gesicht verdeckt ist. */
+
+/* Proportionen je Charakter. Alles Faktoren auf das Grundmaß, damit die
+   Gelenkpunkte weiter aus einer Tabelle kommen und die Pose nicht je Figur
+   neu gebaut werden muss. */
+const FIGUR_STD = {schulter:1, huefte:1, arm:1, bein:1, groesse:1, rumpf:1, helm:'rund'};
+
 function baueFahrerin(farben, pose = 'angriff'){
   const F = farben || CHARAKTERE[0];
+  const fig = Object.assign({}, FIGUR_STD, F.figur || {});
   const matJersey = new THREE.MeshStandardMaterial({color:F.jersey, roughness:0.85}); matJersey.name = 'jersey';
   const matHose   = new THREE.MeshStandardMaterial({color:F.hose, roughness:0.9});    matHose.name = 'kit_pants';
   const matHaut   = new THREE.MeshStandardMaterial({color:F.haut, roughness:0.7});    matHaut.name = 'skin';
-  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.3, metalness:0.15}); matHelm.name = 'helmet';
+  const matHelm   = new THREE.MeshStandardMaterial({color:F.helm, roughness:0.28, metalness:0.10}); matHelm.name = 'helmet';
   const matHaar   = new THREE.MeshStandardMaterial({color:F.haar, roughness:0.9});    matHaar.name = 'hair';
   const matSchw   = new THREE.MeshStandardMaterial({color:0x1c1e22, roughness:0.75, metalness:0.2});
+  // Brillenglas: getönt und leicht spiegelnd. Das ist das einzige Teil am
+  // Kopf, das Licht fängt — dadurch liest sich der Helm als Helm.
+  const matGlas   = new THREE.MeshStandardMaterial({color:0x141a22, roughness:0.12, metalness:0.55});
   const g = new THREE.Group(); g.name = 'rider_female';
 
   let P;   // Gelenkpunkte je Pose
@@ -1655,21 +1693,86 @@ function baueFahrerin(farben, pose = 'angriff'){
          hueR:V( 0.09,0.98,-0.12), knieR:V( 0.17,0.70,-0.02), fussR:V( 0.16,0.42,-0.12),
          schuhL:V(-0.16,0.37,0.16), schuhR:V(0.16,0.37,-0.12), hals:V(0,1.30,0.20), rumpfR:0.15};
   }
-  g.add(mesh([glied(P.huefte, P.schulter, P.rumpfR), kugel(P.huefte, 0.135),
-    glied(P.schL, P.ellL, 0.052), glied(P.schR, P.ellR, 0.052)], matJersey));
+  // Proportionen anwenden: Schultern und Hüfte in der Breite, Gliedmaßen in
+  // der Länge vom jeweiligen Ansatzpunkt aus, alles zusammen in der Höhe.
+  const breit = (pt, f) => { pt.x *= f; return pt; };
+  for(const k of ['schL','schR','ellL','ellR','handL','handR']) breit(P[k], fig.schulter);
+  for(const k of ['hueL','hueR','knieL','knieR','fussL','fussR','schuhL','schuhR']) breit(P[k], fig.huefte);
+  const strecke = (von, nach, f) => { nach.sub(von).multiplyScalar(f).add(von); return nach; };
+  if(fig.arm !== 1){
+    strecke(P.schL, P.ellL, fig.arm); strecke(P.ellL, P.handL, fig.arm);
+    strecke(P.schR, P.ellR, fig.arm); strecke(P.ellR, P.handR, fig.arm);
+  }
+  if(fig.bein !== 1){
+    strecke(P.hueL, P.knieL, fig.bein); strecke(P.knieL, P.fussL, fig.bein);
+    strecke(P.hueR, P.knieR, fig.bein); strecke(P.knieR, P.fussR, fig.bein);
+    P.schuhL.y = P.fussL.y - 0.05; P.schuhR.y = P.fussR.y - 0.05;
+  }
+  if(fig.groesse !== 1) for(const k in P) if(P[k] && P[k].isVector3) P[k].y *= fig.groesse;
+
+  const rR = P.rumpfR * fig.rumpf;
+  // glied() ist eine Kapsel, hat also schon eine Kappe. Die Huefkugel gibt
+  // nur Volumen und muss darunter bleiben - sonst entsteht eine Naht.
+  const hueftR = Math.min(0.135 * fig.huefte, rR * 0.94);
+  g.add(mesh([glied(P.huefte, P.schulter, rR), kugel(P.huefte, hueftR),
+    glied(P.schulter, P.hals, 0.105*fig.rumpf),
+    glied(P.schL, P.ellL, 0.052*fig.rumpf), glied(P.schR, P.ellR, 0.052*fig.rumpf)], matJersey));
+  // Unterarme bleiben Haut, die Hände bekommen Handschuhe — an einem
+  // Downhill-Fahrer ist nackte Hand am Lenker das Unwahrscheinlichste.
   g.add(mesh([glied(P.ellL, P.handL, 0.042), glied(P.ellR, P.handR, 0.042),
-    kugel(P.handL, 0.045), kugel(P.handR, 0.045), glied(P.hals, P.kopf, 0.05)], matHaut));
-  g.add(new THREE.Mesh(kugel(P.kopf, 0.115), matHaut));
-  g.add(mesh([glied(P.hueL, P.knieL, 0.075), glied(P.hueR, P.knieR, 0.075),
+    glied(P.hals, P.kopf, 0.062)], matHaut));
+  // Manschette: das letzte Viertel des Unterarms, als eigener Punkt gerechnet.
+  // glied() nimmt drei Parameter — a, b, Radius — und kann kein Teilstueck.
+  const teil = (a, b, t) => a.clone().lerp(b, t);
+  g.add(mesh([kugel(P.handL, 0.050), kugel(P.handR, 0.050),
+    glied(teil(P.ellL, P.handL, 0.72), P.handL, 0.046),
+    glied(teil(P.ellR, P.handR, 0.72), P.handR, 0.046)], matSchw));
+
+  g.add(mesh([glied(P.hueL, P.knieL, 0.075*fig.huefte), glied(P.hueR, P.knieR, 0.075*fig.huefte),
     glied(P.knieL, P.fussL, 0.058), glied(P.knieR, P.fussR, 0.058)], matHose));
-  g.add(mesh([kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
-  const helm = new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI*2, 0, Math.PI*0.62); helm.translate(P.kopf.x, P.kopf.y + 0.01, P.kopf.z);
-  g.add(new THREE.Mesh(helm, matHelm));
-  const schirm = new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.08, P.kopf.z + 0.14), 0.20, 0.012, 0.09, -0.3), matHelm);
+  // Knieschoner: an einem DH-Fahrer immer da, und die Silhouette am Knie ist
+  // aus der Verfolgerkamera gut sichtbar.
+  g.add(mesh([kugel(P.knieL, 0.082), kugel(P.knieR, 0.082),
+    kasten(P.schuhL, 0.09, 0.07, 0.24), kasten(P.schuhR, 0.09, 0.07, 0.24)], matSchw));
+
+  /* --- Fullface-Helm ---
+     Vier Teile, keine Boolean-Operationen: Schale mit 0,130 m Radius bis 0,76π (umschließt den
+     Kopf ganz), ein dunkles Brillenband quer über die Augenpartie, darunter
+     der Kinnbügel als vorgezogener Kasten, und der Schirm oben. Das Band
+     ersetzt die Öffnung, die man ohne CSG nicht schneiden kann — und ist
+     zugleich das Brillenglas. */
+  const K = P.kopf;
+  g.add(new THREE.Mesh(kugel(K, 0.090), matHaut));      // Kopf, komplett verdeckt
+
+  const helmR = 0.130, tief = fig.helm === 'flach' ? 0.70 : 0.76;
+  const schale = new THREE.SphereGeometry(helmR, 18, 14, 0, Math.PI*2, 0, Math.PI*tief);
+  if(fig.helm === 'flach') schale.scale(1, 0.94, 1.04);
+  if(fig.helm === 'lang')  schale.scale(0.97, 1.03, 1.06);
+  schale.translate(K.x, K.y + 0.012, K.z);
+  // Kinnbügel: vom Wangenbereich nach vorn gezogen, unten geschlossen
+  const kinn = new THREE.BoxGeometry(0.178, 0.082, 0.150);
+  kinn.translate(K.x, K.y - 0.080, K.z + 0.105);
+  const kinnUnten = new THREE.SphereGeometry(0.102, 14, 8, 0, Math.PI*2, Math.PI*0.52, Math.PI*0.48);
+  kinnUnten.scale(1.02, 0.86, 1.30);
+  kinnUnten.translate(K.x, K.y - 0.018, K.z + 0.030);
+  g.add(mesh([schale, kinn, kinnUnten], matHelm));
+
+  // Brillenband: sitzt zwischen Schale und Kinnbügel und liest sich als
+  // Sichtöffnung mit getöntem Glas.
+  const band = new THREE.BoxGeometry(0.182, 0.058, 0.105);
+  band.translate(K.x, K.y - 0.006, K.z + 0.085);
+  const glasR = new THREE.SphereGeometry(0.122, 16, 10, Math.PI*0.72, Math.PI*0.56, Math.PI*0.34, Math.PI*0.30);
+  glasR.scale(1, 1, 1.22); glasR.translate(K.x, K.y + 0.006, K.z + 0.012);
+  g.add(mesh([band, glasR], matGlas));
+
+  const schirm = new THREE.Mesh(kasten(V(K.x, K.y + 0.082, K.z + 0.140), 0.196, 0.013, 0.108, -0.34), matHelm);
   schirm.name = 'helmet_peak'; schirm.visible = !!F.schirm; g.add(schirm);
-  g.add(new THREE.Mesh(kasten(V(P.kopf.x, P.kopf.y + 0.01, P.kopf.z + 0.12), 0.17, 0.05, 0.04), matSchw));   // Brille
-  const zopf = new THREE.Mesh(glied(V(P.kopf.x, P.kopf.y + 0.02, P.kopf.z - 0.10), V(P.kopf.x, P.kopf.y - 0.22, P.kopf.z - 0.20), 0.032), matHaar);
+
+  // Zopf tritt hinten unter der Schale aus — das einzige Merkmal, das die
+  // Figur nicht über die Proportion trägt.
+  const zopf = new THREE.Mesh(glied(V(K.x, K.y - 0.02, K.z - 0.112), V(K.x, K.y - 0.26, K.z - 0.19), 0.034), matHaar);
   zopf.name = 'ponytail'; zopf.visible = !!F.zopf; g.add(zopf);
+
   g.userData.charakter = {materialien:{jersey:matJersey, kit_pants:matHose, helmet:matHelm, skin:matHaut, hair:matHaar}, zopf, schirm};
   return g;
 }
@@ -1901,6 +2004,7 @@ function baueRad(bike, farben){
   halter.add(radH, radV);
 
   const fahrerin = baueFahrerin(farben, 'angriff');
+  fahrerin.userData.pose = 'angriff';
   koerper.add(fahrerin);
 
   halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
@@ -1928,7 +2032,8 @@ function baueRoller(bike, farben){
   const radH = laufrad(matReifen, matMetall, R, true); radH.position.copy(hinten);
   const radV = laufrad(matReifen, matMetall, R, true); radV.position.copy(vorn);
   halter.add(radH, radV);
-  const fahrerin = baueFahrerin(farben, 'stehend'); fahrerin.position.y = 0.15;   // steht auf dem Brett
+  const fahrerin = baueFahrerin(farben, 'stehend');
+  fahrerin.userData.pose = 'stehend'; fahrerin.position.y = 0.15;   // steht auf dem Brett
   koerper.add(fahrerin);
   halter.userData = {quelle:'rohr', raeder:[radH, radV], kurbel:null, koerper, fahrerin, radR:R, feder:0, federV:0, letzteLandung:null, drawcalls:null};
   return halter;
@@ -1972,22 +2077,27 @@ function ladeGLBDatei(pfad){
   if(!glbDateien.has(pfad)) glbDateien.set(pfad, new Promise((ok, no) => new GLTFLoader().load(pfad, ok, undefined, no)));
   return glbDateien.get(pfad);
 }
-function baukasten(bike){
-  return bike.id === 'roller' ? baueRoller(bike, aktCharakter()) : baueRad(bike, aktCharakter());
+function baukasten(bike, farben){
+  const F = farben || aktCharakter();
+  return bike.id === 'roller' ? baueRoller(bike, F) : baueRad(bike, F);
 }
-async function ladeFahrzeug(bike){
+/* `farben` ist optional: ohne Angabe der gewaehlte Charakter (Spielerrad), mit
+   Angabe der jeweilige Gegner. Wichtig, seit `figur` in der Geometrie steckt —
+   ein spaeteres wendeCharakterAn() kann die Proportion nicht mehr aendern. */
+async function ladeFahrzeug(bike, farben){
+  const F = farben || aktCharakter();
   const pfad = bike.modell && bike.modell.glb;
-  if(!pfad) return baukasten(bike);
+  if(!pfad) return baukasten(bike, F);
   let gltf;
   try{ gltf = await ladeGLBDatei(pfad); }
   catch(e){
     // Die Hauptdatei fehlt: laut sagen. Eine optionale fahrzeuge/<id>.glb fehlt: normal, leise.
     if(pfad === GLB_PFAD_HAUPT) console.warn('GLB nicht geladen (' + ((e && e.message) || e) + ') — Rohrmodell aktiv');
     else console.info('Kein ' + pfad + ' — Baukasten für ' + bike.id);
-    return baukasten(bike);
+    return baukasten(bike, F);
   }
   const halter = richteGLB(gltf.scene.clone(true), bike);
-  wendeCharakterAn(halter, aktCharakter());
+  wendeCharakterAn(halter, F);
   return halter;
 }
 
@@ -8475,11 +8585,45 @@ if(CHARAKTERE.some(c => c.id === gemerkt('charakter', 'mia'))) aktCharakterId = 
 
 /* Charakterwechsel: kein Neuladen, kein Neubau — nur Farben und zwei
    Sichtbarkeiten auf jedem schon gebauten Fahrzeug (radCache). */
+/* Fahrerin am gebauten Rad ersetzen. Farben liessen sich am Material tauschen,
+   Proportionen nicht — die stecken in der Geometrie. */
+function baueFahrerinNeu(h, ch){
+  const u = h && h.userData;
+  if(!u || u.quelle !== 'rohr' || !u.fahrerin || !u.koerper) return;
+  const alt = u.fahrerin;
+  const pose = alt.userData.pose || 'angriff';
+  const neu = baueFahrerin(ch, pose);
+  neu.userData.pose = pose;
+  neu.position.copy(alt.position); neu.rotation.copy(alt.rotation);
+  u.koerper.remove(alt);
+  alt.traverse(o => { if(o.isMesh){ o.geometry.dispose();
+    for(const m of (Array.isArray(o.material)?o.material:[o.material])) if(m) m.dispose(); } });
+  u.koerper.add(neu); u.fahrerin = neu; u.charVeraltet = false;
+  // Schatten gilt fuer neue Meshes nicht automatisch
+  neu.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+}
+
 function wechsleCharakter(id){
   const ch = CHARAKTERE.find(c => c.id === id);
   if(!ch) return;
   aktCharakterId = id; merke('charakter', id);
-  for(const h of Object.values(radCache)) wendeCharakterAn(h, ch);
+  /* Farben lassen sich am gebauten Modell tauschen, Proportionen nicht — die
+     stecken in der Geometrie. Seit die Figuren sich ueber Schulterbreite,
+     Huefte und Gliedmassenlaenge unterscheiden, reicht Umfaerben nicht mehr:
+     gemessen kamen bei allen vier dieselben 0,777 m Breite heraus, weil
+     `figur` nur beim Bau gelesen wird.
+
+     Beim Rohrmodell wird die Fahrerin deshalb ersetzt. Ein GLB behaelt seine
+     Geometrie und bekommt weiter nur die Farben — dort bringt der Modellbauer
+     die Proportionen selbst mit. */
+  for(const h of Object.values(radCache)){
+    const u = h.userData;
+    if(!(u && u.quelle === 'rohr' && u.fahrerin && u.koerper)){ wendeCharakterAn(h, ch); continue; }
+    // Taste F wechselt mitten im Lauf. Nur das montierte Rad wird sofort
+    // umgebaut, die anderen erst beim naechsten Aufsitzen — sonst kostet ein
+    // Tastendruck bis zu fuenf Neubauten samt dispose() in einem Frame.
+    if(h === halter) baueFahrerinNeu(h, ch); else u.charVeraltet = true;
+  }
   document.querySelectorAll('#chars .card').forEach(c =>
     c.setAttribute('aria-pressed', String(c.dataset.id === id)));
   if(hudAn) meldung(ch.name, 1500);
@@ -8506,6 +8650,8 @@ async function wechsleRad(id){
   if(halter) scene.remove(halter);
   if(!radCache[id]) radCache[id] = await ladeFahrzeug(BIKES[id]);
   halter = radCache[id];
+  // Charakter wurde gewechselt, waehrend dieses Rad abgestellt war
+  if(halter.userData.charVeraltet) baueFahrerinNeu(halter, aktCharakter());
   scene.add(halter);
   montiert = id; merke('rad', id);
   $('vname').textContent = BIKES[id].name;
@@ -8540,7 +8686,7 @@ async function stelleFeld(n){
       modell: Object.assign({}, k.fahrer.bike.modell,
         {bau: Object.assign({}, (k.fahrer.bike.modell && k.fahrer.bike.modell.bau) || {}, {detail: 'grob'})}),
     });
-    const h = await ladeFahrzeug(bikeGrob);
+    const h = await ladeFahrzeug(bikeGrob, gegnerCharakter(i));
     // Gegner farblich abheben, damit man sie im Feld auseinanderhaelt.
     faerbeGegner(h, i);
     scene.add(h);
@@ -8558,18 +8704,22 @@ function raeumeFeldAuf(){
   if(module.ki) module.ki.dispose();
 }
 
-/* Trikotfarben: die Gegner sollen im Feld unterscheidbar sein. Genutzt wird
-   dafuer wendeCharakterAn — dieselbe Funktion, mit der der Spieler seinen
-   Charakter waehlt. Damit greift es auch beim GLB-Modell, statt an einer
-   selbst erfundenen Materialkonvention vorbeizulaufen. */
+/* Gegnercharakter: Trikot und Helm aus einer festen Palette, Proportion und
+   Ausruestung aus einem der vier Charaktere. Das Objekt geht schon in
+   ladeFahrzeug() — seit `figur` die Geometrie bestimmt, kaeme ein spaeteres
+   wendeCharakterAn() fuer die Silhouette zu spaet und alle acht Gegner haetten
+   die Figur des Spielers. Die Farben laufen weiter ueber wendeCharakterAn,
+   damit es auch am GLB-Modell greift. */
 const GEGNER_TRIKOT = [0xe0574a, 0x4a8fe0, 0xe0c14a, 0x9a4ae0, 0x4ae08f, 0xe07f4a, 0x4ae0d8, 0xe04a9a];
-function faerbeGegner(halter, i){
+function gegnerCharakter(i){
   const basis = CHARAKTERE[i % CHARAKTERE.length];
-  wendeCharakterAn(halter, Object.assign({}, basis, {
+  return Object.assign({}, basis, {
+    id: basis.id + '-g' + i,
     jersey: GEGNER_TRIKOT[i % GEGNER_TRIKOT.length],
     helm: GEGNER_TRIKOT[(i + 3) % GEGNER_TRIKOT.length],
-  }));
+  });
 }
+function faerbeGegner(halter, i){ wendeCharakterAn(halter, gegnerCharakter(i)); }
 
 /* Gegnerwahl im Startmenue. 0 laesst das Spiel als Zeitfahren laufen — genau
    wie vorher, ohne dass irgendetwas KI-bezogenes greift. */
