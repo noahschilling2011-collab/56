@@ -1,3 +1,84 @@
+# Projekte in diesem Repo
+
+| Projekt | Datei | Starten |
+|---|---|---|
+| **🚵 Bikepark-Prüfstand** | `bikepark-pruefstand.html` | über einen lokalen Server öffnen (siehe unten) |
+| **✈ Flughafen-Job-Simulator** | `airport-job-simulator.html` | Datei im Browser öffnen |
+| **✈ Flughafen-Job-Simulator (Roblox)** | `roblox/AirportJobSimulator.rbxlx` | in Roblox Studio öffnen → **Play** |
+
+---
+
+# 🚵 Bikepark-Prüfstand
+
+Drei 1900-m-Downhill-Strecken mit 300 Höhenmetern, aus einer Elementliste gebaut
+statt zufällig erzeugt: bei jedem Run liegt derselbe Sprung an derselben Stelle.
+Fünf Räder vom DH-Bike bis zum E-Roller, vier Fahrerinnen.
+
+**Starten:** Das Spiel lädt Three.js als ES-Modul vom CDN, deshalb braucht es
+einen Server — per Doppelklick blockiert der Browser den Import (`file://` hat
+keinen gültigen Origin):
+
+```bash
+python3 -m http.server 8000     # dann http://localhost:8000/bikepark-pruefstand.html
+```
+
+**Steuerung:** `W` Gas · `S` Bremse · `A`/`D` Linie · `C` Kamera (Verfolgung,
+Cockpit, Weit) · `R` Neustart · `Esc` Pause · `M` Ton · `1`–`5` Rad · `F` Fahrerin
+
+## Was die Welt ausmacht
+
+**Strecke.** Die Fahrfläche entsteht aus einem Querschnitt, der pro Station
+gerechnet wird — ein Wallride ist deshalb Trailboden plus aufsteigende Wand, kein
+schräg gestellter Streifen. Das Material darauf mischt Erde, Schotter, Bohlen,
+Beton und Gras im Shader; darüber liegen Fahrrillen, Bremswellen vor den
+Anliegern und aufgewühlte Erde in den ersten Metern jeder Landung.
+
+**Gelände.** Um die Strecke herum steht eine ganze Landschaft: Berge bis auf
+680 m mit Felsgraten und Schneefeldern, ein Tal mit See, ein Talkessel am Ziel,
+Felswände und Geröll. Bergseitig schneidet der Trail in den Hang, talseitig fällt
+er ab — beides schließt nahtlos an die Streckenschürze an.
+
+**Wald.** Drei Baumarten mit je zwei Detailstufen, dazu Farne, Büsche, liegende
+Stämme und Grasbüschel, die sich im Wind bewegen.
+
+**Bikepark.** Bergstation, Startgatter mit Banner, Zielbogen mit Zeittafel,
+Zelte, Streckenschilder vor jedem Element, Zäune, Sicherheitsnetze,
+Reifenstapel — und Zuschauer an den großen Sprüngen und Wallrides.
+
+**Licht.** Preetham-Himmel mit vier Tageszeiten, Umgebungslicht per PMREM aus
+demselben Himmel, Sonnenschatten, die dem Fahrer folgen, und ein schlanker
+Post-Stack: Ambient Occlusion, dezentes Bloom, Farbkorrektur, Vignette,
+Motion-Blur nach Tempo, Kantenglättung.
+
+**Ton.** Vollständig prozedural (kein einziges Audiofile): Rollgeräusch je
+Untergrund, Wind nach Tempo, Sprünge und Landungen, Bremsen, Vögel, Bach,
+Zuschauer und Kuhglocken.
+
+## Physik
+
+Punktmasse auf der Fahrfläche. Die Höhe wird ballistisch integriert und gegen die
+Fläche geklemmt — der Absprung entsteht dadurch von selbst, ohne Sonderregel.
+Dazu kommt ein Reibkreis: Kurvenkraft und Bremse teilen sich denselben Grip, wer
+im Anlieger voll bremst, rutscht. Der Untergrund verändert Grip, Rollwiderstand
+und Lenkverhalten. Jede Landung wird bewertet — sauber, hart, zu kurz (Case) oder
+überschossen — und geht in die Auswertung im Ziel ein, samt Bestzeit je Strecke
+und Rad.
+
+## Qualitätsstufen
+
+Über die Einstellungen (Startmenü oder Pause) umschaltbar: **Hoch** mit Ambient
+Occlusion, 2048er Schatten und voller Vegetationsdichte, **Mittel** ohne AO, und
+**Sparsam** ohne Schatten und Gras für schwache Geräte.
+
+## Eigenes Rad einbauen
+
+Liegt `mtb-emtb-fahrerin.glb` neben der HTML-Datei, wird sie geladen, eingemessen
+und auf den Boden gestellt; über ihren Inhalt wird nichts angenommen. Fehlt sie,
+baut das Spiel Rad und Fahrerin aus Rohren und Kapseln — die Seite läuft in
+jedem Fall.
+
+---
+
 # ✈ Flughafen-Job-Simulator
 
 Arbeite dich vom **Check-in-Schalter** über den **Ramp Agent** bis zum **Captain** hoch —
