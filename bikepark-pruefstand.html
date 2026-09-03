@@ -100,6 +100,13 @@
   #go:hover{background:rgba(79,209,197,.22)}
   #go:focus-visible{outline:2px solid var(--line);outline-offset:2px}
   #note{margin-top:16px;font-size:11px;color:var(--dim);line-height:1.7}
+  .segmente{display:flex;gap:4px;background:rgba(255,255,255,.05);padding:4px;border-radius:11px;
+    flex-wrap:wrap;width:max-content;max-width:100%}
+  .segmente button{font:inherit;font-size:12px;padding:7px 14px;border:0;background:transparent;
+    border-radius:8px;color:var(--fg);cursor:pointer}
+  .segmente button[aria-pressed="true"]{background:rgba(79,209,197,.16);color:var(--line)}
+  .segmente button:focus-visible{outline:2px solid var(--line);outline-offset:2px}
+  .hinweis{margin:8px 0 0;font-size:11px;color:var(--dim);line-height:1.6}
   #note code{color:var(--line)}
   #err{margin-top:14px;padding:11px 13px;border-radius:9px;font-size:11px;line-height:1.65;
     border:1px solid rgba(255,157,77,.35);background:rgba(255,157,77,.07);color:#ffc79a;display:none}
@@ -154,6 +161,7 @@
   <div>Absprung<span class="k">Leer</span> Pumpen<span class="k">Shift</span></div>
   <div>Gewicht<span class="k">Q</span><span class="k">E</span> Kamera<span class="k">C</span></div>
   <div>Rad<span class="k">1</span>–<span class="k">5</span> Fahrer:in<span class="k">F</span> Neustart<span class="k">R</span></div>
+  <div id="right-ki" hidden>KI-Debug<span class="k">K</span> nächster<span class="k">J</span></div>
 </div>
 
 <div id="elem" class="glass"></div>
@@ -172,6 +180,10 @@
 
     <p class="lbl">Fahrer:in</p>
     <div class="grid" id="chars"></div>
+
+    <p class="lbl">Gegner</p>
+    <div class="segmente" id="gegnerwahl" role="group" aria-label="Anzahl der KI-Gegner"></div>
+    <p class="hinweis" id="gegner-hinweis">Ohne Gegner ist es ein Zeitfahren wie bisher.</p>
 
     <button id="go">Abfahrt</button>
     <p id="note"></p>
@@ -1822,6 +1834,40 @@ function animiereFahrzeug(halter, f, dt, ein){
     u.fahrerin.position.y = Math.min(0, u.feder) * 0.9;
     u.fahrerin.rotation.x = -Math.min(0, u.feder) * 0.6;
   }
+}
+
+/* Ein Fahrzeug an die Stelle seines Fahrers setzen. Gilt fuer den Spieler und
+   fuer jeden KI-Fahrer gleichermassen: gleiche Physik, gleiche Darstellung. */
+function setzeFahrzeug(halter, welt, f, dt, ein, schatten){
+  if(!halter) return;
+  const st = stInterp(welt, f.s);
+  weltPos(welt, f.s, f.u, f.y, _p);
+  animiereFahrzeug(halter, f, dt, ein);
+  halter.position.copy(_p);
+  // Fahrtrichtung an der Station ist (sin ψ, 0, cos ψ); Rohrmodell und GLB schauen
+  // lokal nach +z. rotateY(ψ) dreht +z genau dorthin.
+  halter.rotation.set(0, 0, 0);
+  halter.rotateY(st.psi);
+  halter.rotateX(f.tilt);        // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
+  halter.rotateZ(-f.roll);
+  // Sturz: das Fahrzeug legt sich auf die Seite und sinkt auf Radhoehe ab.
+  // Gedreht wird nur der Halter — am Modell aendert sich nichts, damit ein
+  // spaeter eingesetztes GLB genauso kippt.
+  if(f.sturzKipp > 0.001){
+    const k = f.sturzKipp;
+    halter.rotateZ(f.sturzSeite * k * 1.35);
+    halter.rotateX(k * 0.22);
+    halter.position.y -= k * (RAD_R * 0.72);
+  }
+  if(schatten){
+    const sy = welt.flaeche(Math.min(f.s, welt.L), f.u);
+    weltPos(welt, f.s, f.u, sy + 0.05, schatten.position);
+    const hoch = Math.max(0, f.y - sy);
+    const sk = 1 + hoch*0.16;
+    schatten.scale.set(sk, 1, sk);
+    schatten.material.opacity = 0.42 / (1 + hoch*0.5);
+  }
+  return st;
 }
 
 /* Blob-Schatten: zeigt beim Sprung, wie hoch man wirklich ist. Kostet eine
@@ -5935,6 +5981,601 @@ function stgBaue(ein, taste, canvas){
 }
 
 
+/* ---- Modul ki ---- */
+/* ===========================================================================
+   16. KI-FAHRER
+
+   Die Gegner fahren mit derselben `schritt()`-Funktion wie der Spieler. Sie
+   bekommen kein eigenes Physikmodell, keinen Pfad, keine Sonderrechte und
+   keine Geschwindigkeitsanpassung: sie erzeugen dasselbe `ein`-Objekt, das
+   sonst von Tastatur, Gamepad oder Touch kommt — Gas, Bremse, Quer, Gewicht,
+   Absprung. Was dabei herauskommt, muss die Physik hergeben, sonst kommt es
+   nicht heraus. Deshalb stürzen sie auch echt.
+
+   Aufgebaut in drei Ebenen, die unterschiedlich schnell laufen:
+
+     Strategie   alle ~4 s   Wie fahre ich dieses Rennen gerade?
+                             (Angriff, Halten, Erholen — aus Ausdauer, Position
+                              und dem, was um mich herum passiert)
+     Linie       je Sektion  Welche der moeglichen Linien nehme ich?
+                             (Utility-Bewertung mehrerer Kandidaten, danach
+                              gewichtete Zufallswahl statt Bestenauswahl)
+     Regler      jeden Takt  Wie lenke, bremse und springe ich gerade?
+
+   Warum keine Ideallinie: es gibt keine gespeicherte. Die Kandidaten entstehen
+   pro Sektion aus der Streckengeometrie, und ihre Bewertung haengt von
+   Persoenlichkeit, Tempo, Nachbarn, Untergrund und der eigenen Erinnerung ab.
+   Zweimal dieselbe Sektion mit demselben Fahrer gibt deshalb nicht zweimal
+   dieselbe Wahl.
+   =========================================================================== */
+
+/* Zwoelf Eigenschaften, alle in 0..1 ausser Reaktion (Sekunden). Sie sind
+   nicht dekorativ — unten steht bei jeder, wo sie tatsaechlich hineingeht. */
+const KI_TYPEN = {
+  aggressiv:  {name:'Aggressiv',  mut:0.88, tempo:0.86, bremsen:0.34, kurve:0.72, sprung:0.78, reaktion:0.20, risiko:0.85, fehler:0.13, linie:0.80, ueberholen:0.92, ausdauer:0.62, lernen:0.45},
+  technisch:  {name:'Technisch',  mut:0.62, tempo:0.74, bremsen:0.70, kurve:0.92, sprung:0.60, reaktion:0.16, risiko:0.42, fehler:0.05, linie:0.90, ueberholen:0.55, ausdauer:0.78, lernen:0.88},
+  vorsichtig: {name:'Vorsichtig', mut:0.30, tempo:0.58, bremsen:0.88, kurve:0.68, sprung:0.32, reaktion:0.30, risiko:0.18, fehler:0.06, linie:0.55, ueberholen:0.25, ausdauer:0.90, lernen:0.60},
+  raser:      {name:'Speed Demon',mut:0.92, tempo:0.98, bremsen:0.22, kurve:0.55, sprung:0.62, reaktion:0.22, risiko:0.92, fehler:0.20, linie:0.45, ueberholen:0.85, ausdauer:0.50, lernen:0.30},
+  springer:   {name:'Jumper',     mut:0.80, tempo:0.72, bremsen:0.50, kurve:0.58, sprung:0.98, reaktion:0.19, risiko:0.70, fehler:0.14, linie:0.60, ueberholen:0.60, ausdauer:0.66, lernen:0.55},
+  rund:       {name:'Smooth',     mut:0.55, tempo:0.76, bremsen:0.62, kurve:0.84, sprung:0.66, reaktion:0.17, risiko:0.38, fehler:0.04, linie:0.86, ueberholen:0.45, ausdauer:0.86, lernen:0.70},
+  anfaenger:  {name:'Beginner',   mut:0.28, tempo:0.48, bremsen:0.80, kurve:0.40, sprung:0.25, reaktion:0.42, risiko:0.30, fehler:0.34, linie:0.28, ueberholen:0.20, ausdauer:0.55, lernen:0.92},
+  profi:      {name:'Pro',        mut:0.82, tempo:0.92, bremsen:0.58, kurve:0.94, sprung:0.88, reaktion:0.13, risiko:0.60, fehler:0.03, linie:0.95, ueberholen:0.75, ausdauer:0.92, lernen:0.80},
+  zocker:     {name:'Risk Taker', mut:0.96, tempo:0.88, bremsen:0.30, kurve:0.66, sprung:0.90, reaktion:0.24, risiko:0.98, fehler:0.24, linie:0.50, ueberholen:0.95, ausdauer:0.58, lernen:0.40},
+  konstant:   {name:'Consistent', mut:0.58, tempo:0.78, bremsen:0.66, kurve:0.80, sprung:0.64, reaktion:0.18, risiko:0.35, fehler:0.03, linie:0.78, ueberholen:0.50, ausdauer:0.95, lernen:0.65},
+};
+
+const KI_SEKTION = 45;        // m: so lang ist ein Entscheidungsabschnitt
+const KI_SICHT = 90;          // m Vorausschau der Sensoren
+const KI_STRATEGIE_T = 4.0;   // s zwischen Strategiewechseln
+const KI_TEMP = 0.55;         // Softmax-Temperatur: 0 = immer die beste Wahl
+
+/* Eigener Zufall je Fahrer, damit ein Lauf reproduzierbar bleibt, wenn man den
+   Seed festhaelt — und sich unterscheidet, wenn nicht. */
+function kiPrng(seed){
+  let s = (seed >>> 0) || 1;
+  return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+}
+const kiClamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+const kiTempoCache = new WeakMap();
+function kiSprungTempo(w, g){
+  let v = kiTempoCache.get(g);
+  if(v === undefined){ v = zielTempo(w, g); kiTempoCache.set(g, v); }
+  return v;
+}
+
+/* ---------------------------------------------------------------- SENSOREN */
+/* Was der Fahrer vor sich sieht. Kein Zugriff auf gespeicherte Rundenzeiten
+   oder fremde Zustaende ausser Position und Tempo der Nachbarn — also das,
+   was ein Mensch auf dem Rad auch wahrnehmen kann. */
+function kiSensoren(w, f, feld, ichIdx){
+  const s = f.s;
+  const qs = w.qsBei(s), st = w.stBei(s);
+  const ug = untergrundBei(w, s, f.u);
+  const U = UNTERGRUND[ug] || UNTERGRUND.erde;
+
+  // Kurven voraus: die schaerfste Kruemmung in mehreren Fenstern. Erst dadurch
+  // weiss der Regler, ob und wie stark er anbremsen muss.
+  const fenster = [];
+  for(const [von, bis] of [[4, 22], [22, 50], [50, KI_SICHT]]){
+    let kMax = 0, sK = s + von;
+    for(let d = von; d < bis; d += 3){
+      const k = w.stBei(Math.min(w.L - 1, s + d)).k;
+      if(Math.abs(k) > Math.abs(kMax)){ kMax = k; sK = s + d; }
+    }
+    fenster.push({k:kMax, s:sK, dist:sK - s});
+  }
+
+  // Naechster Sprung im Sichtfeld
+  let sprung = null;
+  for(const j of w.spruenge){
+    const d = j.g.lippe - s;
+    if(d > -2 && d < KI_SICHT){ sprung = {d, g:j.g, e:j.e}; break; }
+  }
+
+  // Nachbarn: wer ist vor mir, wer neben mir, wer liegt?
+  let vorn = null, hinten = null, liegtVorn = null;
+  for(let i = 0; i < feld.length; i++){
+    if(i === ichIdx) continue;
+    const o = feld[i]; if(!o || !o.fahrer) continue;
+    const d = o.fahrer.s - s;
+    if(d > 0 && d < 45 && (!vorn || d < vorn.d)) vorn = {d, u:o.fahrer.u, vs:o.fahrer.vs, idx:i};
+    if(d < 0 && d > -30 && (!hinten || d > hinten.d)) hinten = {d, u:o.fahrer.u, vs:o.fahrer.vs, idx:i};
+    if(o.fahrer.sturz > 0 && d > -4 && d < 40 && (!liegtVorn || d < liegtVorn.d)) liegtVorn = {d, u:o.fahrer.u};
+  }
+
+  return {qs, st, ug, grip:U.grip, lenk:U.lenk, fenster, sprung, vorn, hinten, liegtVorn,
+          halb:qs.breite/2, wand:qs.wandH > 0.05, bank:qs.bank};
+}
+
+/* Wie schnell traegt eine Linie durch eine Kurve? Das ist keine Schaetzung,
+   sondern dieselbe Rechnung wie in schritt(): die Fliehkraft k·v² muss der
+   Reifen tragen, und die Neigung der Flaeche an dieser Stelle hilft mit.
+   Damit weiss die KI von sich aus, dass aussen im Anlieger schneller ist. */
+function kiKurvenTempo(w, sK, u, k, grip, bikeGrip){
+  if(Math.abs(k) < 1e-4) return 99;
+  const qs = w.qsBei(sK);
+  const eps = 0.06;
+  const dvdu = (querV(qs, u+eps) - querV(qs, u-eps)) / (2*eps);
+  const G = 9.81;
+  // Die Hangkomponente wirkt gegen die Fliehkraft, wenn sie nach kurveninnen zeigt
+  const hangHilft = Math.max(0, -Math.sign(k) * dvdu * G * qs.aussen);
+  const gripMax = bikeGrip * grip * G;
+  const traegt = gripMax + hangHilft;
+  return Math.sqrt(Math.max(1, traegt / Math.abs(k)));
+}
+
+/* -------------------------------------------------------------- STRATEGIE */
+/* Oberste Ebene: die Grundhaltung fuer die naechsten Sekunden. Sie verschiebt
+   nur Gewichte — gefahren wird weiter mit Linie und Regler. */
+function kiStrategie(ich, sens){
+  const p = ich.p;
+  // Ausdauer sinkt ueber die Fahrt, schwache Ausdauer frueher
+  const mued = kiClamp(ich.fahrer.zeit / (140 + p.ausdauer*120), 0, 1);
+  if(ich.fahrer.sturz > 0 || ich.seitSturz < 6) return 'sammeln';
+  if(mued > 0.75 && p.ausdauer < 0.7) return 'halten';
+  if(sens.vorn && sens.vorn.d < 22 && p.ueberholen > 0.4) return 'angriff';
+  if(sens.hinten && sens.hinten.d > -14 && p.ueberholen > 0.5) return 'verteidigen';
+  return 'fahren';
+}
+
+/* ------------------------------------------------------------------ LINIE */
+/* Kandidaten fuer die naechste Sektion. Sie entstehen aus der Geometrie, nicht
+   aus einer Tabelle: innen und aussen beziehen sich auf die Kurvenrichtung,
+   die Anliegerhoehe kommt dazu, wenn es eine Wand gibt, und bei einem Sprung
+   kommen frueher/spaeter Absprung als eigene Optionen hinzu. */
+function kiKandidaten(w, sens, ich){
+  const halb = sens.halb, p = ich.p;
+  const kNah = sens.fenster[0].k, kMit = sens.fenster[1].k;
+  const k = Math.abs(kMit) > Math.abs(kNah) ? kMit : kNah;
+  const innen = k > 0 ? -1 : 1;              // k > 0 = Linkskurve, innen = -u
+  const aus = [];
+  const rand = halb * 0.86;
+
+  aus.push({id:'mitte',  u:0,             hop:0});
+  aus.push({id:'innen',  u:innen*rand*0.7, hop:0});
+  aus.push({id:'aussen', u:-innen*rand*0.8, hop:0});
+  if(sens.wand) aus.push({id:'wand', u:-innen*rand, hop:0});
+  if(Math.abs(k) > 0.004) aus.push({id:'spaet-innen', u:innen*rand*0.45, hop:0, spaet:true});
+
+  if(sens.sprung && sens.sprung.d < KI_SEKTION){
+    aus.push({id:'sprung-voll',  u:0,            hop:1.0, sprung:true});
+    aus.push({id:'sprung-kurz',  u:0,            hop:0.0, kurz:true, sprung:true});
+    if(p.sprung > 0.6) aus.push({id:'sprung-seite', u:innen*rand*0.5, hop:0.7, sprung:true});
+  }
+  // Um einen liegenden Fahrer herum ist eine echte Option, keine Ausweichregel
+  if(sens.liegtVorn){
+    const weg = sens.liegtVorn.u >= 0 ? -1 : 1;
+    aus.push({id:'ausweichen', u:weg*rand*0.8, hop:0, notfall:true});
+  }
+  return aus;
+}
+
+/* Nutzwert einer Linie. Jeder Summand ist begruendet — es gibt keinen Term,
+   der nur da ist, damit die Zahl huebscher aussieht. */
+function kiNutzen(w, sens, ich, kand, strategie, gedaechtnis){
+  const p = ich.p, f = ich.fahrer;
+  const fen = sens.fenster[1], k = fen.k;
+  const vKurve = kiKurvenTempo(w, fen.s, kand.u, k, sens.grip, f.bike.grip, ich.ctx);
+  // Tempo: was diese Linie hergibt, gedeckelt auf das, was der Fahrer will
+  let n = kiClamp(vKurve / 22, 0, 1) * (0.55 + p.tempo * 0.75);
+
+  // Risiko: wie nah am Rand und wie nah am Grip-Limit. Mutige stoert das wenig.
+  const randNaehe = Math.abs(kand.u) / Math.max(0.5, sens.halb);
+  const risiko = randNaehe * 0.6 + kiClamp(vKurve / 26, 0, 1) * 0.4;
+  n -= risiko * (1.15 - p.mut) * 0.9;
+
+  // Kurvenkoennen: enge Linien lohnen nur, wer sie halten kann
+  if(kand.id === 'innen' || kand.id === 'spaet-innen') n += (p.kurve - 0.5) * 0.45;
+  if(kand.id === 'wand') n += (p.kurve - 0.4) * 0.5 + (p.mut - 0.5) * 0.4;
+
+  // Sprungoptionen nach Sprungfaehigkeit und Mut
+  if(kand.sprung){
+    if(kand.kurz) n += (0.75 - p.sprung) * 0.7;          // wer nicht springen will, nimmt die kurze
+    else n += (p.sprung - 0.45) * 0.85 + (p.risiko - 0.5) * 0.3;
+  }
+
+  // Strategie verschiebt die Gewichte
+  if(strategie === 'angriff' && sens.vorn){
+    // Nicht in den Windschatten kleben, sondern daneben — Ueberholen heisst Linie wechseln
+    const seitlich = Math.abs(kand.u - sens.vorn.u) / Math.max(0.5, sens.halb);
+    n += seitlich * p.ueberholen * 0.55;
+  }
+  if(strategie === 'verteidigen' && sens.hinten){
+    const blockt = 1 - Math.abs(kand.u - sens.hinten.u) / Math.max(0.5, sens.halb);
+    n += blockt * p.ueberholen * 0.30;                    // die Linie halten, nicht zufahren
+  }
+  if(strategie === 'sammeln' || strategie === 'halten'){
+    n -= risiko * 0.8;                                     // nach einem Sturz erst wieder ankommen
+    if(kand.id === 'mitte') n += 0.35;
+  }
+  if(kand.notfall) n += 2.2;                               // an einem Liegenden vorbei hat Vorrang
+
+  // Erinnerung: was hier schon schiefging, wird abgewertet — was getragen hat,
+  // aufgewertet. Wie stark, haengt an der Lernfaehigkeit.
+  const g = gedaechtnis && gedaechtnis[kand.id];
+  if(g && g.n > 0) n += kiClamp(g.wert, -1.2, 0.8) * p.lernen * 0.9;
+
+  // Anti-Wiederholung: dieselbe Wahl wie beim letzten Mal an dieser Stelle
+  // bekommt einen kleinen Abschlag. Kein Verbot — nur ein Daumen auf der Waage.
+  if(ich.letzteWahl === kand.id) n -= 0.18;
+  return n;
+}
+
+/* Gewichtete Auswahl statt Bestenauswahl: bei aehnlich guten Optionen faellt
+   die Wahl unterschiedlich aus. Sichere Fahrer entscheiden schaerfer. */
+function kiWaehle(kandidaten, nutzen, rnd, temp){
+  const t = Math.max(0.05, temp);
+  let max = -Infinity;
+  for(const n of nutzen) if(n > max) max = n;
+  const gew = nutzen.map(n => Math.exp((n - max) / t));
+  let summe = 0; for(const g of gew) summe += g;
+  let r = rnd() * summe;
+  for(let i = 0; i < gew.length; i++){ r -= gew[i]; if(r <= 0) return i; }
+  return gew.length - 1;
+}
+
+/* ----------------------------------------------------------------- REGLER */
+/* Unterste Ebene: die gewaehlte Linie und das Zieltempo in Gas, Bremse, Quer
+   und Absprung uebersetzen. Hier entstehen auch die Fahrfehler — nicht als
+   Zufallszucken, sondern als das, was Menschen falsch machen: zu spaet
+   bremsen, zu viel lenken, den Absprung verpassen. */
+function kiRegle(w, f, sens, ich, dt){
+  const p = ich.p, ein = ich.ein;
+  const ziel = ich.linie;
+
+  // --- Quer: auf die Ziellinie ziehen, mit Reaktionszeit und Zittern ---
+  const fehlerU = (ziel.u + ich.driftU) - f.u;
+  const staerke = 0.55 + p.kurve * 0.75;
+  ein.quer = kiClamp(fehlerU * staerke - f.vu * 0.55, -1, 1);
+
+  // --- Laengs: Zieltempo aus der schaerfsten Kurve im Bremsfenster ---
+  let vZiel = 99, bremsWeg = 0;
+  for(const fen of sens.fenster){
+    if(Math.abs(fen.k) < 1e-4) continue;
+    const v = kiKurvenTempo(w, fen.s, ziel.u, fen.k, sens.grip, f.bike.grip);
+    // Wie weit vorher muss ich anfangen? a = Bremsverzoegerung des Rads.
+    const a = 4.2 + p.bremsen * 3.4;
+    const noetig = Math.max(0, (f.vs*f.vs - v*v) / (2*a));
+    // Der Bremspunkt wird nach Persoenlichkeit verschoben: spaet = mutig, und
+    // der Patzer verschiebt ihn zusaetzlich.
+    const punkt = fen.dist * (0.55 + (1 - p.bremsen) * 0.4) + ich.patzerBrems;
+    if(noetig > punkt && v < vZiel){ vZiel = v; bremsWeg = noetig; }
+  }
+  // Sprung: das Anfahrtstempo entscheidet, wo man aufkommt. zielTempo liefert
+  // das Tempo fuer einen Treffer auf der Landung; die Persoenlichkeit
+  // verschiebt es. Wer springt gern, zielt weiter hinten und riskiert ein
+  // Ueberschiessen; wer vorsichtig ist, bleibt kurz und riskiert ein Case.
+  if(sens.sprung && sens.sprung.d > 0 && sens.sprung.d < 70){
+    const vT = kiSprungTempo(w, sens.sprung.g);
+    // vT trifft die Landung genau. Schneller heisst weiter und haerter, also
+    // ist vT die Obergrenze und nicht die Mitte: gute Springer fahren dicht
+    // heran, unsichere halten Abstand nach unten. Ueber vT hinaus geht nur,
+    // wer ausdruecklich Risiko sucht — vorher stand hier ein Faktor, der bei
+    // hohem Koennen ueber 1,0 lief und den Profi systematisch ueberschiessen
+    // liess: im Test dieselbe Sturzzahl wie beim Anfaenger.
+    let zielV = ziel.kurz ? vT * 0.74
+              : vT * (0.80 + p.sprung * 0.18 + (p.risiko - 0.5) * 0.06);
+    zielV += ich.patzerSprung;                      // Fehleinschaetzung dieser Sektion
+    zielV = Math.max(4, zielV);
+    const a = 4.2 + p.bremsen * 3.4;
+    const noetig = Math.max(0, (f.vs*f.vs - zielV*zielV) / (2*a));
+    // Vor der Lippe muss es stehen; spaeter Bremspunkt nach Mut, plus Patzer.
+    const puffer = 2.5 + (1 - p.mut) * 4;
+    if(noetig > sens.sprung.d - puffer + ich.patzerBrems && zielV < vZiel) vZiel = zielV;
+  }
+
+  // Wunschtempo der Persoenlichkeit, wenn keine Kurve draengt
+  const vWunsch = 9 + p.tempo * 16;
+  const vSoll = Math.min(vZiel, vWunsch) * (ich.strategie === 'halten' ? 0.88 : 1)
+                                          * (ich.strategie === 'sammeln' ? 0.72 : 1);
+
+  if(f.vs > vSoll + 0.4){
+    ein.bremse = kiClamp((f.vs - vSoll) * 0.5, 0, 1) * (0.55 + p.bremsen * 0.5);
+    ein.gas = false; ein.gasWert = 0;
+  } else {
+    ein.bremse = 0;
+    ein.gas = f.vs < vWunsch; ein.gasWert = ein.gas ? 1 : 0;
+  }
+
+  // Auffahren vermeiden: wer dicht hinter jemandem klebt und nicht daneben
+  // ist, geht vom Gas. Kein Teleport, kein Durchfahren — nur der Fuss hoch.
+  if(sens.vorn && sens.vorn.d < 9 && Math.abs(sens.vorn.u - f.u) < 1.1){
+    ein.bremse = Math.max(ein.bremse, kiClamp((9 - sens.vorn.d) / 9, 0, 1) * 0.55);
+    ein.gas = false;
+  }
+
+  // --- Pumpen: wer es kann, nutzt die Kompression ---
+  ein.pump = f.gLast > 1.15 && p.tempo > 0.6 && ich.strategie !== 'sammeln';
+
+  // --- Gewicht: in der Luft die Nase zur Landung stellen ---
+  if(!f.boden){
+    const sl = w.dhds(Math.min(w.L - 1, f.s + Math.max(2, f.vs * 0.6)));
+    const soll = Math.atan(-sl);
+    ein.gewicht = kiClamp((soll - f.tilt) * (1.2 + p.sprung), -1, 1);
+  } else {
+    ein.gewicht = kiClamp(ich.driftU * 0.2, -1, 1);
+  }
+
+  // --- Absprung: an der Lippe, wenn die Linie es vorsieht ---
+  ein.hop = 0;
+  if(sens.sprung && ziel.hop > 0 && !ich.hopGesetzt){
+    const d = sens.sprung.d;
+    // Der Absprungpunkt streut mit dem Koennen: Profis treffen die Lippe,
+    // Anfaenger drueckten zu frueh ab.
+    const treffer = 1.4 + (1 - p.sprung) * 2.6 + ich.patzerHop;
+    if(d > 0 && d < treffer){ ein.hop = ziel.hop * (0.6 + p.sprung * 0.4); ich.hopGesetzt = true; }
+  }
+  if(!sens.sprung) ich.hopGesetzt = false;
+}
+
+/* -------------------------------------------------------------- FAHRER-OBJ */
+function kiFahrer(typ, bike, seed, name){
+  const p = KI_TYPEN[typ] || KI_TYPEN.konstant;
+  return {
+    typ, p, name: name || p.name,
+    fahrer: neuerFahrer(bike),
+    ein: {gas:false, gasWert:0, bremse:0, quer:0, gewicht:0, pump:false, hop:0, hopLadung:0, quelle:'ki'},
+    rnd: kiPrng(seed),
+    linie: {id:'mitte', u:0, hop:0},
+    letzteWahl: null,
+    strategie: 'fahren', strategieT: 0,
+    sektion: -1, sektionStart: 0, sektionZeit: 0,
+    driftU: 0, driftZiel: 0, driftT: 0,
+    patzerBrems: 0, patzerHop: 0, patzerSprung: 0, patzerT: 0,
+    hopGesetzt: false,
+    seitSturz: 99, sturzVorher: 0,
+    reaktT: 0, sensAlt: null,
+    debug: {nutzen: [], kandidaten: []},
+  };
+}
+
+/* ------------------------------------------------------------------ MODUL */
+function kiBaue(welt, ctx){
+  const feld = [];
+  let debugAn = false;
+
+  /* Gedaechtnis pro Fahrertyp und Strecke, ueber Laeufe hinweg. Gespeichert
+     wird nur, was der Fahrer selbst erlebt hat: pro Sektion und Linie ein
+     laufender Mittelwert, wie gut es lief. localStorage kann fehlen. */
+  const schluessel = t => 'bikepark.ki.' + welt.track.key + '.' + t;
+  function ladeGedaechtnis(typ){
+    try{ const s = localStorage.getItem(schluessel(typ)); return s ? JSON.parse(s) : {}; }
+    catch(e){ return {}; }
+  }
+  function sichere(typ, g){
+    try{ localStorage.setItem(schluessel(typ), JSON.stringify(g)); }catch(e){}
+  }
+
+  function setzeFeld(besetzung){
+    feld.length = 0;
+    for(const b of besetzung){
+      const k = kiFahrer(b.typ, b.bike, b.seed, b.name);
+      k.gedaechtnis = ladeGedaechtnis(b.typ);
+      k.fahrer.s = b.s || 2;
+      k.fahrer.u = b.u || 0;
+      k.fahrer.y = welt.flaeche(k.fahrer.s, k.fahrer.u);
+      feld.push(k);
+    }
+    return feld;
+  }
+
+  /* Bewertung der abgeschlossenen Sektion: schneller als der bisherige Schnitt
+     ist gut, ein Sturz darin sehr schlecht. Das Ergebnis landet unter der
+     Linie, die tatsaechlich gefahren wurde. */
+  function schliesseSektion(k, gestuerzt){
+    const g = k.gedaechtnis, id = k.sektion, wahl = k.letzteWahl;
+    if(id < 0 || !wahl) return;
+    const schl = id + '|' + wahl;
+    const e = g[schl] || (g[schl] = {n:0, t:0, wert:0});
+    const t = k.sektionZeit;
+    // Erster Durchgang setzt die Referenz, spaetere vergleichen sich damit
+    const alt = e.t || t;
+    const besser = kiClamp((alt - t) / Math.max(1, alt) * 3, -1, 1);
+    e.wert = e.wert * 0.6 + (gestuerzt ? -1.2 : besser) * 0.4;
+    e.t = e.n ? (e.t * e.n + t) / (e.n + 1) : t;
+    e.n++;
+    if(e.n % 3 === 0) sichere(k.typ, g);
+  }
+
+  function update(dt, spielerFahrer){
+    // Der Spieler steht als Nachbar im Feld, damit die KI auf ihn reagiert.
+    const alle = spielerFahrer ? [{fahrer: spielerFahrer, istSpieler: true}, ...feld] : feld;
+    for(let i = 0; i < feld.length; i++){
+      const k = feld[i], f = k.fahrer;
+      if(f.s >= welt.L) continue;
+
+      // Sturz merken: danach faehrt die KI erst wieder vorsichtig
+      if(f.sturzZahl !== k.sturzVorher){ k.sturzVorher = f.sturzZahl; k.seitSturz = 0; k.sektionSturz = true; }
+      k.seitSturz += dt;
+      k.sektionZeit += dt;
+
+      const ichIdx = alle.indexOf(k);
+      // Sensoren laufen mit der Reaktionszeit des Fahrers, nicht jeden Frame:
+      // ein Anfaenger sieht die Kurve spaeter als ein Profi.
+      k.reaktT -= dt;
+      if(!k.sensAlt || k.reaktT <= 0){
+        k.sensAlt = kiSensoren(welt, f, alle, ichIdx);
+        k.reaktT = k.p.reaktion * (0.7 + k.rnd() * 0.6);
+      }
+      const sens = k.sensAlt;
+
+      // --- Strategie ---
+      k.strategieT -= dt;
+      if(k.strategieT <= 0){
+        k.strategie = kiStrategie(k, sens);
+        k.strategieT = KI_STRATEGIE_T * (0.7 + k.rnd() * 0.6);
+      }
+
+      // --- Linie: einmal je Sektion neu entscheiden ---
+      const sek = Math.floor(f.s / KI_SEKTION);
+      if(sek !== k.sektion){
+        if(k.sektion >= 0) schliesseSektion(k, !!k.sektionSturz);
+        k.sektion = sek; k.sektionZeit = 0; k.sektionSturz = false;
+        const kand = kiKandidaten(welt, sens, k);
+        const nutzen = kand.map(c => kiNutzen(welt, sens, k, c, k.strategie, gedaechtnisFuer(k, sek)));
+        // Sichere Fahrer entscheiden schaerfer, riskante wuerfeln mehr
+        const temp = KI_TEMP * (0.5 + (1 - k.p.linie) * 1.2);
+        const idx = kiWaehle(kand, nutzen, k.rnd, temp);
+        k.letzteWahl = k.linie ? k.linie.id : null;
+        k.linie = kand[idx];
+        k.letzteWahl = k.linie.id;
+        k.debug.kandidaten = kand.map((c, j) => ({id:c.id, n:+nutzen[j].toFixed(2), gewaehlt: j === idx}));
+        // Fahrfehler fuer diese Sektion auswuerfeln: verschobener Bremspunkt,
+        // verpasste Lippe. Wie oft, haengt an der Fehlerneigung.
+        const patzt = k.rnd() < k.p.fehler;
+        k.patzerBrems = patzt ? (k.rnd() * 7 + 2) : 0;
+        k.patzerHop = patzt ? (k.rnd() * 2.2 - 1.4) : 0;
+        // Die Sprungweite verschaetzt sich jeder ein bisschen — Anfaenger mehr.
+        k.patzerSprung = (k.rnd() * 2 - 1) * (0.3 + (1 - k.p.sprung) * 1.9)
+                       + (patzt ? (k.rnd() * 2.0) : 0);
+        k.debug.patzer = patzt;
+      }
+
+      // --- Zittern auf der Linie: kein Mensch faehrt exakt ---
+      k.driftT -= dt;
+      if(k.driftT <= 0){
+        k.driftZiel = (k.rnd() * 2 - 1) * (0.12 + (1 - k.p.linie) * 0.55);
+        k.driftT = 0.5 + k.rnd() * 1.4;
+      }
+      k.driftU += (k.driftZiel - k.driftU) * Math.min(1, dt * 2.2);
+
+      // --- Regler und Physik: dieselbe schritt()-Funktion wie beim Spieler ---
+      kiRegle(welt, f, sens, k, dt);
+      const n = Math.max(1, Math.ceil(dt / 0.008));
+      for(let j = 0; j < n; j++){
+        schritt(welt, f, dt / n, k.ein);
+        if(j === 0) k.ein.hop = 0;
+      }
+      if(f.s >= welt.L && !k.imZiel){ k.imZiel = true; k.zielZeit = f.zeit; schliesseSektion(k, false); sichere(k.typ, k.gedaechtnis); }
+    }
+  }
+
+  function gedaechtnisFuer(k, sek){
+    const raus = {};
+    for(const schl in k.gedaechtnis){
+      const [id, wahl] = schl.split('|');
+      if(+id === sek) raus[wahl] = k.gedaechtnis[schl];
+    }
+    return raus;
+  }
+
+  /* Rangliste nach Streckenposition; wer im Ziel ist, nach Zielzeit. */
+  function rangliste(spielerFahrer){
+    const liste = feld.map(k => ({name:k.name, typ:k.typ, s:k.fahrer.s, zeit:k.fahrer.zeit,
+                                 imZiel:!!k.imZiel, zielZeit:k.zielZeit, sturz:k.fahrer.sturz > 0, istSpieler:false, ki:k}));
+    if(spielerFahrer) liste.push({name:'Du', s:spielerFahrer.s, zeit:spielerFahrer.zeit,
+                                  imZiel:spielerFahrer.s >= welt.L, zielZeit:spielerFahrer.zeit,
+                                  sturz:spielerFahrer.sturz > 0, istSpieler:true});
+    liste.sort((a, b) => (a.imZiel && b.imZiel) ? a.zielZeit - b.zielZeit
+                       : a.imZiel ? -1 : b.imZiel ? 1 : b.s - a.s);
+    return liste;
+  }
+
+  const modul = {
+    feld, setzeFeld, update, rangliste,
+    typen: KI_TYPEN,
+    debug(an){ if(an !== undefined) debugAn = an; return debugAn; },
+    zustand(i){
+      const k = feld[i]; if(!k) return null;
+      const f = k.fahrer;
+      return {name:k.name, typ:k.typ, strategie:k.strategie, linie:k.linie.id,
+              kandidaten:k.debug.kandidaten, patzer:k.debug.patzer,
+              vs:+f.vs.toFixed(1), u:+f.u.toFixed(2), zielU:+k.linie.u.toFixed(2),
+              s:+f.s.toFixed(0), sektion:k.sektion, sturz:f.sturz > 0, sturzZahl:f.sturzZahl,
+              gas:k.ein.gas, bremse:+k.ein.bremse.toFixed(2), quer:+k.ein.quer.toFixed(2),
+              sieht: k.sensAlt ? {kurveNah:+k.sensAlt.fenster[0].k.toFixed(4),
+                                  sprungIn: k.sensAlt.sprung ? +k.sensAlt.sprung.d.toFixed(0) : null,
+                                  vornIn: k.sensAlt.vorn ? +k.sensAlt.vorn.d.toFixed(0) : null,
+                                  liegtVorn: !!k.sensAlt.liegtVorn} : null};
+    },
+    dispose(){ feld.length = 0; if(modul.overlay) modul.overlay.dispose(); },
+  };
+  modul.overlay = kiDebugOverlay(modul);
+  return modul;
+}
+
+/* --------------------------------------------------------------- DEBUG-OVERLAY */
+/* Zeigt fuer einen Fahrer, WARUM er gerade tut, was er tut: die bewerteten
+   Kandidaten mit ihren Nutzwerten, die gewaehlte Linie, Strategie, was die
+   Sensoren melden und ob diese Sektion einen Patzer enthaelt. */
+const KI_DEBUG_CSS = `
+/* Rechts unten: links liegen Tacho, Untergrund-Karte und Rangliste, rechts
+   oben die beiden Tastenpanels. Nach dem Umzug der Fussleiste ist hier der
+   einzige Platz, an dem nichts verdeckt wird. */
+#ki-debug{position:fixed;right:18px;bottom:18px;z-index:40;padding:10px 13px;border-radius:12px;
+  font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background-color:rgba(9,11,15,.86);border:1px solid rgba(255,255,255,.14);
+  color:#b4b4c0;max-width:290px;pointer-events:none;white-space:pre-wrap}
+#ki-debug b{color:#e8e8ee;font-weight:400}
+#ki-debug .w{color:#4fd1c5}
+#ki-debug .p{color:#ff9d4d}
+#ki-debug .bal{display:block;height:3px;margin:2px 0 5px;background:rgba(255,255,255,.12);border-radius:2px}
+#ki-debug .bal i{display:block;height:100%;background:#4fd1c5;border-radius:2px}
+/* Solange das Panel offen ist, tritt der Elementhinweis zurueck: er teilt sich
+   die Ecke mit ihm und ist waehrend einer KI-Analyse das Unwichtigere.
+   Der Debug-Modus ueberlagert bewusst — er ist ein Werkzeug, kein Spielelement. */
+body.ki-debug-an #elem{opacity:0 !important}
+@media (max-width: 760px){
+  /* Auf schmalen Schirmen gibt es keine freie Ecke: das Panel legt sich unten
+     ueber die Breite und ueber das HUD. */
+  #ki-debug{left:12px;right:12px;bottom:12px;max-width:none;max-height:46vh;overflow:auto}
+  body.ki-debug-an #hud{opacity:0 !important}
+}
+`;
+
+function kiDebugOverlay(ki){
+  let el = null, idx = 0, an = false;
+  function baue(){
+    if(el) return;
+    const st = document.createElement('style'); st.textContent = KI_DEBUG_CSS;
+    document.head.appendChild(st);
+    el = document.createElement('div'); el.id = 'ki-debug';
+    document.body.appendChild(el);
+    el._stil = st;
+  }
+  function zeichne(){
+    if(!an || !el) return;
+    const z = ki.zustand(idx);
+    if(!z){ el.textContent = 'kein Fahrer ' + idx; return; }
+    const kand = (z.kandidaten || []);
+    const max = kand.reduce((m, c) => Math.max(m, c.n), 0.01);
+    const min = kand.reduce((m, c) => Math.min(m, c.n), 0);
+    const zeilen = kand.map(c => {
+      const q = (c.n - min) / Math.max(0.01, max - min);
+      return (c.gewaehlt ? '▸ ' : '  ') + c.id.padEnd(13) + c.n.toFixed(2) +
+             '<span class="bal"><i style="width:' + Math.round(q*100) + '%"></i></span>';
+    }).join('');
+    el.innerHTML =
+      '<b>' + z.name + '</b>  (' + (idx+1) + '/' + ki.feld.length + ')\n' +
+      'Strategie  <span class="w">' + z.strategie + '</span>\n' +
+      'Linie      <span class="w">' + z.linie + '</span>  Ziel u ' + z.zielU + ' (ist ' + z.u + ')\n' +
+      'Sektion    ' + z.sektion + (z.patzer ? '  <span class="p">Patzer</span>' : '') + '\n' +
+      'Tempo      ' + z.vs + ' m/s   bei ' + z.s + ' m\n' +
+      'Eingabe    ' + (z.gas ? 'Gas' : '—') + '  Bremse ' + z.bremse + '  Quer ' + z.quer + '\n' +
+      (z.sturz ? '<span class="p">liegt gerade</span>  ' : '') + 'Stuerze ' + z.sturzZahl + '\n' +
+      (z.sieht ? 'Sieht      Kurve k=' + z.sieht.kurveNah +
+                 (z.sieht.sprungIn !== null ? '  Sprung in ' + z.sieht.sprungIn + ' m' : '') +
+                 (z.sieht.vornIn !== null ? '  vorn ' + z.sieht.vornIn + ' m' : '') +
+                 (z.sieht.liegtVorn ? '  <span class="p">Liegender voraus</span>' : '') + '\n' : '') +
+      '\nKandidaten\n' + zeilen;
+  }
+  return {
+    an(v){
+      an = v === undefined ? !an : !!v;
+      if(an){ baue(); el.hidden = false; } else if(el) el.hidden = true;
+      document.body.classList.toggle('ki-debug-an', an);
+      return an;
+    },
+    naechster(){ idx = (idx + 1) % Math.max(1, ki.feld.length); return idx; },
+    waehle(i){ idx = Math.max(0, Math.min(ki.feld.length - 1, i|0)); return idx; },
+    takt: zeichne,
+    aktiv(){ return an; },
+    dispose(){ document.body.classList.remove('ki-debug-an'); if(el){ el.remove(); if(el._stil) el._stil.remove(); el = null; } },
+  };
+}
+
+
 /* ---- Modul ui ---- */
 /* ===========================================================================
    14. OBERFLÄCHE
@@ -6019,6 +6660,20 @@ const UI_CSS = `
 #ui-hop.an{opacity:1}
 #ui-hop i{display:block;height:100%;width:0;background:var(--line);transition:width .05s linear}
 #ui-hop.voll i{background:var(--jump);box-shadow:0 0 10px var(--jump)}
+/* Rangliste: nur sichtbar, wenn ueberhaupt Gegner fahren. Sie sitzt links
+   ueber der Untergrund-Karte und haengt an derselben Hoehenmessung, damit sie
+   nicht mit dem Tacho kollidiert, wenn der um eine Zeile waechst. */
+#ui-rang{position:fixed;left:18px;bottom:calc(18px + var(--hud-hoch,172px) + 46px);
+  padding:8px 12px;font-size:11px;border-radius:12px;min-width:172px;
+  background-color:var(--glass-hud);border:1px solid var(--stroke-hud);
+  backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
+  opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:20}
+#ui-rang.an{opacity:1}
+#ui-rang .z{display:flex;justify-content:space-between;gap:12px;color:var(--dim-hud);
+  line-height:1.7;font-variant-numeric:tabular-nums}
+#ui-rang .z.ich{color:var(--line)}
+#ui-rang .z.liegt{color:var(--jump)}
+#ui-rang .p{min-width:15px}
 #ui-hilfe{position:fixed;right:18px;top:calc(18px + 139px);padding:8px 13px;font-size:11px;color:var(--dim-hud);
   opacity:0;border-radius:11px;transition:opacity .3s ease;pointer-events:none;z-index:20}
 #ui-hilfe.an{opacity:1}
@@ -6037,6 +6692,9 @@ const UI_CSS = `
      damit kann er per Konstruktion nicht mehr auf etwas anderem landen. */
   #ui-hop{left:12px;right:auto;transform:none;width:157px;
     bottom:calc(58px + var(--hud-hoch,150px) + 48px)}
+  /* Auf schmalen Schirmen belegt der Ladebalken die Zeile ueber dem Tacho —
+     die Rangliste rueckt darueber. */
+  #ui-rang{left:12px;bottom:calc(58px + var(--hud-hoch,150px) + 84px);min-width:0;font-size:10px}
   #ui-lage .segmente button{padding:7px 9px;font-size:11px}
   #ui-lage input[type=range]{width:120px}
 }
@@ -6119,11 +6777,12 @@ function uiBaue(ctx, spiel){
   const wertung = document.createElement('div'); wertung.id = 'ui-wertung';
   const hop = document.createElement('div'); hop.id = 'ui-hop'; hop.innerHTML = '<i></i>';
   const hopBalken = hop.firstElementChild;
+  const rang = document.createElement('div'); rang.id = 'ui-rang';
   const sturzB = document.createElement('div'); sturzB.id = 'ui-sturzbalken'; sturzB.innerHTML = '<i></i>';
   const sturzBalken = sturzB.firstElementChild;
   const hilfe = document.createElement('div'); hilfe.id = 'ui-hilfe'; hilfe.className = 'karte';
   hilfe.innerHTML = 'Pause<span class="k">Esc</span>Kamera<span class="k">C</span>Neustart<span class="k">R</span>Ton<span class="k">M</span>';
-  document.body.append(grund, wertung, hop, sturzB, hilfe);
+  document.body.append(grund, wertung, hop, rang, sturzB, hilfe);
 
   /* Die Untergrund-Karte sitzt ueber dem Tacho, und der aendert seine Hoehe:
      die Elementzeile kommt und geht, und bei schmalen Schirmen schrumpft die
@@ -6141,7 +6800,7 @@ function uiBaue(ctx, spiel){
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
   const besten = uiBesten();
   let offen = null;            // null | 'pause' | 'ziel'
-  let wertungBis = 0, letzteLandung = null, letzterSturz = null;
+  let wertungBis = 0, letzteLandung = null, letzterSturz = null, rangAlt = '';
 
   /* --- Einstellungen: dieselbe Gruppe im Startmenü und in der Pause --- */
   const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
@@ -6222,7 +6881,7 @@ function uiBaue(ctx, spiel){
     get offen(){ return offen; },
     zeigeHud(an){
       grund.classList.toggle('an', an); hilfe.classList.toggle('an', an);
-      if(!an){ wertung.classList.remove('an', 'sturz'); wertungBis = 0; hop.classList.remove('an'); sturzB.classList.remove('an'); }
+      if(!an){ wertung.classList.remove('an', 'sturz'); wertungBis = 0; hop.classList.remove('an'); sturzB.classList.remove('an'); rang.classList.remove('an'); }
     },
     pause(f, welt){
       $$('ui-pause-zeit').textContent = uiZeit(f.zeit);
@@ -6268,6 +6927,24 @@ function uiBaue(ctx, spiel){
       const b = grund.querySelector('b');
       if(b.textContent !== g) b.textContent = g;
 
+      // Rangliste, falls Gegner fahren
+      const liste = spiel.rangliste ? spiel.rangliste() : null;
+      if(liste && liste.length > 1){
+        const schl = liste.map(r => r.name + (r.sturz ? '!' : '')).join('|');
+        if(schl !== rangAlt){
+          rangAlt = schl;
+          rang.innerHTML = liste.map((r, i) =>
+            '<div class="z' + (r.istSpieler ? ' ich' : '') + (r.sturz ? ' liegt' : '') + '">' +
+            '<span class="p">' + (i + 1) + '.</span>' +
+            '<span>' + r.name + '</span>' +
+            '<span>' + (r.imZiel ? uiZeit(r.zielZeit) : (i === 0 ? '—' : '+' + Math.round(liste[0].s - r.s) + ' m')) + '</span>' +
+            '</div>').join('');
+        }
+        rang.classList.add('an');
+      } else if(rang.classList.contains('an')){
+        rang.classList.remove('an'); rangAlt = '';
+      }
+
       // Sturz: hat Vorrang vor der Landungswertung und bleibt stehen, solange
       // der Fahrer liegt. Der Balken zeigt, wann es weitergeht.
       if(f.sturz > 0){
@@ -6298,7 +6975,7 @@ function uiBaue(ctx, spiel){
       if(wertungBis && jetzt > wertungBis){ wertung.classList.remove('an'); wertungBis = 0; }
     },
     dispose(){
-      lage.remove(); grund.remove(); wertung.remove(); hop.remove(); sturzB.remove(); hilfe.remove(); stil.remove();
+      lage.remove(); grund.remove(); wertung.remove(); hop.remove(); rang.remove(); sturzB.remove(); hilfe.remove(); stil.remove();
     },
   };
 }
@@ -6323,6 +7000,9 @@ addEventListener('keydown', e => {
   taste[k] = true;
   if(k === 'c' && welt) kamMode = (kamMode + 1) % KAMERAS.length;
   if(k === 'r' && welt){ neustart(); if(ui.offen) ui.weiter(); laeuft = true; }
+  // K schaltet den KI-Debug ein, J wechselt den beobachteten Fahrer.
+  if(k === 'k' && module.ki && module.ki.overlay) module.ki.overlay.an();
+  if(k === 'j' && module.ki && module.ki.overlay) module.ki.overlay.naechster();
   if((k === 'escape' || k === 'p') && welt && hudAn){
     // Pause hält nur die Physik an; gerendert wird weiter, sonst friert das Bild ein.
     if(ui.offen === 'pause'){ ui.weiter(); if(fahrer.s < welt.L) laeuft = true; }
@@ -6369,6 +7049,9 @@ function weltPos(w, s, u, y, out){
 
 /* ------------------------------------------------------------------ Zustand */
 let welt = null, fahrer = null, halter = null, schatten = null, laeuft = false;
+/* Gegner: je Eintrag ein KI-Fahrer, sein Fahrzeug und sein Schatten. Leer =
+   Zeitfahren wie bisher; das Spiel laeuft ohne Gegner unveraendert weiter. */
+let gegner = [], gegnerZahl = 0;   // gemerkt() ist hier noch in der TDZ
 /* Letzte Wahl merken. localStorage kann fehlen (Private Mode) oder werfen. */
 const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
 const gemerkt = (k, std) => { try{ const v = localStorage.getItem('bikepark.' + k); return v === null ? std : v; }catch(e){ return std; } };
@@ -6393,6 +7076,11 @@ const $ = id => document.getElementById(id);
 function neustart(){
   fahrer = neuerFahrer(BIKES[aktRad]);
   $('elem').classList.remove('on');
+  // Das Feld wird bei jedem Neustart neu ausgewuerfelt: andere Typen, andere
+  // Seeds, andere Aufstellung. Laeuft im Hintergrund, damit der Neustart nicht
+  // auf das Laden der Modelle wartet.
+  if(gegnerZahl > 0) stelleFeld(gegnerZahl).catch(e => console.warn('Feld:', e));
+  else raeumeFeldAuf();
 }
 
 let montiert = null;
@@ -6409,6 +7097,82 @@ async function wechsleRad(id){
   document.querySelectorAll('#bikes .card').forEach(c =>
     c.setAttribute('aria-pressed', String(c.dataset.id === id)));
 }
+
+/* Das Gegnerfeld aufstellen. Jeder bekommt ein eigenes Fahrzeug (eigene
+   Instanz, nicht der radCache des Spielers — sonst stuenden alle am selben
+   Ort), einen eigenen Schatten und eine Persoenlichkeit. Die Startpositionen
+   staffeln sich nach hinten, damit niemand im anderen steht. */
+async function stelleFeld(n){
+  raeumeFeldAuf();
+  if(!n || !welt || !module.ki) return;
+  const typen = Object.keys(KI_TYPEN);
+  const raeder = Object.keys(BIKES);
+  // Seed aus der Uhr: dieselbe Aufstellung gibt es kein zweites Mal.
+  const basis = (Date.now() & 0xffff) * 7919;
+  const besetzung = [];
+  for(let i = 0; i < n; i++){
+    const typ = typen[(i * 3 + (basis % typen.length)) % typen.length];
+    besetzung.push({typ, bike: BIKES[raeder[i % raeder.length]], seed: basis + i * 104729,
+                    s: 2 - (i + 1) * 3.2, u: ((i % 2) ? 1 : -1) * (0.5 + (i >> 1) * 0.5)});
+  }
+  module.ki.setzeFeld(besetzung);
+  for(let i = 0; i < module.ki.feld.length; i++){
+    const k = module.ki.feld[i];
+    const h = await ladeFahrzeug(k.fahrer.bike);
+    // Gegner farblich abheben, damit man sie im Feld auseinanderhaelt.
+    faerbeGegner(h, i);
+    scene.add(h);
+    const sch = baueSchatten(); sch.visible = !!(schatten && schatten.visible); scene.add(sch);
+    gegner.push({ki: k, halter: h, schatten: sch});
+  }
+}
+
+function raeumeFeldAuf(){
+  for(const g of gegner){
+    if(g.halter) scene.remove(g.halter);
+    if(g.schatten){ scene.remove(g.schatten); g.schatten.geometry.dispose(); g.schatten.material.dispose(); }
+  }
+  gegner = [];
+  if(module.ki) module.ki.dispose();
+}
+
+/* Trikotfarben: die Gegner sollen im Feld unterscheidbar sein. Genutzt wird
+   dafuer wendeCharakterAn — dieselbe Funktion, mit der der Spieler seinen
+   Charakter waehlt. Damit greift es auch beim GLB-Modell, statt an einer
+   selbst erfundenen Materialkonvention vorbeizulaufen. */
+const GEGNER_TRIKOT = [0xe0574a, 0x4a8fe0, 0xe0c14a, 0x9a4ae0, 0x4ae08f, 0xe07f4a, 0x4ae0d8, 0xe04a9a];
+function faerbeGegner(halter, i){
+  const basis = CHARAKTERE[i % CHARAKTERE.length];
+  wendeCharakterAn(halter, Object.assign({}, basis, {
+    jersey: GEGNER_TRIKOT[i % GEGNER_TRIKOT.length],
+    helm: GEGNER_TRIKOT[(i + 3) % GEGNER_TRIKOT.length],
+  }));
+}
+
+/* Gegnerwahl im Startmenue. 0 laesst das Spiel als Zeitfahren laufen — genau
+   wie vorher, ohne dass irgendetwas KI-bezogenes greift. */
+function baueGegnerwahl(){
+  const box = $('gegnerwahl'); if(!box) return;
+  gegnerZahl = Math.max(0, Math.min(8, +gemerkt('gegner', '0') || 0));
+  box.innerHTML = '';
+  for(const n of [0, 2, 4, 6, 8]){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = n === 0 ? 'Keine' : String(n);
+    b.setAttribute('aria-pressed', String(n === gegnerZahl));
+    b.addEventListener('click', () => {
+      gegnerZahl = n; merke('gegner', String(n));
+      box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      const hin = $('gegner-hinweis');
+      if(hin) hin.textContent = n === 0
+        ? 'Ohne Gegner ist es ein Zeitfahren wie bisher.'
+        : n + ' KI-Fahrer mit eigenen Persoenlichkeiten. Jeder Start wuerfelt Typen und Linien neu.';
+      if(welt) stelleFeld(n).catch(e => console.warn('Feld:', e));
+    });
+    box.appendChild(b);
+  }
+}
+baueGegnerwahl();
 
 /* ------------------------------------------------------------------ Aufbau */
 /* Einen Paint freigeben. rAF allein reicht NICHT: die Fortsetzung eines
@@ -6480,6 +7244,7 @@ function haenge(m){
   return m;
 }
 function raeumeWeltAuf(){
+  raeumeFeldAuf();
   for(const m of module.liste){
     for(const o of (m.objekte || [])) scene.remove(o);
     if(m.dispose) try{ m.dispose(); }catch(e){ console.warn('dispose:', e); }
@@ -6539,6 +7304,7 @@ async function starte(){
     await schritt('park', () => { haenge(parkBaue(welt, KONTEXT)); haenge(partBaue(welt, KONTEXT)); });
     // 7) Licht, Kamera, Ton
     await schritt('licht', () => {
+      module.ki = kiBaue(welt, KONTEXT);
       himmelAlt.visible = false;                 // die Kuppel ersetzt der Preetham-Himmel
       module.licht = haenge(lichtBaue(welt, KONTEXT));
       module.kamera = kamBaue(welt, KONTEXT);
@@ -6585,6 +7351,9 @@ const ui = uiBaue(KONTEXT, {
   setzeQualitaet(q){ setzeQualitaet(q); },
   setzeTageszeit(t){ if(module.licht) module.licht.setzeTageszeit(t); },
   setzeTon(v){ if(module.audio) module.audio.lautstaerke(v); },
+  /* Das UI fragt die Rangliste ab, statt selbst ins Feld zu greifen. Ohne
+     Gegner gibt es null zurueck und die Anzeige bleibt aus. */
+  rangliste(){ return (gegner.length && module.ki) ? module.ki.rangliste(fahrer) : null; },
 });
 
 let meldungTimer = 0;
@@ -6663,37 +7432,19 @@ renderer.setAnimationLoop(() => {
     schreibeHud(dt);
     ui.takt(fahrer, performance.now(), ein);
 
-    // --- Fahrer setzen ---
-    const st = stInterp(welt, fahrer.s);
-    weltPos(welt, fahrer.s, fahrer.u, fahrer.y, _p);
-    for(const h of HOOKS.update) h(dt, {fahrer, welt, pos:_p, psi:st.psi, ein});
-    if(halter){
-      animiereFahrzeug(halter, fahrer, dt, ein);
-      halter.position.copy(_p);
-      // Fahrtrichtung an der Station ist (sin ψ, 0, cos ψ); Rohrmodell und GLB schauen
-      // lokal nach +z. rotateY(ψ) dreht +z genau dorthin. Vorher stand hier
-      // rotateY(π − ψ): das liefert (sin ψ, −cos ψ), eine z-Spiegelung — Fehler 180°+2ψ.
-      halter.rotation.set(0, 0, 0);
-      halter.rotateY(st.psi);
-      halter.rotateX(fahrer.tilt);     // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
-      halter.rotateZ(-fahrer.roll);
-      // Sturz: das Fahrzeug legt sich auf die Seite und sinkt auf Radhoehe ab.
-      // Gedreht wird nur der Halter — am Modell aendert sich nichts, damit ein
-      // spaeter eingesetztes GLB genauso kippt.
-      if(fahrer.sturzKipp > 0.001){
-        const k = fahrer.sturzKipp;
-        halter.rotateZ(fahrer.sturzSeite * k * 1.35);
-        halter.rotateX(k * 0.22);
-        halter.position.y -= k * (RAD_R * 0.72);
-      }
+    // --- Gegner: eigene Entscheidungen, dieselbe schritt()-Funktion ---
+    if(module.ki && gegner.length){
+      module.ki.update(dt, fahrer);
+      if(module.ki.overlay.aktiv()) module.ki.overlay.takt();
     }
-    if(schatten){
-      const sy = welt.flaeche(Math.min(fahrer.s, welt.L), fahrer.u);
-      weltPos(welt, fahrer.s, fahrer.u, sy + 0.05, schatten.position);
-      const hoch = Math.max(0, fahrer.y - sy);
-      const sk = 1 + hoch*0.16;
-      schatten.scale.set(sk, 1, sk);
-      schatten.material.opacity = 0.42 / (1 + hoch*0.5);
+
+    // --- Fahrer setzen ---
+    const st = setzeFahrzeug(halter, welt, fahrer, dt, ein, schatten);
+    weltPos(welt, fahrer.s, fahrer.u, fahrer.y, _p);
+    for(const h of HOOKS.update) h(dt, {fahrer, welt, pos:_p, psi:st ? st.psi : 0, ein});
+    for(const g of gegner){
+      if(!g.halter) continue;
+      setzeFahrzeug(g.halter, welt, g.ki.fahrer, dt, g.ki.ein, g.schatten);
     }
 
     // --- Kamera ---
@@ -6798,6 +7549,9 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    scene, camera, sonne, fill, noise, DS, N_QUER, SKIRT, SKIRT_AB, SKIRT_AUF, FILLET, FARBE,
                    sicht, HOOKS, QUALITAET, QUALITAETEN, setzeQualitaet, KAMERAS, ein, timer, baueBaeume,
                    untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module, ui, THREE, stgBaue,
+                   kiBaue, KI_TYPEN, KI_SEKTION, kiKurvenTempo, kiKandidaten, kiWaehle, KONTEXT,
+                   stelleFeld, get gegner(){ return gegner; },
+                   get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
                    get kamMode(){ return kamMode; }, set kamMode(v){ kamMode = v % KAMERAS.length; },
                    get schatten(){ return schatten; },
