@@ -9,6 +9,14 @@
     --bg:#0a0a0c; --bg-2:#101015; --line:#4fd1c5; --jump:#ff9d4d;
     --wall:#d9a441; --dim:#8b8b95; --fg:#e8e8ee;
     --glass:rgba(255,255,255,.045); --stroke:rgba(255,255,255,.09);
+    /* Das Glas oben ist fuer das dunkle Startmenue gedacht. Im Spiel liegen
+       dieselben Panels ueber Himmel und hellem Gras — dort muss die Flaeche
+       abdunkeln statt aufhellen, sonst steht heller Text auf hellem Grund.
+       .74 haelt den Grund auch unter dem hellsten gemessenen Himmel
+       (211,233,244) bei L=.057, was fuer --fg 8:1 und fuer --dim-hud 4,8:1
+       ergibt — beides ueber der WCAG-AA-Schwelle von 4,5:1. */
+    --glass-hud:rgba(9,11,15,.78); --stroke-hud:rgba(255,255,255,.14);
+    --dim-hud:#b4b4c0;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
@@ -18,17 +26,26 @@
   .glass{background:var(--glass);border:1px solid var(--stroke);border-radius:14px;
     backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%)}
 
+  /* Panels, die im Spiel ueber der Szene liegen — nicht die des Menues. */
+  /* Die tragende Deckkraft steht in background-color, der Verlauf nur als
+     Dekoration darueber. So misst der Kontrast-Test denselben Wert, den der
+     Browser mindestens zeichnet — ein reiner Verlauf steht in background-image
+     und waere an der Pruefung vorbeigelaufen. */
+  #hud,#right,#elem{background-color:var(--glass-hud);
+    background-image:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.08));
+    border-color:var(--stroke-hud);box-shadow:0 18px 44px -18px rgba(0,0,0,.8)}
+
   /* --- HUD --- */
   #hud{position:fixed;inset:auto auto 18px 18px;padding:14px 16px;min-width:206px;
     pointer-events:none;opacity:0;transition:opacity .5s ease}
   #hud.on{opacity:1}
   #hud .big{font-size:34px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  #hud .u{font-size:11px;color:var(--dim);margin-left:5px}
+  #hud .u{font-size:11px;color:var(--dim-hud);margin-left:5px}
   #hud .row{display:flex;justify-content:space-between;gap:18px;font-size:11px;
-    color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums}
+    color:var(--dim-hud);margin-top:5px;font-variant-numeric:tabular-nums}
   #hud .row b{color:var(--fg);font-weight:400}
   #hud .row[hidden]{display:none}   /* display:flex würde das native hidden überschreiben */
-  #bar{height:3px;background:rgba(255,255,255,.09);border-radius:2px;margin-top:11px;overflow:hidden}
+  #bar{height:3px;background:rgba(255,255,255,.16);border-radius:2px;margin-top:11px;overflow:hidden}
   #bar i{display:block;height:100%;width:0;background:var(--line);transition:width .12s linear}
 
   /* Bleibt rechts vom HUD: bei 1280 px reicht 88vw sonst bis unter den Tacho. */
@@ -36,20 +53,24 @@
     padding:9px 18px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
     color:var(--jump);opacity:0;transition:opacity .3s ease;pointer-events:none;
     white-space:nowrap;max-width:min(62vw,760px);overflow:hidden;text-overflow:ellipsis}
+  #elem.on{opacity:1}
+
+  #right{position:fixed;top:18px;right:18px;padding:12px 14px;font-size:11px;color:var(--dim-hud);
+    opacity:0;transition:opacity .5s ease;pointer-events:none;text-align:right}
+  #right.on{opacity:1}
+  #right b{color:var(--fg);font-weight:400}
+  #right .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke-hud);border-radius:4px;
+    margin-left:4px;color:var(--fg)}
+
+  /* Stand vorher VOR den Basisregeln fuer #right und wurde von ihnen wieder
+     ueberschrieben — auf dem Handy blieb die Tastenhilfe deshalb in voller
+     Desktop-Groesse stehen. Gleiche Spezifitaet, also entscheidet die Reihenfolge. */
   @media (max-width:760px){
     #elem{left:50%;bottom:14px;max-width:92vw;font-size:11px}
     #hud{inset:auto auto 58px 12px;padding:10px 12px;min-width:0}
     #hud .big{font-size:26px}
     #right{top:12px;right:12px;font-size:10px}
   }
-  #elem.on{opacity:1}
-
-  #right{position:fixed;top:18px;right:18px;padding:12px 14px;font-size:11px;color:var(--dim);
-    opacity:0;transition:opacity .5s ease;pointer-events:none;text-align:right}
-  #right.on{opacity:1}
-  #right b{color:var(--fg);font-weight:400}
-  #right .k{display:inline-block;padding:1px 5px;border:1px solid var(--stroke);border-radius:4px;
-    margin-left:4px;color:var(--fg)}
 
   /* --- Startbildschirm --- */
   #start{position:fixed;inset:0;display:grid;place-items:center;padding:24px;
@@ -5831,7 +5852,7 @@ function stgBaue(ein, taste, canvas){
 const UI_CSS = `
 #ui-lage{position:fixed;inset:0;pointer-events:none;z-index:30;
   font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--fg)}
-#ui-lage .karte{background:rgba(14,15,19,.72);border:1px solid rgba(255,255,255,.10);
+.karte{background:rgba(14,15,19,.72);border:1px solid rgba(255,255,255,.10);
   border-radius:18px;backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
   box-shadow:0 24px 60px -20px rgba(0,0,0,.75)}
 #ui-lage .schirm{position:absolute;inset:0;display:grid;place-items:center;
@@ -5869,15 +5890,20 @@ const UI_CSS = `
 #ui-lage input[type=range]{width:150px;accent-color:var(--line);pointer-events:auto}
 
 /* HUD-Ergänzungen */
-#ui-grund{position:fixed;left:18px;bottom:calc(18px + 172px);padding:7px 13px;font-size:11px;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--dim);opacity:0;
-  transition:opacity .3s ease;pointer-events:none;z-index:20}
+/* Der Tacho waechst um eine Zeile, sobald ein Element angekuendigt wird — 150
+   bis 186 px je nach Breite und Zustand. Eine feste Distanz von unten trifft
+   seine Oberkante deshalb nie; --hud-hoch wird unten per ResizeObserver
+   nachgefuehrt, der Startwert gilt nur bis zur ersten Messung. */
+#ui-grund,#ui-hilfe{background-color:var(--glass-hud);border-color:var(--stroke-hud)}
+#ui-grund{position:fixed;left:18px;bottom:calc(18px + var(--hud-hoch,172px) + 10px);padding:6px 12px;font-size:11px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--dim-hud);opacity:0;
+  border-radius:10px;transition:opacity .3s ease;pointer-events:none;z-index:20}
 #ui-grund.an{opacity:1}
 #ui-grund b{color:var(--fg);font-weight:400}
 #ui-wertung{position:fixed;left:50%;top:26%;transform:translate(-50%,-6px);
   font-size:22px;letter-spacing:.14em;text-transform:uppercase;opacity:0;
   transition:opacity .25s ease,transform .25s ease;pointer-events:none;z-index:20;
-  text-shadow:0 2px 18px rgba(0,0,0,.7)}
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 2px 16px rgba(0,0,0,.8)}
 #ui-wertung.an{opacity:1;transform:translate(-50%,0)}
 #ui-hop{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);width:132px;height:7px;
   border-radius:4px;background:rgba(8,10,14,.55);border:1px solid rgba(255,255,255,.16);
@@ -5886,17 +5912,24 @@ const UI_CSS = `
 #ui-hop.an{opacity:1}
 #ui-hop i{display:block;height:100%;width:0;background:var(--line);transition:width .05s linear}
 #ui-hop.voll i{background:var(--jump);box-shadow:0 0 10px var(--jump)}
-#ui-hilfe{position:fixed;right:18px;bottom:18px;padding:9px 14px;font-size:11px;color:var(--dim);
-  opacity:0;transition:opacity .3s ease;pointer-events:none;z-index:20}
-#ui-hilfe.an{opacity:.85}
+#ui-hilfe{position:fixed;right:18px;top:calc(18px + 139px);padding:8px 13px;font-size:11px;color:var(--dim-hud);
+  opacity:0;border-radius:11px;transition:opacity .3s ease;pointer-events:none;z-index:20}
+#ui-hilfe.an{opacity:1}
 #ui-hilfe .k{display:inline-block;min-width:17px;text-align:center;padding:1px 4px;margin:0 3px;
-  border:1px solid var(--stroke);border-radius:5px;color:var(--fg);font-size:10px}
+  border:1px solid var(--stroke-hud);border-radius:5px;color:var(--fg);font-size:10px}
 @media (prefers-reduced-motion: reduce){
   #ui-lage .schirm,#ui-lage .schirm > .karte,#ui-grund,#ui-wertung,#ui-hilfe{transition-duration:.01ms}
 }
-@media (max-width: 640px){
+@media (max-width: 760px){
   #ui-lage .gross{font-size:42px} #ui-lage .schirm > .karte{padding:22px 20px;min-width:0;width:92vw}
-  #ui-grund{bottom:calc(18px + 162px)}
+  #ui-grund{left:12px;bottom:calc(58px + var(--hud-hoch,150px) + 8px)}
+  #ui-hilfe{right:12px;top:calc(12px + 139px);padding:6px 10px}
+  /* Mittig ragt der Balken bei 380 px in den Tacho, rechts unten liegt der
+     Elementhinweis. Statt ihn weiter zu verschieben haengt er an derselben
+     Hoehenmessung wie die Untergrund-Karte und bleibt in der linken Saeule —
+     damit kann er per Konstruktion nicht mehr auf etwas anderem landen. */
+  #ui-hop{left:12px;right:auto;transform:none;width:157px;
+    bottom:calc(58px + var(--hud-hoch,150px) + 48px)}
   #ui-lage .segmente button{padding:7px 9px;font-size:11px}
   #ui-lage input[type=range]{width:120px}
 }
@@ -5977,6 +6010,18 @@ function uiBaue(ctx, spiel){
   const hilfe = document.createElement('div'); hilfe.id = 'ui-hilfe'; hilfe.className = 'karte';
   hilfe.innerHTML = 'Pause<span class="k">Esc</span>Kamera<span class="k">C</span>Neustart<span class="k">R</span>Ton<span class="k">M</span>';
   document.body.append(grund, wertung, hop, hilfe);
+
+  /* Die Untergrund-Karte sitzt ueber dem Tacho, und der aendert seine Hoehe:
+     die Elementzeile kommt und geht, und bei schmalen Schirmen schrumpft die
+     Schrift. Statt eine Hoehe zu raten, wird die gemessene in --hud-hoch
+     geschrieben; das CSS oben rechnet damit. */
+  const hudEl = document.getElementById('hud');
+  if(hudEl && window.ResizeObserver){
+    const setzeHoehe = () => document.documentElement.style
+      .setProperty('--hud-hoch', hudEl.offsetHeight + 'px');
+    new ResizeObserver(setzeHoehe).observe(hudEl);
+    setzeHoehe();
+  }
 
   const $$ = id => document.getElementById(id);
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
