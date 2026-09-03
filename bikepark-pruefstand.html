@@ -2520,6 +2520,33 @@ function gelBaue(welt, ctx){
     return h;
   };
 
+  /* Gemittelte Schürzenkanten-Höhe. An einer Serpentine liegen zwei Trailäste
+     40 m nebeneinander und unterscheiden sich um bis zu 26 m in der Höhe; wer
+     dort die Höhe des EINEN nächsten Astes fortschreibt, bekommt genau da eine
+     Geländestufe, wo `welt.naechste` von einem Ast auf den anderen umspringt.
+     Das Raster mittelt stattdessen über alle Äste in Reichweite (Gewicht 1/d⁴,
+     also nah am Trail praktisch der eigene Ast) und wird einmal beim Bauen
+     gefüllt — zur Laufzeit kostet es eine bilineare Abfrage. */
+  const heRaster = new Float32Array(cn*cm);
+  mess('astmittel', () => {
+    const RAD = 110, RAD2 = RAD*RAD;
+    for(let j = 0; j < cm; j++) for(let i = 0; i < cn; i++){
+      const k = j*cn + i, x = gx0 + i*GEL_ZELLE, z = gz0 + j*GEL_ZELLE;
+      let sum = 0, gew = 0;
+      for(let t = 0; t < st.length; t += 2){        // jede zweite Station reicht (3 m)
+        const p = st[t], dx = p.x - x, dz = p.z - z, d2 = dx*dx + dz*dz;
+        if(d2 > RAD2) continue;
+        // Höhe der Schürzenkante auf der Seite, auf der der Punkt liegt
+        const rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
+        const u = dx*rx + dz*rz, halb = welt.qsBei(p.s).breite/2;
+        const kante = Math.sign(u || 1)*(halb + GEL_SCHUERZE);
+        const g = 1/(d2*d2 + 1e4);                   // 1/d⁴, gedeckelt
+        sum += welt.hoehe(p.s, kante)*g; gew += g;
+      }
+      heRaster[k] = gew > 0 ? sum/gew : fern(x, z).glatt;
+    }
+  });
+
   /* Das Höhenfeld. Deterministisch, ohne Zustand — auch für die Vegetation. */
   const gelHoehe = (x, z) => {
     if(x < gx0 || x > gx1 || z < gz0 || z > gz1){ const f = fern(x, z); return f.glatt + f.detail; }
@@ -2530,9 +2557,14 @@ function gelBaue(welt, ctx){
     if(dCh < 170) n = welt.naechste(x, z, 140);
     let h;
     if(n){
-      const r = schuerze(n), he = welt.hoehe(n.s, n.u);
-      if(r.dEdge <= 0) h = he + versatz(r.dTrail);
-      else h = he + (bilinear(wert, x, z) + detail - he)*gelS(0, 25, r.dEdge);
+      const r = schuerze(n), heNah = welt.hoehe(n.s, n.u);
+      if(r.dEdge <= 0) h = heNah + versatz(r.dTrail);
+      else {
+        // An der Kante exakt die Schürzenhöhe (sonst entsteht dort eine neue
+        // Naht), ab etwa 12 m die über die Äste gemittelte.
+        const he = heNah + (bilinear(heRaster, x, z) - heNah)*gelS(0, 12, r.dEdge);
+        h = he + (bilinear(wert, x, z) + detail - he)*gelS(0, 25, r.dEdge);
+      }
     } else h = bilinear(wert, x, z) + detail;
     if(waende.length && bilinear(distW, x, z) < 260){
       const n2 = n || welt.naechste(x, z, 260);
