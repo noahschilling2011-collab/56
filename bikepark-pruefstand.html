@@ -647,7 +647,7 @@ const SKIRT_AUF= [1.1, 5.5, 15.0];  // bergseits: so hoch steigt die Anschnittsb
    der Richtung, in die die Strecke insgesamt absteigt. Läuft der Trail gerade
    die Falllinie hinunter, fallen beide Seiten gleich ab; quert er den Hang,
    steigt die eine Seite an. `bergSign` = +1 heißt: rechts ist talseits. */
-function profilPunkte(qs, bergSign){
+function profilPunkte(qs, bergSign, s = 0){
   // 1) fein abtasten
   const innen = -qs.breite/2, aussenX = aussenGrenze(qs);
   const FEIN = 96, roh = [];
@@ -682,12 +682,15 @@ function profilPunkte(qs, bergSign){
   const sL = -Math.sign(qs.aussen) || -1, sR = Math.sign(qs.aussen) || 1;
   for(let i = SKIRT.length-1; i >= 0; i--){
     const x = innen - SKIRT[i];
-    links.push({x, v: versatz(sL, i, pts[0].v) + noise(x*0.6 + qs.breite)*1.5, trail:false});
+    // Das Rauschen läuft über die Bogenlänge, nicht über qs.breite: die springt
+    // an jedem Sprung und jedem Anlieger, und die Schürze bekam dadurch Stufen
+    // im Stationsabstand — mit Textur und Normalmap sieht man jede davon.
+    links.push({x, v: versatz(sL, i, pts[0].v) + noise(x*0.6 + s*0.11)*1.5, trail:false});
   }
   const oben = pts[pts.length-1];
   for(let i = 0; i < SKIRT.length; i++){
     const x = aussenX + SKIRT[i];
-    rechts.push({x, v: versatz(sR, i, oben.v) + noise(x*0.6 - qs.breite)*1.5, trail:false});
+    rechts.push({x, v: versatz(sR, i, oben.v) + noise(x*0.6 - s*0.13)*1.5, trail:false});
   }
   return links.concat(pts, rechts);
 }
@@ -809,9 +812,18 @@ function baueStrecke(track){
   const dx = st[st.length-1].x - st[0].x, dz = st[st.length-1].z - st[0].z;
   const dl = Math.hypot(dx, dz) || 1;
   const fx = dx/dl, fz = dz/dl;
-  const bergArr = st.map(p => {
+  const bergRoh = st.map(p => {
     const rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
     return Math.max(-1, Math.min(1, (rx*fx + rz*fz) * 1.8));
+  });
+  // Geglättet über ±10 Stationen (15 m): bergSign entscheidet, ob die Schürze
+  // 15 m ansteigt oder 26 m abfällt — 41 m Unterschied. In einer Kurve dreht die
+  // Trailrichtung so schnell, dass die ungeglättete Größe der Böschung Stufen im
+  // Stationsabstand gab; mit Textur und Normalmap liest sich das als Treppe.
+  const bergArr = bergRoh.map((_, i) => {
+    let sum = 0, n = 0;
+    for(let j = Math.max(0, i - 10); j <= Math.min(bergRoh.length - 1, i + 10); j++){ sum += bergRoh[j]; n++; }
+    return sum/n;
   });
   const bergBei = i => bergArr[Math.max(0, Math.min(i, bergArr.length-1))];
   const bergAt  = s => bergBei(Math.round(s/DS));
@@ -822,7 +834,7 @@ function baueStrecke(track){
 
   // Querprofile je Station einmal berechnen: fürs Mesh UND für hoeheWelt
   // (Objekte neben der Strecke stehen damit exakt auf der Schürze).
-  const profile = st.map((p, i) => profilPunkte(qsArr[i], bergBei(i)));
+  const profile = st.map((p, i) => profilPunkte(qsArr[i], bergBei(i), p.s));
   const mesh = baueStreckenMesh(track, st, hMesh, qsArr, bergBei, profile);
 
   // Höhe der Fahrfläche an (s, u) — analytisch, kein Raycast.
@@ -915,9 +927,27 @@ function baueStationsSuche(st){
       for(const i of arr){ const dx = st[i].x - x, dz = st[i].z - z, d = dx*dx + dz*dz; if(d < bd){ bd = d; best = i; } }
     }
     if(best < 0 || bd > radius*radius) return null;
-    const p = st[best], rx = -Math.cos(p.psi), rz = Math.sin(p.psi);
-    return {i:best, s:p.s + (x - p.x)*Math.sin(p.psi) + (z - p.z)*Math.cos(p.psi),
-            u:(x - p.x)*rx + (z - p.z)*rz, d:Math.sqrt(bd)};
+    // Fußpunkt auf dem nächstgelegenen SEGMENT, nicht Projektion auf die Tangente
+    // der nächsten Station: in einer Kehre mit 20 m Radius läge ein Punkt 45 m
+    // außerhalb sonst um mehr als 40 m falsch auf der Bogenlänge — und genau dort
+    // klaffte der Übergang von der Streckenschürze ins Terrain auf.
+    let bs = st[best].s, bu = 0, bi = best, bd2 = Infinity;
+    for(let j = best - 1; j <= best; j++){
+      if(j < 0 || j >= st.length - 1) continue;
+      const a = st[j], b = st[j+1];
+      const ax = b.x - a.x, az = b.z - a.z, L2 = ax*ax + az*az;
+      if(L2 < 1e-9) continue;
+      const t = Math.max(0, Math.min(1, ((x - a.x)*ax + (z - a.z)*az)/L2));
+      const px = a.x + t*ax, pz = a.z + t*az;
+      const d2 = (x - px)*(x - px) + (z - pz)*(z - pz);
+      if(d2 >= bd2) continue;
+      bd2 = d2; bs = a.s + t*(b.s - a.s); bi = t < 0.5 ? j : j + 1;
+      // psi kann über die Segmentgrenze springen (±π): über die Richtung mitteln
+      const cx2 = Math.cos(a.psi)*(1-t) + Math.cos(b.psi)*t, sz2 = Math.sin(a.psi)*(1-t) + Math.sin(b.psi)*t;
+      const psi = Math.atan2(sz2, cx2), rx = -Math.cos(psi), rz = Math.sin(psi);
+      bu = (x - px)*rx + (z - pz)*rz;
+    }
+    return {i:bi, s:bs, u:bu, d:Math.sqrt(bd2 < Infinity ? bd2 : bd)};
   };
 }
 
@@ -1963,13 +1993,14 @@ function trailAttribute(welt, ctx){
     for(const b of arr) if(s >= b[0] - rand && s <= b[1] + rand) return b;
     return null;
   };
-  // Bremswellen: die letzten 10 m vor jedem Anlieger, dort bremst jeder.
+  // Bremswellen entstehen dort, wo vor der Kurve gebremst wird — also in der
+  // Anfahrt, nicht in der Kurve selbst. Im Anlieger fährt man mit Druck durch,
+  // dort ist die Fläche glatt gefahren.
   const wellenBei = s => {
     let w = 0;
     for(const a of anlieger){
       const d = a[0] - s;
-      if(d > 0 && d < 12) w = Math.max(w, Math.min(1, (12 - d)/6));
-      if(s >= a[0] && s <= a[1]) w = Math.max(w, 0.35);
+      if(d > 0 && d < 14) w = Math.max(w, Math.min(1, (14 - d)/8));
     }
     return w;
   };
@@ -2126,8 +2157,10 @@ function trailBaue(welt, ctx){
           vec3 nW = texture2D( nHolz,     uvW ).xyz * 2.0 - 1.0;
           nW = mix( nW, vec3( nW.xy * 0.25, nW.z ), d.y );        // Beton ist glatt
           vec3 mapN = nE*g.x + nK*g.y + nW*g.z + nG*g.w;
-          // Bremswellen: querlaufende Rippen, ~0,55 m Abstand, nur wo gebremst wird
-          mapN.y += sin( vMapUv.x * 22.8 ) * 0.55 * vDetail.z;
+          // Bremswellen: querlaufende Rippen, ~0,7 m Abstand. Zwei Frequenzen und
+          // eine Dämpfung zum Rand hin, damit daraus kein Wellblech wird.
+          float wRand = 1.0 - smoothstep( 0.55, 1.0, abs( vDetail.x - 0.5 ) * 2.0 );
+          mapN.y += ( sin( vMapUv.x * 18.0 ) + 0.45 * sin( vMapUv.x * 29.0 ) ) * 0.11 * vDetail.z;
           mapN.xy *= normalScale * mix( 1.0, 0.45, nass );          // Rillen sind glattgefahren
           normal = normalize( tbn * mapN );
         #endif`);
@@ -4956,7 +4989,11 @@ function lichtBaue(welt, ctx){
   gtao.blendIntensity = 0.7;
   gtao.updateGtaoMaterial({radius: 0.45, distanceExponent: 1, thickness: 1, scale: 1, samples: 12, distanceFallOff: 1, screenSpaceRadius: false});
   gtao.updatePdMaterial({lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, radiusExponent: 1, rings: 2, samples: 12});
-  const bloom = new UnrealBloomPass(new THREE.Vector2(groesse.x, groesse.y), 0.22, 0.45, 0.88);
+  // Der Pass liegt vor dem OutputPass, also im linearen HDR: ein sonniger Himmel
+  // steht dort bei 2 bis 10, nicht bei 1. Mit einer Schwelle unter 1 leuchtet
+  // deshalb der halbe Bildschirm und legt einen Schleier über die Szene — die
+  // Schwelle muss über den Himmel hinaus, dann bleibt nur die Sonne selbst übrig.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(groesse.x, groesse.y), 0.14, 0.30, 1.60);
   const grade = new ShaderPass(LICHT_GRADE);
   const smaa = new SMAAPass();
   const output = new OutputPass();
