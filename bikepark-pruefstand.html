@@ -6024,6 +6024,23 @@ const KI_TYPEN = {
   konstant:   {name:'Consistent', mut:0.58, tempo:0.78, bremsen:0.66, kurve:0.80, sprung:0.64, reaktion:0.18, risiko:0.35, fehler:0.03, linie:0.78, ueberholen:0.50, ausdauer:0.95, lernen:0.65},
 };
 
+/* Was der Trainer anfassen darf. Bewusst NICHT die zwoelf Eigenschaften oben:
+   wer die optimiert, macht aus jedem Anfaenger nach zwanzig Rennen einen Profi,
+   und am Ende faehrt zehnmal dieselbe KI. Trainiert wird stattdessen die
+   Ausfuehrungsqualitaet — wie sauber jemand das umsetzt, was seine
+   Persoenlichkeit ohnehin will. Die Korridore sind eng genug, dass ein
+   Vorsichtiger vorsichtig bleibt und ein Raser ein Raser.
+
+   Jeder Wert ist eine Korrektur auf 0, nicht ein Absolutwert. */
+const KI_TRAINIERBAR = {
+  bremsFrueh:  {min:-0.30, max: 0.40, schritt:0.06},  // + = frueher anbremsen
+  sprungZiel:  {min:-0.14, max: 0.09, schritt:0.022}, // Faktor auf das Sprung-Zieltempo
+  linienRuhe:  {min:-0.25, max: 0.50, schritt:0.07},  // + = weniger Zittern auf der Linie
+  kurvenLenk:  {min:-0.22, max: 0.32, schritt:0.05},  // Lenkstaerke zur Ziellinie
+  ueberholMut: {min:-0.25, max: 0.25, schritt:0.05},  // wann ein Linienwechsel lohnt
+};
+const kiNeutral = () => ({bremsFrueh:0, sprungZiel:0, linienRuhe:0, kurvenLenk:0, ueberholMut:0});
+
 const KI_SEKTION = 45;        // m: so lang ist ein Entscheidungsabschnitt
 const KI_SICHT = 90;          // m Vorausschau der Sensoren
 const KI_STRATEGIE_T = 4.0;   // s zwischen Strategiewechseln
@@ -6179,7 +6196,7 @@ function kiNutzen(w, sens, ich, kand, strategie, gedaechtnis){
   if(strategie === 'angriff' && sens.vorn){
     // Nicht in den Windschatten kleben, sondern daneben — Ueberholen heisst Linie wechseln
     const seitlich = Math.abs(kand.u - sens.vorn.u) / Math.max(0.5, sens.halb);
-    n += seitlich * p.ueberholen * 0.55;
+    n += seitlich * (p.ueberholen + ich.trainiert.ueberholMut) * 0.55;
   }
   if(strategie === 'verteidigen' && sens.hinten){
     const blockt = 1 - Math.abs(kand.u - sens.hinten.u) / Math.max(0.5, sens.halb);
@@ -6221,12 +6238,12 @@ function kiWaehle(kandidaten, nutzen, rnd, temp){
    Zufallszucken, sondern als das, was Menschen falsch machen: zu spaet
    bremsen, zu viel lenken, den Absprung verpassen. */
 function kiRegle(w, f, sens, ich, dt){
-  const p = ich.p, ein = ich.ein;
+  const p = ich.p, ein = ich.ein, tr = ich.trainiert;
   const ziel = ich.linie;
 
   // --- Quer: auf die Ziellinie ziehen, mit Reaktionszeit und Zittern ---
   const fehlerU = (ziel.u + ich.driftU) - f.u;
-  const staerke = 0.55 + p.kurve * 0.75;
+  const staerke = 0.55 + p.kurve * 0.75 + tr.kurvenLenk;
   ein.quer = kiClamp(fehlerU * staerke - f.vu * 0.55, -1, 1);
 
   // --- Laengs: Zieltempo aus der schaerfsten Kurve im Bremsfenster ---
@@ -6239,7 +6256,7 @@ function kiRegle(w, f, sens, ich, dt){
     const noetig = Math.max(0, (f.vs*f.vs - v*v) / (2*a));
     // Der Bremspunkt wird nach Persoenlichkeit verschoben: spaet = mutig, und
     // der Patzer verschiebt ihn zusaetzlich.
-    const punkt = fen.dist * (0.55 + (1 - p.bremsen) * 0.4) + ich.patzerBrems;
+    const punkt = fen.dist * (0.55 + (1 - p.bremsen) * 0.4 + tr.bremsFrueh) + ich.patzerBrems;
     if(noetig > punkt && v < vZiel){ vZiel = v; bremsWeg = noetig; }
   }
   // Sprung: das Anfahrtstempo entscheidet, wo man aufkommt. zielTempo liefert
@@ -6255,13 +6272,13 @@ function kiRegle(w, f, sens, ich, dt){
     // hohem Koennen ueber 1,0 lief und den Profi systematisch ueberschiessen
     // liess: im Test dieselbe Sturzzahl wie beim Anfaenger.
     let zielV = ziel.kurz ? vT * 0.74
-              : vT * (0.80 + p.sprung * 0.18 + (p.risiko - 0.5) * 0.06);
+              : vT * (0.80 + p.sprung * 0.18 + (p.risiko - 0.5) * 0.06 + tr.sprungZiel);
     zielV += ich.patzerSprung;                      // Fehleinschaetzung dieser Sektion
     zielV = Math.max(4, zielV);
     const a = 4.2 + p.bremsen * 3.4;
     const noetig = Math.max(0, (f.vs*f.vs - zielV*zielV) / (2*a));
     // Vor der Lippe muss es stehen; spaeter Bremspunkt nach Mut, plus Patzer.
-    const puffer = 2.5 + (1 - p.mut) * 4;
+    const puffer = 2.5 + (1 - p.mut) * 4 + tr.bremsFrueh * 6;
     if(noetig > sens.sprung.d - puffer + ich.patzerBrems && zielV < vZiel) vZiel = zielV;
   }
 
@@ -6309,6 +6326,75 @@ function kiRegle(w, f, sens, ich, dt){
   if(!sens.sprung) ich.hopGesetzt = false;
 }
 
+/* --------------------------------------------------------- BEOBACHTUNG */
+/* Was der Trainer im Rennen mitschreibt. Vier Bereiche, je mit Gelegenheiten
+   und Fehlern — eine Fehlerquote ohne Nenner sagt nichts. */
+function kiNeueBeobachtung(){
+  return {
+    kurven:    {gelegen:0, rutsch:0, rand:0, tempoVerlust:0, sturz:0},
+    spruenge:  {gelegen:0, case:0, ueber:0, hart:0, wucht:0, sturz:0},
+    bremsen:   {gelegen:0, zuSpaet:0, zuFrueh:0, bremsZeit:0},
+    ueberholen:{gelegen:0, versuche:0, erfolge:0, verloren:0},
+    strecke:   {zeit:0, weg:0, stuerze:0},
+  };
+}
+
+/* Je Takt fortschreiben. Der Aufwand ist eine Handvoll Vergleiche — das laeuft
+   auch mit acht Fahrern nicht ins Gewicht. */
+function kiBeobachte(w, k, f, sens, dt, vorher){
+  const b = k.beo;
+  b.strecke.zeit += dt;
+  b.strecke.weg = Math.max(b.strecke.weg, f.s);
+
+  // Kurve: gilt als Gelegenheit, sobald es nennenswert kruemmt
+  const kNah = Math.abs(sens.fenster[0].k);
+  if(kNah > 0.006 && f.boden){
+    b.kurven.gelegen += dt;
+    if(f.rutsch > 0.25) b.kurven.rutsch += dt;
+    // Tempoverlust in der Kurve gegen das, was die Linie hergaebe
+    const moeglich = kiKurvenTempo(w, sens.fenster[0].s, f.u, sens.fenster[0].k, sens.grip, f.bike.grip);
+    if(isFinite(moeglich) && moeglich < 40) b.kurven.tempoVerlust += Math.max(0, moeglich - f.vs) * dt;
+    if(f.amRand && !vorher.amRand) b.kurven.rand++;
+  }
+
+  // Sprung: gezaehlt wird bei der Landung, nicht beim Absprung
+  if(f.letzteLandung && f.letzteLandung !== k.beoLandung){
+    k.beoLandung = f.letzteLandung;
+    const l = f.letzteLandung;
+    if(l.luft > 0.25){
+      b.spruenge.gelegen++;
+      b.spruenge.wucht += l.aufprall;
+      if(l.typ === 'case') b.spruenge.case++;
+      else if(l.typ === 'ueberschossen') b.spruenge.ueber++;
+      else if(l.typ === 'hart') b.spruenge.hart++;
+    }
+  }
+
+  // Bremsen: eine Gelegenheit ist jede Kurve oder jeder Sprung im Bremsfenster.
+  // Zu spaet = am Rand oder gestuerzt, waehrend noch gebremst wird.
+  // Zu frueh = Bremsen, obwohl nichts voraus ist, das es verlangt.
+  const wasVoraus = kNah > 0.008 || (sens.sprung && sens.sprung.d < 45);
+  if(wasVoraus) b.bremsen.gelegen += dt;
+  if(k.ein.bremse > 0.15){
+    b.bremsen.bremsZeit += dt;
+    if(!wasVoraus) b.bremsen.zuFrueh += dt;
+    if(f.amRand && !vorher.amRand) b.bremsen.zuSpaet++;
+  }
+
+  // Ueberholen: eine Gelegenheit ist jemand in Reichweite vor einem.
+  if(sens.vorn && sens.vorn.d < 30){
+    b.ueberholen.gelegen += dt;
+    if(!k.beoJagd){ k.beoJagd = {idx:sens.vorn.idx, seit:0}; b.ueberholen.versuche++; }
+    if(k.beoJagd.idx === sens.vorn.idx) k.beoJagd.seit += dt;
+  } else if(k.beoJagd){
+    // Vorbei? Wer eben noch vorn war und jetzt nicht mehr in Sicht ist, wurde
+    // entweder ueberholt oder ist weggefahren — das unterscheidet der Abstand.
+    if(sens.hinten && sens.hinten.idx === k.beoJagd.idx) b.ueberholen.erfolge++;
+    else b.ueberholen.verloren++;
+    k.beoJagd = null;
+  }
+}
+
 /* -------------------------------------------------------------- FAHRER-OBJ */
 function kiFahrer(typ, bike, seed, name){
   const p = KI_TYPEN[typ] || KI_TYPEN.konstant;
@@ -6319,11 +6405,17 @@ function kiFahrer(typ, bike, seed, name){
     rnd: kiPrng(seed),
     linie: {id:'mitte', u:0, hop:0},
     letzteWahl: null,
+    trainiert: kiNeutral(),        // vom Trainer gesetzt; neutral heisst untrainiert
     strategie: 'fahren', strategieT: 0,
     sektion: -1, sektionStart: 0, sektionZeit: 0,
     driftU: 0, driftZiel: 0, driftT: 0,
     patzerBrems: 0, patzerHop: 0, patzerSprung: 0, patzerT: 0,
     hopGesetzt: false,
+    ohnePatzer: false,             // im Training an: gemessen wird der Parameter
+    // Beobachtung fuer den Trainer: je Bereich, was schiefging und wie oft die
+    // Lage ueberhaupt vorkam. Ohne die Gelegenheitszaehler waere ein Fahrer,
+    // der nie ueberholt, faelschlich ein guter Ueberholer.
+    beo: kiNeueBeobachtung(),
     seitSturz: 99, sturzVorher: 0,
     reaktT: 0, sensAlt: null,
     debug: {nutzen: [], kandidaten: []},
@@ -6378,77 +6470,99 @@ function kiBaue(welt, ctx){
     if(e.n % 3 === 0) sichere(k.typ, g);
   }
 
+  /* Einen Fahrer einen Takt weiterbringen. Steht als eigene Funktion da, weil
+     der Trainer sie fuer seine Uebungslaeufe braucht — und weil ein Fahrer im
+     Training exakt dieselben Ebenen durchlaufen muss wie im Rennen. Wer im
+     Training etwas anderes simuliert als spaeter faehrt, trainiert nichts. */
+  function taktFahrer(k, alle, dt, gedaechtnisQuelle){
+    const f = k.fahrer;
+    if(f.s >= welt.L) return;
+
+    // Sturz merken: danach faehrt die KI erst wieder vorsichtig
+    if(f.sturzZahl !== k.sturzVorher){
+      k.sturzVorher = f.sturzZahl; k.seitSturz = 0; k.sektionSturz = true;
+      k.beo.strecke.stuerze++;
+      // Einen Sturz dem Bereich zuschlagen, der ihn verursacht hat — sonst
+      // trainiert der Trainer am falschen Ende.
+      if(f.sturzGrund === 'landung') k.beo.spruenge.sturz++;
+      else k.beo.kurven.sturz++;
+    }
+    k.seitSturz += dt;
+    k.sektionZeit += dt;
+
+    const ichIdx = alle.indexOf(k);
+    // Sensoren laufen mit der Reaktionszeit des Fahrers, nicht jeden Frame:
+    // ein Anfaenger sieht die Kurve spaeter als ein Profi.
+    k.reaktT -= dt;
+    if(!k.sensAlt || k.reaktT <= 0){
+      k.sensAlt = kiSensoren(welt, f, alle, ichIdx);
+      k.reaktT = k.p.reaktion * (0.7 + k.rnd() * 0.6);
+    }
+    const sens = k.sensAlt;
+
+    // --- Strategie ---
+    k.strategieT -= dt;
+    if(k.strategieT <= 0){
+      k.strategie = kiStrategie(k, sens);
+      k.strategieT = KI_STRATEGIE_T * (0.7 + k.rnd() * 0.6);
+    }
+
+    // --- Linie: einmal je Sektion neu entscheiden ---
+    const sek = Math.floor(f.s / KI_SEKTION);
+    if(sek !== k.sektion){
+      if(k.sektion >= 0 && gedaechtnisQuelle) schliesseSektion(k, !!k.sektionSturz);
+      k.sektion = sek; k.sektionZeit = 0; k.sektionSturz = false;
+      const kand = kiKandidaten(welt, sens, k);
+      const nutzen = kand.map(c => kiNutzen(welt, sens, k, c, k.strategie, gedaechtnisFuer(k, sek)));
+      // Sichere Fahrer entscheiden schaerfer, riskante wuerfeln mehr
+      const temp = KI_TEMP * (0.5 + (1 - k.p.linie) * 1.2);
+      const idx = kiWaehle(kand, nutzen, k.rnd, temp);
+      k.linie = kand[idx];
+      k.letzteWahl = k.linie.id;
+      k.debug.kandidaten = kand.map((c, j) => ({id:c.id, n:+nutzen[j].toFixed(2), gewaehlt: j === idx}));
+      // Fahrfehler fuer diese Sektion auswuerfeln: verschobener Bremspunkt,
+      // verpasste Lippe. Wie oft, haengt an der Fehlerneigung.
+      // Im Training bleiben sie aus: gemessen werden soll der Parameter, nicht
+      // der Wuerfel.
+      const patzt = k.ohnePatzer ? false : k.rnd() < k.p.fehler;
+      k.patzerBrems = patzt ? (k.rnd() * 7 + 2) : 0;
+      k.patzerHop = patzt ? (k.rnd() * 2.2 - 1.4) : 0;
+      // Die Sprungweite verschaetzt sich jeder ein bisschen — Anfaenger mehr.
+      k.patzerSprung = k.ohnePatzer ? 0
+        : (k.rnd() * 2 - 1) * (0.3 + (1 - k.p.sprung) * 1.9) + (patzt ? (k.rnd() * 2.0) : 0);
+      k.debug.patzer = patzt;
+    }
+
+    // --- Zittern auf der Linie: kein Mensch faehrt exakt ---
+    k.driftT -= dt;
+    if(k.driftT <= 0){
+      k.driftZiel = (k.rnd() * 2 - 1) *
+        Math.max(0.02, (0.12 + (1 - k.p.linie) * 0.55) * (1 - k.trainiert.linienRuhe));
+      k.driftT = 0.5 + k.rnd() * 1.4;
+    }
+    k.driftU += (k.driftZiel - k.driftU) * Math.min(1, dt * 2.2);
+
+    // --- Beobachtung fuer den Trainer ---
+    const vorher = {amRand: f.amRand, s: f.s, vs: f.vs};
+
+    // --- Regler und Physik: dieselbe schritt()-Funktion wie beim Spieler ---
+    kiRegle(welt, f, sens, k, dt);
+    const n = Math.max(1, Math.ceil(dt / 0.008));
+    for(let j = 0; j < n; j++){
+      schritt(welt, f, dt / n, k.ein);
+      if(j === 0) k.ein.hop = 0;
+    }
+    kiBeobachte(welt, k, f, sens, dt, vorher);
+    if(f.s >= welt.L && !k.imZiel){
+      k.imZiel = true; k.zielZeit = f.zeit;
+      if(gedaechtnisQuelle){ schliesseSektion(k, false); sichere(k.typ, k.gedaechtnis); }
+    }
+  }
+
   function update(dt, spielerFahrer){
     // Der Spieler steht als Nachbar im Feld, damit die KI auf ihn reagiert.
     const alle = spielerFahrer ? [{fahrer: spielerFahrer, istSpieler: true}, ...feld] : feld;
-    for(let i = 0; i < feld.length; i++){
-      const k = feld[i], f = k.fahrer;
-      if(f.s >= welt.L) continue;
-
-      // Sturz merken: danach faehrt die KI erst wieder vorsichtig
-      if(f.sturzZahl !== k.sturzVorher){ k.sturzVorher = f.sturzZahl; k.seitSturz = 0; k.sektionSturz = true; }
-      k.seitSturz += dt;
-      k.sektionZeit += dt;
-
-      const ichIdx = alle.indexOf(k);
-      // Sensoren laufen mit der Reaktionszeit des Fahrers, nicht jeden Frame:
-      // ein Anfaenger sieht die Kurve spaeter als ein Profi.
-      k.reaktT -= dt;
-      if(!k.sensAlt || k.reaktT <= 0){
-        k.sensAlt = kiSensoren(welt, f, alle, ichIdx);
-        k.reaktT = k.p.reaktion * (0.7 + k.rnd() * 0.6);
-      }
-      const sens = k.sensAlt;
-
-      // --- Strategie ---
-      k.strategieT -= dt;
-      if(k.strategieT <= 0){
-        k.strategie = kiStrategie(k, sens);
-        k.strategieT = KI_STRATEGIE_T * (0.7 + k.rnd() * 0.6);
-      }
-
-      // --- Linie: einmal je Sektion neu entscheiden ---
-      const sek = Math.floor(f.s / KI_SEKTION);
-      if(sek !== k.sektion){
-        if(k.sektion >= 0) schliesseSektion(k, !!k.sektionSturz);
-        k.sektion = sek; k.sektionZeit = 0; k.sektionSturz = false;
-        const kand = kiKandidaten(welt, sens, k);
-        const nutzen = kand.map(c => kiNutzen(welt, sens, k, c, k.strategie, gedaechtnisFuer(k, sek)));
-        // Sichere Fahrer entscheiden schaerfer, riskante wuerfeln mehr
-        const temp = KI_TEMP * (0.5 + (1 - k.p.linie) * 1.2);
-        const idx = kiWaehle(kand, nutzen, k.rnd, temp);
-        k.letzteWahl = k.linie ? k.linie.id : null;
-        k.linie = kand[idx];
-        k.letzteWahl = k.linie.id;
-        k.debug.kandidaten = kand.map((c, j) => ({id:c.id, n:+nutzen[j].toFixed(2), gewaehlt: j === idx}));
-        // Fahrfehler fuer diese Sektion auswuerfeln: verschobener Bremspunkt,
-        // verpasste Lippe. Wie oft, haengt an der Fehlerneigung.
-        const patzt = k.rnd() < k.p.fehler;
-        k.patzerBrems = patzt ? (k.rnd() * 7 + 2) : 0;
-        k.patzerHop = patzt ? (k.rnd() * 2.2 - 1.4) : 0;
-        // Die Sprungweite verschaetzt sich jeder ein bisschen — Anfaenger mehr.
-        k.patzerSprung = (k.rnd() * 2 - 1) * (0.3 + (1 - k.p.sprung) * 1.9)
-                       + (patzt ? (k.rnd() * 2.0) : 0);
-        k.debug.patzer = patzt;
-      }
-
-      // --- Zittern auf der Linie: kein Mensch faehrt exakt ---
-      k.driftT -= dt;
-      if(k.driftT <= 0){
-        k.driftZiel = (k.rnd() * 2 - 1) * (0.12 + (1 - k.p.linie) * 0.55);
-        k.driftT = 0.5 + k.rnd() * 1.4;
-      }
-      k.driftU += (k.driftZiel - k.driftU) * Math.min(1, dt * 2.2);
-
-      // --- Regler und Physik: dieselbe schritt()-Funktion wie beim Spieler ---
-      kiRegle(welt, f, sens, k, dt);
-      const n = Math.max(1, Math.ceil(dt / 0.008));
-      for(let j = 0; j < n; j++){
-        schritt(welt, f, dt / n, k.ein);
-        if(j === 0) k.ein.hop = 0;
-      }
-      if(f.s >= welt.L && !k.imZiel){ k.imZiel = true; k.zielZeit = f.zeit; schliesseSektion(k, false); sichere(k.typ, k.gedaechtnis); }
-    }
+    for(let i = 0; i < feld.length; i++) taktFahrer(feld[i], alle, dt, true);
   }
 
   function gedaechtnisFuer(k, sek){
@@ -6473,7 +6587,7 @@ function kiBaue(welt, ctx){
   }
 
   const modul = {
-    feld, setzeFeld, update, rangliste,
+    feld, setzeFeld, update, rangliste, taktFahrer,
     typen: KI_TYPEN,
     debug(an){ if(an !== undefined) debugAn = an; return debugAn; },
     zustand(i){
@@ -6576,6 +6690,425 @@ function kiDebugOverlay(ki){
 }
 
 
+/* ---- Modul trainer ---- */
+/* ===========================================================================
+   17. TRAINER
+
+   Eine Ebene über den Fahrern. Der Trainer fährt nicht, er beobachtet, stellt
+   fest wo jemand schwach ist, und trainiert genau das.
+
+   Was er NICHT tut: die zwölf Persönlichkeitswerte optimieren. Wer das macht,
+   hat nach zwanzig Rennen zehnmal denselben Fahrer — jede Optimierung
+   konvergiert auf dasselbe Optimum, und die Anfängerin wird zur Profi.
+   Trainiert wird deshalb ein Korrekturvektor mit engem Korridor
+   (KI_TRAINIERBAR): Ausführungsqualität statt Charakter. Ein Vorsichtiger
+   bleibt vorsichtig und wird im Rahmen seiner Vorsicht besser.
+
+   Die Trainingsläufe sind keine Buchhaltung, sondern echte Simulationen: der
+   Fahrer fährt einen passenden Streckenabschnitt zweimal — einmal mit seinen
+   Parametern, einmal mit einem verschobenen — beide mit DEMSELBEN Zufallsseed,
+   damit der Unterschied wirklich am Parameter liegt und nicht am Würfel.
+   Was messbar besser war, wird übernommen. Das ist (1+1)-Hill-Climbing mit
+   Messung, kein Gradientenabstieg und kein neuronales Netz; es so zu nennen
+   wäre gelogen.
+   =========================================================================== */
+
+const TR_BEREICHE = ['kurven', 'spruenge', 'bremsen', 'ueberholen'];
+
+/* Welcher Parameter gehört zu welchem Trainingsbereich. Ein Bereich kann
+   mehrere haben — der Trainer probiert sie nacheinander durch. */
+const TR_PARAMETER = {
+  kurven:     ['kurvenLenk', 'linienRuhe'],
+  spruenge:   ['sprungZiel', 'bremsFrueh'],
+  bremsen:    ['bremsFrueh', 'linienRuhe'],
+  ueberholen: ['ueberholMut', 'linienRuhe'],
+};
+
+/* Wonach ein Lauf bewertet wird, je Trainingsbereich getrennt.
+
+   Der erste Entwurf nahm für alles "Zeit plus ein paar Strafen". Gemessen kam
+   dabei heraus, dass sechs verschiedene Parameterwerte exakt dieselbe Zeit
+   ergaben (12,07 s) und die Kosten sich um 0,03 unterschieden — weit unter
+   jeder Übernahmeschwelle. Auf einem kurzen Abschnitt bergab bestimmt das
+   Gefälle die Zeit, nicht die Fahrweise. Wer einen Bereich trainiert, muss
+   deshalb auch nach diesem Bereich bewerten. */
+function trKosten(bereich, r){
+  const sturz = r.stuerze * 14;             // ein Sturz wiegt schwerer als jede Sekunde
+  const proLandung = r.landungen ? r.wucht / r.landungen : 0;
+  if(bereich === 'kurven')
+    return r.zeit + sturz + r.rand * 4.0 + r.rutsch * 11;
+  if(bereich === 'spruenge')
+    // Die Aufprallwucht ist der Frühindikator: sie steigt, lange bevor der
+    // erste Sturz kommt, und macht den Unterschied dadurch überhaupt messbar.
+    return r.zeit + sturz + r.harte * 3.0 + Math.max(0, proLandung - 2.5) * 4.5;
+  if(bereich === 'bremsen')
+    return r.zeit + sturz + r.rand * 5.0 + r.rutsch * 6 + Math.max(0, proLandung - 3) * 2;
+  if(bereich === 'ueberholen')
+    return r.zeit + sturz + r.rand * 2.5 + r.rutsch * 4;
+  return r.zeit + sturz;
+}
+
+const TR_LAUF_M = 240;      // m je Trainingslauf
+const TR_WIEDERHOLUNGEN = 2; // je Variante, gegen Ausreisser
+const TR_DT = 0.012;         // s Simulationsschritt im Training (gröber als im Spiel, reicht)
+const TR_MIN_RENNEN = 1;     // ab wann trainiert wird
+
+/* --------------------------------------------------------------- DIAGNOSE */
+/* Aus der Beobachtung eine Schwäche je Bereich, normiert auf 0..1. Ohne
+   Gelegenheiten gibt es keine Aussage — dann bleibt der Bereich unbewertet
+   statt fälschlich als "gut" zu gelten. */
+function trDiagnose(beo){
+  const raus = {};
+  const k = beo.kurven;
+  if(k.gelegen > 1.5){
+    raus.kurven = Math.min(1,
+      (k.rutsch / k.gelegen) * 0.9 +
+      (k.tempoVerlust / k.gelegen) * 0.10 +
+      (k.rand / Math.max(1, k.gelegen / 8)) * 0.25 +
+      k.sturz * 0.22);
+  }
+  const s = beo.spruenge;
+  if(s.gelegen >= 2){
+    raus.spruenge = Math.min(1,
+      (s.case / s.gelegen) * 0.75 +
+      (s.ueber / s.gelegen) * 0.45 +
+      (s.hart / s.gelegen) * 0.30 +
+      Math.max(0, (s.wucht / s.gelegen) - 3) * 0.06 +
+      (s.sturz / s.gelegen) * 0.9);
+  }
+  const b = beo.bremsen;
+  if(b.gelegen > 1.5){
+    raus.bremsen = Math.min(1,
+      (b.zuSpaet / Math.max(1, b.gelegen / 10)) * 0.55 +
+      (b.zuFrueh / Math.max(0.5, b.bremsZeit)) * 0.45);
+  }
+  const u = beo.ueberholen;
+  if(u.versuche >= 2){
+    raus.ueberholen = Math.min(1, 1 - (u.erfolge / Math.max(1, u.versuche)));
+  }
+  return raus;
+}
+
+/* Welcher Bereich drankommt.
+
+   Naheliegend wäre "immer der schwächste". Gemessen kam dabei heraus, dass
+   über sechs Runden fast ausschließlich `kurven` trainiert wurde und Sprünge
+   nie — obwohl `sprungZiel` mit 8,5 Kostenpunkten Spanne den weitaus größten
+   Hebel hat. Der Grund ist ehrlich gesagt, dass ich die Gewichte zwischen den
+   Bereichen geraten habe: ein Rutschanteil von 30 % ist auf meiner Skala
+   größer als drei harte Landungen, aber ob das stimmt, weiß ich nicht.
+
+   Statt besser zu raten entscheidet der Trainer gewichtet: der schwächste
+   Bereich hat die besten Karten, aber jeder bewertete Bereich kann drankommen.
+   Bereiche, in denen zuletzt nichts zu holen war, werden zurückgestellt —
+   das ist das "schlechte Strategien aussortieren" aus der Praxis statt aus
+   einer Tabelle. */
+function trZiel(diag, akte, rnd){
+  const kandidaten = [];
+  for(const b of TR_BEREICHE){
+    const v = diag[b];
+    if(v === undefined) continue;
+    // Fehlschläge dämpfen: nach drei erfolglosen Anläufen zählt der Bereich
+    // nur noch ein Viertel, verschwindet aber nie ganz.
+    const leer = (akte && akte.leerlauf && akte.leerlauf[b]) || 0;
+    const daempfer = 1 / (1 + leer * 0.5);
+    kandidaten.push({bereich: b, schwaeche: v, gewicht: Math.max(0.03, (v + 0.12) * daempfer)});
+  }
+  if(!kandidaten.length) return null;
+  if(!rnd) {          // ohne Zufall: der schwächste, für Anzeige und Tests
+    kandidaten.sort((a, b) => b.schwaeche - a.schwaeche);
+    return {bereich: kandidaten[0].bereich, schwaeche: +kandidaten[0].schwaeche.toFixed(3)};
+  }
+  let summe = 0; for(const k of kandidaten) summe += k.gewicht;
+  let r = rnd() * summe;
+  for(const k of kandidaten){ r -= k.gewicht; if(r <= 0) return {bereich: k.bereich, schwaeche: +k.schwaeche.toFixed(3)}; }
+  const l = kandidaten[kandidaten.length - 1];
+  return {bereich: l.bereich, schwaeche: +l.schwaeche.toFixed(3)};
+}
+
+/* ------------------------------------------------------ TRAININGSABSCHNITT */
+/* Einen Streckenabschnitt suchen, der zum Trainingsziel passt. Kurven dort, wo
+   es am stärksten krümmt; Sprünge vor der größten Lippe; Bremsen vor der
+   schärfsten Verzögerung. Ohne passenden Abschnitt gibt es kein Training —
+   lieber nichts als an der falschen Stelle üben. */
+function trAbschnitt(w, bereich, rnd){
+  const L = w.L;
+  const kandidaten = [];
+  if(bereich === 'kurven' || bereich === 'bremsen'){
+    for(let s = 60; s < L - TR_LAUF_M; s += 25){
+      let kMax = 0;
+      for(let d = 0; d < TR_LAUF_M; d += 8){
+        const k = Math.abs(w.stBei(s + d).k);
+        if(k > kMax) kMax = k;
+      }
+      if(kMax > 0.004) kandidaten.push({s, gewicht: kMax});
+    }
+  }
+  if(bereich === 'spruenge'){
+    for(const j of w.spruenge){
+      const s = Math.max(40, j.g.lippe - 70);
+      if(s + TR_LAUF_M < L) kandidaten.push({s, gewicht: (j.g.ende - j.g.lippe) || 1});
+    }
+  }
+  if(bereich === 'ueberholen'){
+    // Ueberholen braucht Breite: Abschnitte mit viel Platz quer
+    for(let s = 60; s < L - TR_LAUF_M; s += 40){
+      const br = w.qsBei(s + TR_LAUF_M/2).breite;
+      kandidaten.push({s, gewicht: br});
+    }
+  }
+  if(!kandidaten.length) return null;
+  kandidaten.sort((a, b) => b.gewicht - a.gewicht);
+  // Aus den besten sechs ziehen, damit nicht immer derselbe Abschnitt drankommt
+  const oben = kandidaten.slice(0, Math.min(6, kandidaten.length));
+  const i = Math.floor(rnd() * oben.length);
+  // Zweiter, moeglichst weit entfernter Abschnitt fuer die Gegenprobe. Ohne
+  // ihn optimiert der Trainer eine Stelle statt das Fahren: gemessen sanken
+  // die Trainingskosten um bis zu 26 Prozent, waehrend die Rundenzeit ueber
+  // die volle Strecke gleich blieb oder stieg. Das ist Overfitting, und ein
+  // getrennter Pruefabschnitt ist das Mittel dagegen.
+  let weit = null, dist = -1;
+  for(const c of oben){ const d = Math.abs(c.s - oben[i].s); if(d > dist){ dist = d; weit = c; } }
+  return {s: oben[i].s, gewicht: oben[i].gewicht, pruef: (weit && dist > TR_LAUF_M) ? weit.s : null};
+}
+
+/* ------------------------------------------------------------ TRAININGSLAUF */
+/* Einen Fahrer einen Abschnitt fahren lassen und bewerten. Bewusst ohne
+   Rendern, ohne Nachbarn, ohne Patzer: gemessen werden soll der Parameter,
+   nicht der Zufall. Der Seed ist Argument, damit zwei Varianten identisch
+   würfeln. */
+function trLauf(w, ki, vorlage, trainiert, start, seed, bereich){
+  const k = kiFahrer(vorlage.typ, vorlage.fahrer.bike, seed, vorlage.name);
+  k.ohnePatzer = true;             // im Training zaehlt der Parameter, nicht der Wuerfel
+  k.trainiert = trainiert;
+  k.gedaechtnis = vorlage.gedaechtnis;      // dasselbe Wissen, nur andere Ausfuehrung
+  const f = k.fahrer;
+  // Renntempo statt Schrittgeschwindigkeit: der erste Entwurf startete mit
+  // 11 m/s, da faehrt jeder Anfaenger sauber durch und der Lauf misst nichts.
+  f.s = start; f.u = 0; f.vs = 17; f.y = w.flaeche(start, 0); f.boden = true;
+  const ende = Math.min(w.L - 2, start + TR_LAUF_M);
+  const feld = [k];
+  let t = 0, schritte = 0;
+  let rutsch = 0, randKontakte = 0, harte = 0, wucht = 0, landungen = 0, letzteL = null;
+  while(f.s < ende && schritte < 40000 && f.zeit < 90){
+    // Der Trainingslauf nutzt dieselben Ebenen wie das Rennen: Sensoren,
+    // Strategie, Linienwahl, Regler. Sonst traeniert man etwas anderes als
+    // das, was spaeter faehrt.
+    ki.taktFahrer(k, feld, TR_DT, false);
+    const warRand = f.amRand;
+    t += TR_DT; schritte++;
+    if(f.rutsch > 0.25) rutsch += TR_DT;
+    if(f.amRand && !warRand) randKontakte++;
+    if(f.letzteLandung && f.letzteLandung !== letzteL){
+      letzteL = f.letzteLandung;
+      if(letzteL.luft > 0.25){ wucht += letzteL.aufprall; landungen++; if(letzteL.typ === 'hart' || letzteL.typ === 'case') harte++; }
+    }
+    if(!isFinite(f.s) || !isFinite(f.vs)) return null;
+  }
+  const angekommen = f.s >= ende;
+  // Bewertung: Zeit ist das Hauptmass, Fehler kosten Aufschlag. Wer nicht
+  // ankommt, bekommt die Maximalzeit — sonst waere Steckenbleiben "schnell".
+  const zeit = angekommen ? f.zeit : 90;
+  const roh = {zeit: +zeit.toFixed(3), stuerze: f.sturzZahl, rand: randKontakte, harte,
+               rutsch: +rutsch.toFixed(3), angekommen, wucht: +wucht.toFixed(2), landungen};
+  return Object.assign(roh, {kosten: trKosten(bereich, roh)});
+}
+
+/* Mittel über mehrere Wiederholungen mit verschiedenen Seeds — ein einzelner
+   Lauf entscheidet nichts, dafür streut die Strecke zu sehr. */
+function trMittel(w, ki, vorlage, trainiert, start, seed0, bereich){
+  let summe = 0, n = 0, det = [];
+  for(let i = 0; i < TR_WIEDERHOLUNGEN; i++){
+    const r = trLauf(w, ki, vorlage, trainiert, start, seed0 + i * 7919, bereich);
+    if(!r) return null;
+    summe += r.kosten; n++; det.push(r);
+  }
+  return {kosten: summe / n, laeufe: det};
+}
+
+/* ------------------------------------------------------------------ MODUL */
+function trainerBaue(welt, ki){
+  const schluessel = typ => 'bikepark.trainer.' + welt.track.key + '.' + typ;
+  let protokoll = [];             // die letzten Trainingsschritte, fuer die Anzeige
+  let laeuft = false;
+
+  function lade(typ){
+    try{
+      const s = localStorage.getItem(schluessel(typ));
+      if(!s) return null;
+      const d = JSON.parse(s);
+      if(!d || !d.trainiert) return null;
+      return d;
+    }catch(e){ return null; }
+  }
+  function sichere(typ, akte){
+    try{ localStorage.setItem(schluessel(typ), JSON.stringify(akte)); }catch(e){}
+  }
+  function neueAkte(typ){
+    return {typ, trainiert: kiNeutral(), rennen: 0, einheiten: 0, verworfen: 0,
+            ziel: null, verlauf: [], bestKosten: {}, richtung: {}, leerlauf: {}};
+  }
+
+  /* Beim Aufstellen: gespeicherten Trainingsstand auf die Fahrer legen. */
+  function ruesteAus(feld){
+    for(const k of feld){
+      const akte = lade(k.typ) || neueAkte(k.typ);
+      k.trainiert = Object.assign(kiNeutral(), akte.trainiert);
+      k.akte = akte;
+    }
+  }
+
+  /* Nach dem Rennen: beobachten -> diagnostizieren -> trainieren -> sichern.
+     Laeuft synchron und dauert je Fahrer einige Zehntelsekunden; deshalb wird
+     es nach dem Zieleinlauf aufgerufen, nicht waehrend der Fahrt. */
+  function nachRennen(feld, aufSchritt){
+    if(laeuft) return null;
+    laeuft = true;
+    const bericht = [];
+    try{
+      for(const k of feld){
+        const akte = k.akte || (k.akte = lade(k.typ) || neueAkte(k.typ));
+        akte.rennen++;
+        const diag = trDiagnose(k.beo);
+        const ziel = trZiel(diag, akte, k.rnd);
+        akte.ziel = ziel;
+        const eintrag = {name: k.name, typ: k.typ, diagnose: diag, ziel, rennen: akte.rennen,
+                         vorher: Object.assign({}, akte.trainiert), einheit: null};
+        if(ziel && akte.rennen >= TR_MIN_RENNEN){
+          const e = trainiere(k, akte, ziel);
+          eintrag.einheit = e;
+          if(e && e.uebernommen) akte.einheiten++;
+        }
+        eintrag.nachher = Object.assign({}, akte.trainiert);
+        akte.verlauf.push({r: akte.rennen, ziel: ziel ? ziel.bereich : null,
+                           schwaeche: ziel ? ziel.schwaeche : null,
+                           kosten: eintrag.einheit ? +eintrag.einheit.neu.toFixed(2) : null});
+        if(akte.verlauf.length > 40) akte.verlauf.shift();
+        sichere(k.typ, akte);
+        bericht.push(eintrag);
+        k.beo = kiNeueBeobachtung();          // fuer das naechste Rennen
+        k.trainiert = Object.assign(kiNeutral(), akte.trainiert);
+        if(aufSchritt) aufSchritt(bericht.length, feld.length);
+      }
+    } finally { laeuft = false; }
+    protokoll = bericht;
+    return bericht;
+  }
+
+  /* Eine Trainingseinheit: einen Parameter des Zielbereichs verschieben und
+     messen, ob es besser wird. Die Richtung wird gemerkt — was letztes Mal
+     geholfen hat, wird zuerst wieder probiert. */
+  function trainiere(k, akte, ziel){
+    const rnd = k.rnd;
+    const abschnitt = trAbschnitt(welt, ziel.bereich, rnd);
+    if(!abschnitt) return null;
+
+    const kandidaten = TR_PARAMETER[ziel.bereich] || [];
+    if(!kandidaten.length) return null;
+    const seed = (akte.rennen * 104729 + abschnitt.s * 31) | 0;
+    // Ist-Zustand einmal messen, gilt fuer alle Proben dieses Abschnitts
+    const jetzt = trMittel(welt, ki, k, Object.assign({}, akte.trainiert), abschnitt.s, seed, ziel.bereich);
+    if(!jetzt) return null;
+
+    // Beide Parameter des Bereichs probieren statt einen zu wuerfeln: bei zwei
+    // Kandidaten kostet das wenig und verdoppelt die Trefferchance.
+    const reihe = rnd() < 0.5 ? kandidaten : kandidaten.slice().reverse();
+    for(const par of reihe){
+    const spez = KI_TRAINIERBAR[par];
+    if(!spez) continue;
+    const merk = akte.richtung[par] || 1;
+    for(const richtung of [merk, -merk]){
+      const wert = Math.max(spez.min, Math.min(spez.max,
+        (akte.trainiert[par] || 0) + richtung * spez.schritt));
+      if(wert === akte.trainiert[par]) continue;      // Korridorende erreicht
+      const probe = Object.assign({}, akte.trainiert, {[par]: wert});
+      const ergebnis = trMittel(welt, ki, k, probe, abschnitt.s, seed, ziel.bereich);
+      if(!ergebnis) continue;
+      // Nur uebernehmen, wenn es deutlich besser ist: unter Messrauschen zu
+      // optimieren fuehrt zu Zufallsdrift statt Fortschritt.
+      // Relative Schwelle: 1,5 Prozent der aktuellen Kosten, mindestens 0,08.
+      // Absolut waere sie bei kurzen und langen Abschnitten verschieden streng.
+      const schwelle = Math.max(0.08, jetzt.kosten * 0.015);
+      if(ergebnis.kosten < jetzt.kosten - schwelle){
+        // Gegenprobe auf einem anderen Abschnitt desselben Typs. Was nur an
+        // einer Stelle hilft, ist an die Stelle angepasst und nicht gelernt.
+        if(abschnitt.pruef !== null){
+          const pSeed = seed ^ 0x5f3a;
+          const altP = trMittel(welt, ki, k, Object.assign({}, akte.trainiert), abschnitt.pruef, pSeed, ziel.bereich);
+          const neuP = trMittel(welt, ki, k, probe, abschnitt.pruef, pSeed, ziel.bereich);
+          if(!altP || !neuP || neuP.kosten > altP.kosten + 0.02){
+            akte.verworfen = (akte.verworfen || 0) + 1;
+            continue;                       // besser hier, schlechter dort: nicht uebernehmen
+          }
+        }
+        akte.trainiert[par] = +wert.toFixed(4);
+        akte.richtung[par] = richtung;
+        akte.bestKosten[ziel.bereich] = +ergebnis.kosten.toFixed(3);
+        akte.leerlauf[ziel.bereich] = 0;      // hier ist noch etwas zu holen
+        return {bereich: ziel.bereich, parameter: par, richtung, von: +(probe[par] - richtung*spez.schritt).toFixed(3),
+                nach: +wert.toFixed(3), alt: +jetzt.kosten.toFixed(2), neu: +ergebnis.kosten.toFixed(2),
+                uebernommen: true, abschnitt: Math.round(abschnitt.s),
+                geprueft: abschnitt.pruef !== null};
+      }
+    }
+    akte.richtung[par] = -merk;
+    }
+    // Nichts war besser: die Richtung umdrehen, damit es beim naechsten Mal
+    // andersherum losgeht statt gegen dieselbe Wand zu laufen.
+    akte.bestKosten[ziel.bereich] = +jetzt.kosten.toFixed(3);
+    akte.leerlauf[ziel.bereich] = (akte.leerlauf[ziel.bereich] || 0) + 1;
+    return {bereich: ziel.bereich, parameter: kandidaten.join('+'), uebernommen: false,
+            alt: +jetzt.kosten.toFixed(2), neu: +jetzt.kosten.toFixed(2), abschnitt: Math.round(abschnitt.s)};
+  }
+
+  /* Dasselbe, aber ein Fahrer je Frame. 8 Fahrer brauchen zusammen rund 490 ms
+     (gemessen, 61 ms je Fahrer) — am Stueck waere das ein sichtbarer Hänger
+     beim Zieleinlauf. Verteilt bleibt die Oberfläche bedienbar. */
+  function nachRennenVerteilt(feld, aufFortschritt){
+    if(laeuft) return Promise.resolve(null);
+    return new Promise(fertig => {
+      const bericht = [];
+      let i = 0;
+      laeuft = true;
+      const schritt = () => {
+        if(i >= feld.length){
+          laeuft = false; protokoll = bericht; fertig(bericht); return;
+        }
+        const k = feld[i++];
+        try{
+          laeuft = false;                       // nachRennen setzt es selbst
+          const teil = nachRennen([k]);
+          laeuft = true;
+          if(teil && teil[0]) bericht.push(teil[0]);
+        }catch(e){ console.warn('Trainer:', e); }
+        if(aufFortschritt) aufFortschritt(i, feld.length);
+        requestAnimationFrame(schritt);
+      };
+      requestAnimationFrame(schritt);
+    });
+  }
+
+  /* Akte lesen, ohne zu trainieren — fuer Anzeige und Tests. */
+  function akte(typ){ return lade(typ); }
+  function alleAkten(){
+    const raus = {};
+    for(const typ of Object.keys(KI_TYPEN)){ const a = lade(typ); if(a) raus[typ] = a; }
+    return raus;
+  }
+  function vergiss(typ){
+    try{
+      if(typ) localStorage.removeItem(schluessel(typ));
+      else for(const t of Object.keys(KI_TYPEN)) localStorage.removeItem(schluessel(t));
+    }catch(e){}
+  }
+
+  return {ruesteAus, nachRennen, nachRennenVerteilt, akte, alleAkten, vergiss,
+          diagnose: trDiagnose, ziel: trZiel,
+          get protokoll(){ return protokoll; },
+          get laeuft(){ return laeuft; }};
+}
+
+
 /* ---- Modul ui ---- */
 /* ===========================================================================
    14. OBERFLÄCHE
@@ -6674,6 +7207,21 @@ const UI_CSS = `
 #ui-rang .z.ich{color:var(--line)}
 #ui-rang .z.liegt{color:var(--jump)}
 #ui-rang .p{min-width:15px}
+/* Trainerbericht im Ziel-Schirm: was der Trainer je Fahrer gefunden und
+   geaendert hat. Steht unter der Auswertung, nicht als eigener Schirm — es
+   ist eine Fussnote zum Rennen, kein zweiter Bildschirm. */
+#ui-trainer{margin:18px 0 4px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+#ui-trainer h3{margin:0 0 10px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--line);font-weight:500}
+#ui-trainer .tz{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;
+  font-size:12px;color:var(--dim);padding:5px 0;align-items:baseline}
+#ui-trainer .tz b{color:var(--fg);font-weight:400}
+#ui-trainer .tz .was{color:var(--dim);font-size:11px}
+#ui-trainer .tz .ok{color:var(--line)}
+#ui-trainer .tz .nix{color:var(--dim);opacity:.7}
+#ui-trainer .fort{font-size:12px;color:var(--dim)}
+#ui-trainer .bal{height:3px;margin-top:8px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden}
+#ui-trainer .bal i{display:block;height:100%;width:0;background:var(--line);transition:width .2s linear}
 #ui-hilfe{position:fixed;right:18px;top:calc(18px + 139px);padding:8px 13px;font-size:11px;color:var(--dim-hud);
   opacity:0;border-radius:11px;transition:opacity .3s ease;pointer-events:none;z-index:20}
 #ui-hilfe.an{opacity:1}
@@ -6730,6 +7278,14 @@ const UI_HTML = `
 
 /* Untergrund für die Anzeige — dieselben Namen wie in der Physik, nur lesbar. */
 const UI_GRUND = {erde:'Erde', stein:'Steinfeld', holz:'Holz', beton:'Beton', gras:'Gras'};
+/* Die Bereichsnamen des Trainers in Klartext. */
+const UI_TR_BEREICH = {
+  kurven:     'Kurven',
+  spruenge:   'Sprünge und Landungen',
+  bremsen:    'Bremsverhalten',
+  ueberholen: 'Überholen',
+};
+
 const UI_STURZ = {
   landung: 'Zu hart gelandet',
   rand:    'Rausgetragen',
@@ -6800,7 +7356,7 @@ function uiBaue(ctx, spiel){
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
   const besten = uiBesten();
   let offen = null;            // null | 'pause' | 'ziel'
-  let wertungBis = 0, letzteLandung = null, letzterSturz = null, rangAlt = '';
+  let wertungBis = 0, letzteLandung = null, letzterSturz = null, rangAlt = '', trainerBox = null;
 
   /* --- Einstellungen: dieselbe Gruppe im Startmenü und in der Pause --- */
   const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
@@ -6911,7 +7467,45 @@ function uiBaue(ctx, spiel){
       if(f.ueberschossen) zeile('Überschossen', String(f.ueberschossen), 'schlecht');
       zeile('Randkontakte', String(f.stuerze), f.stuerze ? 'schlecht' : 'gut');
       if(f.sturzZahl) zeile('Stürze', String(f.sturzZahl), 'schlecht');
+      trainerBox = null;
       zeige('ziel');
+    },
+    /* Der Trainer arbeitet: Fortschritt im Ziel-Schirm zeigen. */
+    trainerLaeuft(i, n){
+      const karte = ziel.querySelector('.karte');
+      if(!karte) return;
+      if(!trainerBox){
+        trainerBox = document.createElement('div'); trainerBox.id = 'ui-trainer';
+        const knoepfe = karte.querySelector('.knopfreihe');
+        if(knoepfe) karte.insertBefore(trainerBox, knoepfe); else karte.appendChild(trainerBox);
+      }
+      trainerBox.innerHTML = '<h3>Trainer</h3><div class="fort">wertet aus … ' + i + ' von ' + n +
+        '</div><div class="bal"><i style="width:' + Math.round(i/Math.max(1,n)*100) + '%"></i></div>';
+    },
+    /* Ergebnis: je Fahrer die erkannte Schwäche und was daraus wurde. */
+    trainerFertig(bericht){
+      if(!trainerBox) return;
+      if(!bericht || !bericht.length){ trainerBox.remove(); trainerBox = null; return; }
+      const zeilen = bericht.map(e => {
+        const b = e.ziel ? (UI_TR_BEREICH[e.ziel.bereich] || e.ziel.bereich) : 'nichts auffällig';
+        let was = '<span class="nix">nichts Besseres gefunden</span>';
+        if(e.einheit && e.einheit.uebernommen){
+          const d = (e.einheit.alt - e.einheit.neu);
+          was = '<span class="ok">' + e.einheit.parameter + ' ' +
+                (e.einheit.nach > e.einheit.von ? '+' : '') +
+                (e.einheit.nach - e.einheit.von).toFixed(3) + '</span>';
+          was += ' <span class="was">(−' + d.toFixed(1) + ')</span>';
+        } else if(!e.ziel){
+          was = '<span class="nix">—</span>';
+        }
+        return '<div class="tz"><b>' + e.name + '</b><span class="was">' + b + '</span>' + was + '</div>';
+      }).join('');
+      const geuebt = bericht.filter(e => e.einheit && e.einheit.uebernommen).length;
+      trainerBox.innerHTML = '<h3>Trainer</h3>' + zeilen +
+        '<div class="fort" style="margin-top:10px">' +
+        (geuebt ? geuebt + ' von ' + bericht.length + ' Fahrern haben etwas dazugelernt.'
+                : 'Diesmal war bei keinem eine Verbesserung messbar.') +
+        ' Der Stand bleibt für die nächsten Rennen gespeichert.</div>';
     },
     /* Pro Frame: Untergrund und Landungsbewertung. Beides ändert sich selten —
        deshalb wird das DOM nur bei echter Änderung angefasst. */
@@ -7116,6 +7710,7 @@ async function stelleFeld(n){
                     s: 2 - (i + 1) * 3.2, u: ((i % 2) ? 1 : -1) * (0.5 + (i >> 1) * 0.5)});
   }
   module.ki.setzeFeld(besetzung);
+  if(module.trainer) module.trainer.ruesteAus(module.ki.feld);
   for(let i = 0; i < module.ki.feld.length; i++){
     const k = module.ki.feld[i];
     const h = await ladeFahrzeug(k.fahrer.bike);
@@ -7305,6 +7900,7 @@ async function starte(){
     // 7) Licht, Kamera, Ton
     await schritt('licht', () => {
       module.ki = kiBaue(welt, KONTEXT);
+      module.trainer = trainerBaue(welt, module.ki);
       himmelAlt.visible = false;                 // die Kuppel ersetzt der Preetham-Himmel
       module.licht = haenge(lichtBaue(welt, KONTEXT));
       module.kamera = kamBaue(welt, KONTEXT);
@@ -7427,6 +8023,14 @@ renderer.setAnimationLoop(() => {
       laeuft = false;
       if(module.audio) module.audio.ereignis('ziel');
       ui.ziel(fahrer, welt, welt.track, BIKES[aktRad].name);
+      // Der Trainer wertet das Rennen aus, sobald niemand mehr faehrt.
+      if(module.trainer && gegner.length){
+        const feld = module.ki.feld;
+        ui.trainerLaeuft(0, feld.length);
+        module.trainer.nachRennenVerteilt(feld, (i, n) => ui.trainerLaeuft(i, n))
+          .then(bericht => ui.trainerFertig(bericht))
+          .catch(e => { console.warn('Trainer:', e); ui.trainerFertig(null); });
+      }
     }
     pruefeElement();
     schreibeHud(dt);
@@ -7551,6 +8155,8 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    untergrundBei, zuschauerZonen, ctx: KONTEXT, G, RHO, module, ui, THREE, stgBaue,
                    kiBaue, KI_TYPEN, KI_SEKTION, kiKurvenTempo, kiKandidaten, kiWaehle, KONTEXT,
                    stelleFeld, get gegner(){ return gegner; },
+                   trainerBaue, trDiagnose, trZiel, trAbschnitt, trLauf, trMittel, trKosten,
+                   TR_BEREICHE, TR_PARAMETER, KI_TRAINIERBAR, kiNeutral, kiNeueBeobachtung, kiFahrer,
                    get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
                    get kamMode(){ return kamMode; }, set kamMode(v){ kamMode = v % KAMERAS.length; },
