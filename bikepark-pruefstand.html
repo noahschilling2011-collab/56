@@ -363,7 +363,11 @@ const CHARAKTERE = [
     figur:{schulter:1.12, huefte:0.96, arm:1.05, bein:0.98, groesse:1.04, rumpf:1.10, helm:'lang'} },
   { id:'sam',   name:'Sam',   jersey:0xc6f24e, hose:0x0a0d12, helm:0x101010, haut:0x6b3d22, haar:0x0a0503, zopf:false, schirm:false,
     figur:{schulter:1.04, huefte:0.98, arm:0.96, bein:0.94, groesse:0.95, rumpf:1.02, helm:'flach'} },
-  { id:'nora',  name:'Nora',  jersey:0xdfe4e8, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true,
+  // Noras Trikot war 0xffffff. Nicht wegen Ueberstrahlung geaendert — gemessen
+  // klippt kein einziges Pixel — sondern wegen Kontrast: der Fahrerbereich lag
+  // bei Mittelluminanz 138 gegen 89 bei Mia, die Rumpfform verschwand darin.
+  // Mit 0xd2dae0 sind es 132, und Nacken und Oberarm heben sich wieder ab.
+  { id:'nora',  name:'Nora',  jersey:0xd2dae0, hose:0x22323c, helm:0x4fd1c5, haut:0xf1c9a5, haar:0x8a5a2a, zopf:true,  schirm:true,
     figur:{schulter:0.90, huefte:1.02, arm:1.06, bein:1.08, groesse:1.02, rumpf:0.92, helm:'rund'} },
 ];
 let aktCharakterId = 'mia';
