@@ -999,8 +999,29 @@ function neuerFahrer(bike){
           // neu: Fahrzustand für Kamera, Audio, Partikel und HUD
           untergrund:'erde', gLast:1, rutsch:0, feder:0, federV:0, stoss:0, rauheit:0,
           vMax:0, landungen:0, sauber:0, gecased:0, ueberschossen:0, bremst:false,
-          hops:0, hopBonus:0, pumpGewinn:0, nase:0};
+          hops:0, hopBonus:0, pumpGewinn:0, nase:0,
+          // Sturz: Restdauer in Sekunden (0 = faehrt), Grund und Zaehler
+          sturz:0, sturzGrund:null, sturzZahl:0, letzterSturz:null, letzterRand:null,
+          sturzKipp:0, sturzSeite:1};
 }
+
+/* Ab wann ist eine Landung ein Sturz?
+
+   Gemessen über alle drei Strecken mit drei Fahrstilen: sauberes und
+   aggressives Fahren bleibt beim Aufprall unter 8,2 m/s (Median 0,2-0,4,
+   90. Perzentil 2,9-3,4). Blind Vollgas ohne Bremse erzeugt dagegen 4 bis 7
+   Landungen über 9 m/s und Spitzen bis 27. Die Grenze bei 9,5 trennt also
+   Fehler von normalem Fahren, statt geraten zu sein.
+
+   Die Nasenstellung verschiebt sie: wer die Nase parallel zur Landung stellt,
+   verträgt den vollen Wert, wer quer aufsetzt, deutlich weniger. Damit hat die
+   Gewichtsverlagerung in der Luft zum ersten Mal eine echte Konsequenz. */
+const STURZ_AUFPRALL = 9.5;      // m/s Normalkomponente bei perfekter Nase
+const STURZ_NASE = 3.0;          // m/s Abzug je rad Nasenfehler, gedeckelt
+const STURZ_RAND = 3.2;          // m/s Einschlag quer in die Begrenzung
+const STURZ_RAND_V = 7.0;        // darunter ist der Einschlag ein Rempler
+const STURZ_DAUER = 1.9;         // s bis der Fahrer wieder aufsitzt
+const STURZ_AUF_V = 3.5;         // m/s, mit denen es weitergeht
 
 /* Wie war die Landung? Gegen den nächsten Sprung hinter dem Fahrer gerechnet:
    vor dem Landungsbeginn ist es ein Case (auf Tisch, Kuppe oder in der Grube),
@@ -1016,6 +1037,25 @@ function bewerteLandung(w, s, aufprall){
 }
 
 function schritt(w, f, dt, ein){
+  // Wer liegt, faehrt nicht. Der Fahrer schlittert aus, die Uhr laeuft weiter —
+  // das IST die Strafe, eine zusaetzliche Zeitgutschrift braucht es nicht.
+  if(f.sturz > 0){
+    f.sturz -= dt;
+    f.vs = Math.max(0, f.vs - 9*dt);              // Reibung auf der Seite liegend
+    f.s += f.vs * dt;
+    f.u += f.vu * dt; f.vu *= Math.exp(-dt*4);
+    const qsS = w.qsBei(f.s), halbS = qsS.breite/2;
+    f.u = Math.max(-halbS, Math.min(halbS, f.u));
+    f.y = w.flaeche(f.s, f.u); f.vy = 0; f.boden = true; f.luftZeit = 0;
+    f.rutsch = Math.min(1, f.rutsch + dt*3);      // Ton und Partikel hoeren mit
+    f.zeit += dt;
+    // Umlegen in gut 0,3 s, die letzten 0,55 s wieder aufrichten.
+    const kippZiel = f.sturz > 0.55 ? 1 : 0;
+    f.sturzKipp += (kippZiel - f.sturzKipp) * Math.min(1, dt * (kippZiel ? 11 : 6));
+    if(f.sturz <= 0){ f.sturz = 0; f.sturzGrund = null; f.vs = Math.max(f.vs, STURZ_AUF_V); f.rutsch = 0; }
+    return;
+  }
+
   const bike = f.bike, m = bike.masse;
   const qs = w.qsBei(f.s), stn = w.stBei(f.s);
   const halb = qs.breite/2;
@@ -1156,6 +1196,13 @@ function schritt(w, f, dt, ein){
       // ungefähr beim alten Verlust.
       f.nase = Math.abs(f.tilt - Math.atan(-sl));
       if(aufprall > 2.2) f.vs *= Math.max(0.45, 1 - (aufprall-2.2)*0.038*(1 + Math.min(1.2, f.nase)*0.9));
+      const grenze = STURZ_AUFPRALL - Math.min(3.5, f.nase * STURZ_NASE);
+      if(aufprall > grenze && f.luftZeit > 0.12){
+        f.sturz = STURZ_DAUER; f.sturzGrund = 'landung'; f.sturzZahl++;
+        f.sturzSeite = f.vu >= 0 ? 1 : -1;
+        f.letzterSturz = {s:f.s, grund:'landung', wucht:aufprall, luft:f.luftZeit};
+        f.vu *= 0.5;
+      }
       const typ = f.luftZeit > 0.12 ? bewerteLandung(w, f.s, aufprall) : 'kurz';
       if(typ === 'case'){ f.vs *= 0.82; f.gecased++; }          // Kuppe frisst den Schwung
       else if(typ === 'ueberschossen'){ f.vs *= 0.90; f.ueberschossen++; }
@@ -1174,12 +1221,32 @@ function schritt(w, f, dt, ein){
   const lo = Math.min(innenU, aussenU), hi = Math.max(innenU, aussenU);
   const draussen = f.u < lo || f.u > hi;
   if(draussen){
+    // Vorher stiess der Rand mit mindestens 1,2 m/s nach innen zurueck. Die
+    // Fliehkraft drueckte den Fahrer sofort wieder heraus, und das ergab beim
+    // Fahren am Limit rund 500 „neue" Randkontakte pro Lauf — 500-mal 28 %
+    // Tempoverlust, gemessen 765 s Fahrzeit statt 150 s.
+    // Ein Rand stoesst aber nicht zurueck: er nimmt die Querbewegung weg.
+    // Wer sich anlehnt, faehrt dort weiter; wer einschlaegt, verliert Tempo
+    // nach Einschlagtempo statt pauschal.
+    const einschlag = Math.abs(f.vu);
     f.u = Math.max(lo, Math.min(hi, f.u));
-    // Nach innen abprallen, damit der Fahrer nicht am Rand klebt
-    f.vu = (f.u <= lo ? 1 : -1) * Math.max(1.2, Math.abs(f.vu)*0.35);
-    if(!f.amRand){ f.vs *= 0.72; f.stuerze++; f.stoss = Math.max(f.stoss, 3); }   // Strafe nur beim NEUEN Kontakt
+    f.vu = 0;
+    if(!f.amRand && einschlag > 0.9){
+      f.vs *= Math.max(0.55, 1 - (einschlag - 0.9) * 0.16);
+      f.stuerze++;
+      f.stoss = Math.max(f.stoss, einschlag);
+      f.letzterRand = {s:f.s, einschlag};
+      // Quer in die Begrenzung, mit Tempo: das haelt kein Fahrer.
+      if(einschlag > STURZ_RAND && f.vs > STURZ_RAND_V){
+        f.sturz = STURZ_DAUER; f.sturzGrund = 'rand'; f.sturzZahl++;
+        f.sturzSeite = f.u >= 0 ? 1 : -1;
+        f.letzterSturz = {s:f.s, grund:'rand', wucht:einschlag, luft:0};
+      }
+    }
   }
   f.amRand = draussen;
+
+  if(f.sturzKipp > 0) f.sturzKipp = Math.max(0, f.sturzKipp - dt*4);
 
   // --- Federung und Vibration (nur Darstellung: Kamera, Audio, Partikel) ---
   // Sollkompression aus Normallast und Stoß; in der Luft hängt das Rad ausgefedert.
@@ -5137,7 +5204,7 @@ const KAM_MODI = [
 function kamBaue(welt, ctx){
   const {camera} = ctx;
   const akt = {hinten:6.8, hoch:2.5, ziel:9, roll:0.55, fov:62};
-  let dip = 0, dipV = 0, letzteLandung = null, t = 0, blur = 0, modeAlt = -1;
+  let dip = 0, dipV = 0, letzteLandung = null, letzterSturz = null, t = 0, blur = 0, modeAlt = -1;
   const camPos = new THREE.Vector3(), camZiel = new THREE.Vector3(), up = new THREE.Vector3();
   const soll = {hinten:0, hoch:0, ziel:0, roll:0, fov:0};
 
@@ -5153,11 +5220,15 @@ function kamBaue(welt, ctx){
     t += dt;
     const tempo = Math.max(0, Math.min(1, (f.vs - 6)/18));
     const luft = f.boden ? 0 : Math.min(1, f.luftZeit/0.5);
-    soll.hinten = km.hinten + M.tempoHinten*tempo + M.luftHinten*luft;
-    soll.hoch   = km.hoch + M.tempoHoch*tempo + M.luftHoch*luft;
+    // Sturz: die Kamera weicht zurueck und geht hoeher, statt weiter am Rad zu
+    // kleben. Aus der Cockpit-Sicht waere ein Sturz sonst nur ein Standbild in
+    // den Boden — dort ist der Ausschlag deshalb am groessten.
+    const st = f.sturz > 0 ? Math.min(1, (1.9 - f.sturz) * 2.2) : 0;
+    soll.hinten = km.hinten + M.tempoHinten*tempo + M.luftHinten*luft + st * (km.hinten < 3 ? 5.5 : 2.6);
+    soll.hoch   = km.hoch + M.tempoHoch*tempo + M.luftHoch*luft + st * 1.5;
     soll.ziel   = km.ziel + M.luftZiel*luft;
-    soll.roll   = km.roll;
-    soll.fov    = M.fov + M.tempoFov*tempo - 2*luft;
+    soll.roll   = km.roll * (1 - st*0.7);
+    soll.fov    = M.fov + M.tempoFov*tempo - 2*luft + st * 6;
     const k = Math.min(1, dt*(z.kamMode !== modeAlt ? 3 : 4.5)); modeAlt = z.kamMode;
     for(const key in soll) akt[key] += (soll[key] - akt[key]) * k;
 
@@ -5165,6 +5236,11 @@ function kamBaue(welt, ctx){
     if(f.letzteLandung && f.letzteLandung !== letzteLandung){
       letzteLandung = f.letzteLandung;
       dipV -= Math.min(2.6, 0.11*f.letzteLandung.aufprall * (f.letzteLandung.typ === 'case' ? 1.5 : 1));
+    }
+    // Der Sturz gibt einen eigenen, kraeftigeren Schlag nach unten.
+    if(f.letzterSturz && f.letzterSturz !== letzterSturz){
+      letzterSturz = f.letzterSturz;
+      dipV -= 3.4;
     }
     dipV += (-150*dip - 13*dipV)*dt; dip += dipV*dt;
 
@@ -5351,7 +5427,7 @@ function audGraph(ac, welt, ctx, seed = 7){
 
   const S = {
     welt, zonen: welt ? ctx.zuschauerZonen(welt) : [], takt: 0,
-    fahrer: null, landung: null, stuerze: 0, bike: null, luft: false, whoosh: true, ziel: false,
+    fahrer: null, landung: null, stuerze: 0, sturz: null, bike: null, luft: false, whoosh: true, ziel: false,
     startZeit: -9, zielZeit: -9, mengeNah: 0,
     nKlack: 0, nGlocke: 0, nHey: 0, nVogel: 1.5,
     w: new Float32Array(5), vol: 0.8, stumm: false,
@@ -5406,6 +5482,26 @@ function audGraph(ac, welt, ctx, seed = 7){
     fl.frequency.setValueAtTime(2200, t); fl.frequency.exponentialRampToValueAtTime(900, t + 0.3);
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
     q.connect(fl).connect(g).connect(master); q.start(t, rnd()*3, 0.4); einmal(q, [q, fl, g]);
+  }
+  /* Sturz: der harte Einschlag von Rad und Fahrer, dann ein langes Schleifen,
+     solange gerutscht wird. Bewusst tiefer und laenger als der Randkratzer —
+     der Spieler soll am Ton hoeren, dass der Lauf gerade steht. */
+  function sturz(t, wucht){
+    const w = Math.max(0.4, Math.min(1.4, wucht/9));
+    // Aufschlag: tiefer Rauschimpuls mit kurzem Nachklang
+    const q = ac.createBufferSource(); q.buffer = braun;
+    const tf = audFilter(ac, 'lowpass', 700, 1.1), tg = audGain(ac, 0);
+    tf.frequency.setValueAtTime(900, t); tf.frequency.exponentialRampToValueAtTime(180, t + 0.45);
+    tg.gain.setValueAtTime(0, t); tg.gain.linearRampToValueAtTime(0.85*w, t + 0.012);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+    q.connect(tf).connect(tg).connect(master); q.start(t, rnd()*3, 0.6); einmal(q, [q, tf, tg]);
+    // Schleifen: breitbandig, faellt ueber die Sturzdauer ab
+    const r = ac.createBufferSource(); r.buffer = weiss; r.loop = true;
+    const rf = audFilter(ac, 'bandpass', 1100, 1.4), rg = audGain(ac, 0);
+    rf.frequency.setValueAtTime(1500, t); rf.frequency.exponentialRampToValueAtTime(420, t + 1.6);
+    rg.gain.setValueAtTime(0, t); rg.gain.linearRampToValueAtTime(0.34*w, t + 0.08);
+    rg.gain.setValueAtTime(0.34*w, t + 0.7); rg.gain.exponentialRampToValueAtTime(0.001, t + 1.75);
+    r.connect(rf).connect(rg).connect(master); r.start(t); r.stop(t + 1.8); einmal(r, [r, rf, rg]);
   }
   function piep(t, f, dauer, amp){
     const o = ac.createOscillator(), g = audGain(ac, 0);
@@ -5505,6 +5601,7 @@ function audGraph(ac, welt, ctx, seed = 7){
     if(f !== S.fahrer){
       // Neuer Fahrer (Start/Neustart): Zustände übernehmen, sonst gäbe es beim Einstieg Thud und Klick.
       S.fahrer = f; S.landung = f.letzteLandung || null; S.stuerze = f.stuerze; S.bike = f.bike;
+      S.sturz = f.letzterSturz || null;
       S.luft = !f.boden; S.whoosh = true; S.ziel = false;
       if(f.s < 6 && f.zeit < 0.5) ereignis('start');
     }
@@ -5515,7 +5612,8 @@ function audGraph(ac, welt, ctx, seed = 7){
     }
     if(f.boden) S.luft = false; else if(!S.luft){ S.luft = true; S.whoosh = false; }
     if(S.luft && !S.whoosh && f.luftZeit > 0.15){ S.whoosh = true; whoosh(now, audClamp01(f.vs/AUD_VMAX)); }
-    if(f.stuerze !== S.stuerze){ S.stuerze = f.stuerze; kratzer(now); }
+    if(f.letzterSturz && f.letzterSturz !== S.sturz){ S.sturz = f.letzterSturz; sturz(now, f.letzterSturz.wucht); }
+    else if(f.stuerze !== S.stuerze){ S.stuerze = f.stuerze; kratzer(now); }
     if(f.bike !== S.bike){ S.bike = f.bike; klick(now); }
     if(!S.ziel && f.s >= S.welt.L){ S.ziel = true; ereignis('ziel'); }
     if(S.ziel) return;
@@ -5905,6 +6003,15 @@ const UI_CSS = `
   transition:opacity .25s ease,transform .25s ease;pointer-events:none;z-index:20;
   text-shadow:0 1px 2px rgba(0,0,0,.95),0 2px 16px rgba(0,0,0,.8)}
 #ui-wertung.an{opacity:1;transform:translate(-50%,0)}
+/* Der Sturz ist kein Randereignis wie eine Landungswertung: er unterbricht den
+   Lauf. Deshalb groesser, in Warnfarbe, mit der Restdauer als Balken darunter. */
+#ui-wertung.sturz{font-size:30px;letter-spacing:.10em;color:var(--jump)}
+#ui-sturzbalken{position:fixed;left:50%;top:calc(26% + 44px);transform:translateX(-50%);
+  width:180px;height:3px;border-radius:2px;background:rgba(255,255,255,.18);
+  opacity:0;transition:opacity .2s ease;pointer-events:none;z-index:20;overflow:hidden}
+#ui-sturzbalken.an{opacity:1}
+#ui-sturzbalken i{display:block;height:100%;width:100%;background:var(--jump);
+  transform-origin:left;transition:transform .06s linear}
 #ui-hop{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);width:132px;height:7px;
   border-radius:4px;background:rgba(8,10,14,.55);border:1px solid rgba(255,255,255,.16);
   box-shadow:0 2px 14px rgba(0,0,0,.5);opacity:0;transition:opacity .18s ease;
@@ -5965,6 +6072,11 @@ const UI_HTML = `
 
 /* Untergrund für die Anzeige — dieselben Namen wie in der Physik, nur lesbar. */
 const UI_GRUND = {erde:'Erde', stein:'Steinfeld', holz:'Holz', beton:'Beton', gras:'Gras'};
+const UI_STURZ = {
+  landung: 'Zu hart gelandet',
+  rand:    'Rausgetragen',
+};
+
 const UI_WERTUNG = {
   sauber:       {text:'Sauber',        farbe:'var(--line)'},
   hart:         {text:'Hart gelandet', farbe:'var(--wall)'},
@@ -6007,9 +6119,11 @@ function uiBaue(ctx, spiel){
   const wertung = document.createElement('div'); wertung.id = 'ui-wertung';
   const hop = document.createElement('div'); hop.id = 'ui-hop'; hop.innerHTML = '<i></i>';
   const hopBalken = hop.firstElementChild;
+  const sturzB = document.createElement('div'); sturzB.id = 'ui-sturzbalken'; sturzB.innerHTML = '<i></i>';
+  const sturzBalken = sturzB.firstElementChild;
   const hilfe = document.createElement('div'); hilfe.id = 'ui-hilfe'; hilfe.className = 'karte';
   hilfe.innerHTML = 'Pause<span class="k">Esc</span>Kamera<span class="k">C</span>Neustart<span class="k">R</span>Ton<span class="k">M</span>';
-  document.body.append(grund, wertung, hop, hilfe);
+  document.body.append(grund, wertung, hop, sturzB, hilfe);
 
   /* Die Untergrund-Karte sitzt ueber dem Tacho, und der aendert seine Hoehe:
      die Elementzeile kommt und geht, und bei schmalen Schirmen schrumpft die
@@ -6027,7 +6141,7 @@ function uiBaue(ctx, spiel){
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
   const besten = uiBesten();
   let offen = null;            // null | 'pause' | 'ziel'
-  let wertungBis = 0, letzteLandung = null;
+  let wertungBis = 0, letzteLandung = null, letzterSturz = null;
 
   /* --- Einstellungen: dieselbe Gruppe im Startmenü und in der Pause --- */
   const merke = (k, v) => { try{ localStorage.setItem('bikepark.' + k, v); }catch(e){} };
@@ -6108,7 +6222,7 @@ function uiBaue(ctx, spiel){
     get offen(){ return offen; },
     zeigeHud(an){
       grund.classList.toggle('an', an); hilfe.classList.toggle('an', an);
-      if(!an){ wertung.classList.remove('an'); wertungBis = 0; hop.classList.remove('an'); }
+      if(!an){ wertung.classList.remove('an', 'sturz'); wertungBis = 0; hop.classList.remove('an'); sturzB.classList.remove('an'); }
     },
     pause(f, welt){
       $$('ui-pause-zeit').textContent = uiZeit(f.zeit);
@@ -6137,6 +6251,7 @@ function uiBaue(ctx, spiel){
       if(f.gecased) zeile('Zu kurz gesprungen', String(f.gecased), 'schlecht');
       if(f.ueberschossen) zeile('Überschossen', String(f.ueberschossen), 'schlecht');
       zeile('Randkontakte', String(f.stuerze), f.stuerze ? 'schlecht' : 'gut');
+      if(f.sturzZahl) zeile('Stürze', String(f.sturzZahl), 'schlecht');
       zeige('ziel');
     },
     /* Pro Frame: Untergrund und Landungsbewertung. Beides ändert sich selten —
@@ -6152,6 +6267,26 @@ function uiBaue(ctx, spiel){
       const g = UI_GRUND[f.untergrund] || '—';
       const b = grund.querySelector('b');
       if(b.textContent !== g) b.textContent = g;
+
+      // Sturz: hat Vorrang vor der Landungswertung und bleibt stehen, solange
+      // der Fahrer liegt. Der Balken zeigt, wann es weitergeht.
+      if(f.sturz > 0){
+        if(f.letzterSturz !== letzterSturz){
+          letzterSturz = f.letzterSturz;
+          wertung.textContent = UI_STURZ[f.sturzGrund] || 'Gestürzt';
+          wertung.style.color = '';
+          wertung.classList.add('an', 'sturz');
+          sturzB.classList.add('an');
+          wertungBis = 0;
+        }
+        sturzBalken.style.transform = 'scaleX(' + Math.max(0, f.sturz/1.9).toFixed(3) + ')';
+        return;
+      }
+      if(wertung.classList.contains('sturz')){
+        wertung.classList.remove('an', 'sturz');
+        sturzB.classList.remove('an');
+      }
+
       if(f.letzteLandung && f.letzteLandung !== letzteLandung){
         letzteLandung = f.letzteLandung;
         const w = UI_WERTUNG[letzteLandung.typ];
@@ -6163,7 +6298,7 @@ function uiBaue(ctx, spiel){
       if(wertungBis && jetzt > wertungBis){ wertung.classList.remove('an'); wertungBis = 0; }
     },
     dispose(){
-      lage.remove(); grund.remove(); wertung.remove(); hop.remove(); hilfe.remove(); stil.remove();
+      lage.remove(); grund.remove(); wertung.remove(); hop.remove(); sturzB.remove(); hilfe.remove(); stil.remove();
     },
   };
 }
@@ -6542,6 +6677,15 @@ renderer.setAnimationLoop(() => {
       halter.rotateY(st.psi);
       halter.rotateX(fahrer.tilt);     // tilt > 0 = bergab; rotateX(+a) kippt lokal +z nach −y, Nase runter
       halter.rotateZ(-fahrer.roll);
+      // Sturz: das Fahrzeug legt sich auf die Seite und sinkt auf Radhoehe ab.
+      // Gedreht wird nur der Halter — am Modell aendert sich nichts, damit ein
+      // spaeter eingesetztes GLB genauso kippt.
+      if(fahrer.sturzKipp > 0.001){
+        const k = fahrer.sturzKipp;
+        halter.rotateZ(fahrer.sturzSeite * k * 1.35);
+        halter.rotateX(k * 0.22);
+        halter.position.y -= k * (RAD_R * 0.72);
+      }
     }
     if(schatten){
       const sy = welt.flaeche(Math.min(fahrer.s, welt.L), fahrer.u);
