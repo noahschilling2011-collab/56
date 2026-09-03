@@ -1836,6 +1836,81 @@ function animiereFahrzeug(halter, f, dt, ein){
   }
 }
 
+/* ---------------------------------------------------------- Kollisionen
+   Bisher fuhren die Teilnehmer durcheinander hindurch — im Rennen das Erste,
+   was auffaellt. schritt() kennt nur einen Fahrer, also loest eine eigene
+   Funktion die Ueberlappungen auf, nachdem alle einen Schritt gemacht haben.
+
+   Bewusst kein fester Rueckstoss: derselbe Fehler wie am Streckenrand, wo eine
+   Mindestgeschwindigkeit nach innen 500 Scheinkontakte pro Lauf erzeugte. Hier
+   wird die Ueberlappung geteilt und die Annaeherungsgeschwindigkeit gedaempft,
+   sodass zwei Fahrer nebeneinander fahren koennen, ohne sich abzustossen. */
+const KOLL_LANG = 1.6;      // m Abstand in Fahrtrichtung, ab dem es beruehrt
+const KOLL_QUER = 0.78;     // m Abstand quer
+const KOLL_HOCH = 1.5;      // m Hoehenunterschied, ab dem man ueber jemanden fliegt
+/* Gemessen ueber einen Feldlauf mit acht Fahrern: die seitliche Annaeherung
+   bei Kontakt erreicht maximal 1,37 m/s (98. Perzentil 1,07) — eine
+   Sturzschwelle darueber ist toter Code, eine darunter legt bei jedem
+   Nebeneinanderfahren jemanden hin. Seitliches Beruehren ist bei diesen
+   Werten kein Sturz, sondern ein Rempler.
+   Laengs sieht es anders aus: dort liegen 98 Prozent unter 0,1 m/s Differenz,
+   die Ausreisser aber bei bis zu 9,1. Wer mit dieser Differenz ins Hinterrad
+   des Vordermanns faehrt, legt sich hin — und nur der Auffahrende. */
+const KOLL_STURZ_LAENGS = 5.0;   // m/s Tempodifferenz beim Auffahren
+
+function loeseKollisionen(w, alle, dt){
+  for(let i = 0; i < alle.length; i++){
+    for(let j = i + 1; j < alle.length; j++){
+      const a = alle[i], b = alle[j];
+      if(!a || !b) continue;
+      if(a.sturz > 0 && b.sturz > 0) continue;           // zwei Liegende stoeren sich nicht
+      const ds = b.s - a.s, du = b.u - a.u;
+      if(Math.abs(ds) >= KOLL_LANG || Math.abs(du) >= KOLL_QUER) continue;
+      if(Math.abs(a.y - b.y) >= KOLL_HOCH) continue;     // einer fliegt drueber
+
+      // --- Quer auseinanderdruecken, halb und halb ---
+      const richtung = du >= 0 ? 1 : -1;
+      const fehlt = KOLL_QUER - Math.abs(du);
+      const halb = fehlt * 0.5;
+      const qs = w.qsBei(a.s), grenze = qs.breite/2;
+      a.u = Math.max(-grenze, Math.min(grenze, a.u - richtung * halb));
+      b.u = Math.max(-grenze, Math.min(grenze, b.u + richtung * halb));
+      // Annaeherung quer daempfen statt umkehren: nebeneinander fahren bleibt
+      // moeglich, ineinander fahren nicht.
+      const vRel = (b.vu - a.vu) * richtung;
+      if(vRel < 0){
+        const mitte = (a.vu + b.vu) * 0.5;
+        a.vu = mitte - richtung * 0.35;
+        b.vu = mitte + richtung * 0.35;
+      }
+
+      // --- Auffahren: wer von hinten kommt, verliert; der Vordere wird
+      // angeschoben. Zusammen bleibt der Impuls etwa erhalten. ---
+      if(Math.abs(du) < KOLL_QUER * 0.8){
+        const hinten = ds > 0 ? a : b, vorne = ds > 0 ? b : a;
+        const zu = hinten.vs - vorne.vs;
+        if(zu > 0){
+          const tausch = Math.min(zu * 0.45, 3.2);
+          hinten.vs = Math.max(0.4, hinten.vs - tausch);
+          vorne.vs += tausch * 0.55;                     // etwas geht in Reibung
+          hinten.stoss = Math.max(hinten.stoss, zu * 0.6);
+          vorne.stoss = Math.max(vorne.stoss, zu * 0.35);
+          // Mit grosser Differenz ins Hinterrad: den Auffahrenden legt es hin.
+          if(zu > KOLL_STURZ_LAENGS && hinten.sturz <= 0){
+            hinten.sturz = STURZ_DAUER; hinten.sturzGrund = 'kontakt'; hinten.sturzZahl++;
+            hinten.sturzSeite = hinten.u >= 0 ? 1 : -1;
+            hinten.letzterSturz = {s:hinten.s, grund:'kontakt', wucht:zu, luft:0};
+          }
+        }
+        // Und auseinanderziehen, damit sie nicht ineinander stehen
+        const fehltS = KOLL_LANG - Math.abs(ds);
+        hinten.s = Math.max(0, hinten.s - fehltS * 0.5);
+        vorne.s += fehltS * 0.5;
+      }
+    }
+  }
+}
+
 /* Ein Fahrzeug an die Stelle seines Fahrers setzen. Gilt fuer den Spieler und
    fuer jeden KI-Fahrer gleichermassen: gleiche Physik, gleiche Darstellung. */
 function setzeFahrzeug(halter, welt, f, dt, ein, schatten){
@@ -6740,6 +6815,16 @@ const KI_VORTRAINIERT = {
     // -3,7 s, gepaart +3,9 bei 16 von 24
     technisch:  {bremsFrueh:0, sprungZiel:0.044, linienRuhe:0, kurvenLenk:-0.05, ueberholMut:0},
   },
+  alpin: {
+    // -11,1 s, Stürze 5,4 -> 3,5, gepaart +22,6 bei 24 von 24
+    vorsichtig: {bremsFrueh:-0.12, sprungZiel:0.088, linienRuhe:-0.07, kurvenLenk:0, ueberholMut:0},
+    // -6,9 s, Stürze 5,1 -> 3,5, gepaart +16,7 bei 21 von 24
+    anfaenger:  {bremsFrueh:-0.06, sprungZiel:0.066, linienRuhe:0.07, kurvenLenk:0, ueberholMut:0},
+    // -2,1 s, Stürze 2,5 -> 2,0, gepaart +5,1 bei 17 von 24
+    technisch:  {bremsFrueh:0, sprungZiel:0, linienRuhe:0, kurvenLenk:0.05, ueberholMut:0},
+    // -1,6 s, gepaart +3,6 bei 15 von 24
+    aggressiv:  {bremsFrueh:-0.12, sprungZiel:0.022, linienRuhe:-0.07, kurvenLenk:-0.05, ueberholMut:0},
+  },
 };
 
 const TR_BEREICHE = ['kurven', 'spruenge', 'bremsen', 'ueberholen'];
@@ -7594,6 +7679,7 @@ const UI_TR_BEREICH = {
 const UI_STURZ = {
   landung: 'Zu hart gelandet',
   rand:    'Rausgetragen',
+  kontakt: 'Kontakt',
 };
 
 const UI_WERTUNG = {
@@ -8436,6 +8522,9 @@ renderer.setAnimationLoop(() => {
     // --- Gegner: eigene Entscheidungen, dieselbe schritt()-Funktion ---
     if(module.ki && gegner.length){
       module.ki.update(dt, fahrer);
+      // Erst wenn alle einen Schritt gemacht haben, koennen Ueberlappungen
+      // aufgeloest werden — vorher weiss man nicht, wo alle stehen.
+      loeseKollisionen(welt, [fahrer, ...gegner.map(g => g.ki.fahrer)], dt);
       if(module.ki.overlay.aktiv()) module.ki.overlay.takt();
     }
 
@@ -8554,6 +8643,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    stelleFeld, get gegner(){ return gegner; },
                    trainerBaue, trDiagnose, trZiel, trAbschnitt, trLauf, trMittel, trKosten,
                    trStreckenlauf, trStreckenMittel, trVergleich, KI_VORTRAINIERT,
+                   loeseKollisionen, KOLL_LANG, KOLL_QUER, KOLL_STURZ_LAENGS,
                    TR_BEREICHE, TR_PARAMETER, KI_TRAINIERBAR, kiNeutral, kiNeueBeobachtung, kiFahrer,
                    get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
