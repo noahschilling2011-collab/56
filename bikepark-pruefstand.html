@@ -1486,6 +1486,8 @@ function baueBaeume(w){
    welche Nodes es gäbe.
    =========================================================================== */
 const GLB_PFAD  = GLB_PFAD_HAUPT;
+/* Was beim Laden aufgefallen ist — wird nach dem Aufbau einmal angezeigt. */
+let glbHinweis = '';
 const GLB_DREHUNG = 0;   // GLB schaut nach +z (Vorderrad bei z = +0,632, laut Messung am Modell).
                          // ungeprüft von mir: die Datei liegt nicht im Repo. Schaut sie rückwärts: Math.PI.
 const RAD_R = 0.37;            // Laufradradius außen, m — die GLB hat 0,37; Rohrmodell auf denselben Wert
@@ -2028,6 +2030,25 @@ function richteGLB(root, bike){
       for(const m of (Array.isArray(o.material) ? o.material : [o.material]))
         if(m.name === 'frame_charcoal') m.color.set(bike.accent);
     });
+  }
+
+  /* Einmessung: absichtlich keine. Wer hier skaliert, verschiebt Radstand und
+     Radradius gegen die Werte in BIKES.bau, aus denen die Physik rechnet —
+     das Rad waere dann optisch richtig und physikalisch falsch. Stattdessen
+     wird gemessen und gemeldet, damit ein Modell in Zentimetern oder Zoll
+     sofort auffaellt statt als winziger Fleck im Bild zu enden. */
+  {
+    const box = new THREE.Box3().setFromObject(root);
+    const hoehe = box.max.y - box.min.y;
+    if(hoehe < 1.35 || hoehe > 2.30){
+      console.warn('GLB: Modellhöhe ' + hoehe.toFixed(2) + ' m — erwartet wird etwa 1,80 m. ' +
+                   'Die Datei wird nicht skaliert; bitte im Modellprogramm auf Meter stellen.');
+      glbHinweis = 'Modell ist ' + hoehe.toFixed(2) + ' m hoch (erwartet ~1,80 m) — nicht skaliert';
+    }
+    if(Math.abs(box.min.y) > 0.12){
+      console.warn('GLB: Boden liegt bei y = ' + box.min.y.toFixed(2) + ' statt 0 — das Rad schwebt oder steckt.');
+      glbHinweis = (glbHinweis ? glbHinweis + '; ' : '') + 'Boden bei y = ' + box.min.y.toFixed(2) + ' statt 0';
+    }
   }
 
   const pivotV = pivotUm(root, alleMitName(root, 'wheel_front'), 'pivot_wheel_front');
@@ -8740,6 +8761,7 @@ async function starte(){
   if(ui.einstellung.qualitaet !== QUALITAET.stufe) setzeQualitaet(ui.einstellung.qualitaet);
   timer.update(performance.now()); timer.getDelta();
   if(!glbOk) meldung('Modell nicht gefunden (' + GLB_PFAD + '), Rohrmodell aktiv', 4500);
+  else if(glbHinweis) meldung('GLB: ' + glbHinweis, 6000);
 }
 
 const ui = uiBaue(KONTEXT, {
@@ -9021,8 +9043,11 @@ CHARAKTERE.forEach(ch => {
 });
 
 $('note').innerHTML =
-  'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen und auf 1,80 m ' +
-  'eingemessen. Fehlt sie, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
+  'Liegt <code>' + GLB_PFAD + '</code> neben dieser Datei, wird das Modell geladen. Es wird ' +
+  '<b>nicht</b> skaliert: die Datei muss in Metern vorliegen, Boden bei y = 0, Blick nach +z. ' +
+  'Weicht die Höhe stark von 1,80 m ab, sagt eine Meldung beim Start, was gemessen wurde. ' +
+  'Fehlt die Datei, fährt ein Ersatzfahrer aus Primitiven — die Seite läuft trotzdem.<br>' +
+  'Welche Knoten- und Materialnamen das Modell braucht, steht in <code>docs/glb-modell.md</code>.<br>' +
   'Doppelklick reicht: Three.js kommt vom CDN mit CORS-Freigabe. Nur die GLB-Datei lässt sich ' +
   'unter <code>file://</code> nicht laden — dafür <code>python3 -m http.server</code> im Ordner starten.';
 
@@ -9052,7 +9077,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    trainerBaue, trDiagnose, trZiel, trAbschnitt, trLauf, trMittel, trKosten,
                    trStreckenlauf, trStreckenMittel, trVergleich, KI_VORTRAINIERT,
                    loeseKollisionen, KOLL_LANG, KOLL_QUER, KOLL_STURZ_LAENGS,
-                   animiereFahrzeug, setzeFahrzeug,
+                   animiereFahrzeug, setzeFahrzeug, richteGLB, ladeFahrzeug,
                    TR_BEREICHE, TR_PARAMETER, KI_TRAINIERBAR, kiNeutral, kiNeueBeobachtung, kiFahrer,
                    get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
