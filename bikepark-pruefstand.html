@@ -6926,6 +6926,83 @@ function trMittel(w, ki, vorlage, trainiert, start, seed0, bereich){
   return {kosten: summe / n, laeufe: det};
 }
 
+/* ------------------------------------------------- TRAINING AUF DER STRECKE */
+/* Der Abschnittstrainer oben hat einen Konstruktionsnachteil, den keine
+   Gegenprobe ganz beseitigt: er optimiert auf 240 m, gemessen wird aber die
+   Rundenzeit über 1900 m. Wer stattdessen die ganze Strecke fährt, trainiert
+   genau die Größe, auf die es ankommt — Overfitting auf eine Stelle ist dann
+   strukturell unmöglich.
+
+   Das ging nur nicht, solange ich dachte, ein voller Lauf sei teuer. Gemessen
+   dauert er 69 ms bei dt = 24 ms, und die Rundenzeit weicht dabei um weniger
+   als 1 % von der feinen Simulation ab (172,9 gegen 174,6 s, beide 2 Stürze).
+   Damit kostet eine Trainingseinheit rund eine halbe Sekunde statt Minuten. */
+
+const TR_STRECKE_DT = 0.024;   // s je Simulationsschritt im Streckentraining
+
+/* Wie viele Läufe eine Messung braucht, und ab wann ein Unterschied zählt.
+
+   Gemessen: derselbe Fahrer mit demselben Parameter streut über 16 Läufe mit
+   einer Standardabweichung von 7,9 (Anfänger) bis 15,8 (Profi) Kostenpunkten —
+   der Löwenanteil davon ist die Sturzzahl, die um ±2 schwankt. Bei zwei Läufen
+   streut der Mittelwert entsprechend um 5,6 bis 11,2.
+
+   Der erste Entwurf hatte eine Schwelle von 0,5. Das liegt zwanzigfach unter
+   der Messunsicherheit: es wurden zwanzig Runden lang Zufallsschwankungen als
+   Fortschritt übernommen, und die Fahrer wurden dabei messbar schlechter.
+
+   Zwei Konsequenzen: mehr Läufe je Messung, und vor allem eine GEPAARTE
+   Auswertung — beide Varianten fahren dieselben Seeds, verglichen wird die
+   Differenz je Seed statt zweier Mittelwerte. Damit fällt heraus, dass manche
+   Läufe grundsätzlich schwerer sind als andere. */
+const TR_SEEDS_A = 6;          // Läufe je Messung (Training)
+const TR_SEEDS_B = 4;          // Läufe je Messung (Gegenprobe, andere Seeds)
+const TR_SCHWELLE = 2.0;       // Kostenpunkte mittlere Differenz
+const TR_MEHRHEIT = 0.7;       // Anteil der Läufe, die besser sein müssen
+
+/* Gepaarter Vergleich zweier Messreihen mit denselben Seeds. */
+function trVergleich(alt, neu){
+  if(!alt || !neu || alt.laeufe.length !== neu.laeufe.length) return null;
+  const d = alt.laeufe.map((a, i) => a.kosten - neu.laeufe[i].kosten);   // > 0 = neu ist besser
+  const besser = d.filter(x => x > 0).length;
+  const mittel = d.reduce((a, b) => a + b, 0) / d.length;
+  return {mittel, besser, n: d.length, anteil: besser / d.length,
+          gewinn: mittel >= TR_SCHWELLE && besser / d.length >= TR_MEHRHEIT};
+}
+
+/* Ein voller Lauf über die ganze Strecke. Bewertet wird, was am Ende zählt:
+   die Rundenzeit, plus Stürze und Randkontakte, die eine schnelle Zeit sonst
+   erkaufen würde. */
+function trStreckenlauf(w, ki, vorlage, trainiert, seed){
+  const k = kiFahrer(vorlage.typ, vorlage.fahrer.bike, seed, vorlage.name);
+  k.trainiert = trainiert;
+  k.gedaechtnis = vorlage.gedaechtnis;
+  k.ohnePatzer = true;                  // gemessen wird der Parameter, nicht der Wuerfel
+  const f = k.fahrer;
+  const feld = [k];
+  let n = 0;
+  while(f.s < w.L && n < 60000){
+    ki.taktFahrer(k, feld, TR_STRECKE_DT, false);
+    n++;
+    if(!isFinite(f.s) || !isFinite(f.vs)) return null;
+  }
+  const fertig = f.s >= w.L;
+  const zeit = fertig ? f.zeit : 400;    // steckengeblieben ist nicht schnell
+  return {kosten: zeit + f.sturzZahl * 6 + f.stuerze * 0.5,
+          zeit: +zeit.toFixed(2), stuerze: f.sturzZahl, rempler: f.stuerze,
+          sauber: f.sauber, landungen: f.landungen, fertig};
+}
+
+function trStreckenMittel(w, ki, vorlage, trainiert, seeds){
+  let summe = 0; const det = [];
+  for(const s of seeds){
+    const r = trStreckenlauf(w, ki, vorlage, trainiert, s);
+    if(!r) return null;
+    summe += r.kosten; det.push(r);
+  }
+  return {kosten: summe / seeds.length, laeufe: det};
+}
+
 /* ------------------------------------------------------------------ MODUL */
 function trainerBaue(welt, ki){
   const schluessel = typ => 'bikepark.trainer.' + welt.track.key + '.' + typ;
@@ -7088,6 +7165,126 @@ function trainerBaue(welt, ki){
     });
   }
 
+  /* Eine Trainingseinheit auf der vollen Strecke. Gleiches Hill-Climbing wie
+     beim Abschnittstraining, aber die Zielgroesse ist direkt die Rundenzeit.
+     Die Gegenprobe laeuft hier ueber ANDERE SEEDS statt einen anderen
+     Abschnitt: was nur mit einem bestimmten Zufallspfad besser ist, ist an den
+     Pfad angepasst und nicht gelernt. */
+  function trainiereStrecke(k, akte, runde){
+    const rnd = k.rnd;
+    // Reihenfolge der Parameter durchmischen, damit nicht immer derselbe
+    // zuerst drankommt und die spaeteren nie eine Chance bekommen.
+    const alle = Object.keys(KI_TRAINIERBAR);
+    for(let i = alle.length - 1; i > 0; i--){
+      const j = Math.floor(rnd() * (i + 1)); const t = alle[i]; alle[i] = alle[j]; alle[j] = t;
+    }
+    const basis = 70000 + runde * 1301;
+    const seedsA = [], seedsB = [];
+    for(let i = 0; i < TR_SEEDS_A; i++) seedsA.push(basis + i * 7919);
+    for(let i = 0; i < TR_SEEDS_B; i++) seedsB.push(basis + 500003 + i * 6421);
+
+    const jetzt = trStreckenMittel(welt, ki, k, Object.assign({}, akte.trainiert), seedsA);
+    if(!jetzt) return null;
+
+    for(const par of alle){
+      const spez = KI_TRAINIERBAR[par];
+      const merk = akte.richtung[par] || 1;
+      for(const richtung of [merk, -merk]){
+        const wert = Math.max(spez.min, Math.min(spez.max, (akte.trainiert[par] || 0) + richtung * spez.schritt));
+        if(wert === akte.trainiert[par]) continue;
+        const probe = Object.assign({}, akte.trainiert, {[par]: wert});
+        const erg = trStreckenMittel(welt, ki, k, probe, seedsA);
+        if(!erg) continue;
+        const v = trVergleich(jetzt, erg);
+        if(!v || !v.gewinn) continue;
+        // Gegenprobe mit anderen Seeds, ebenfalls gepaart. Sie muss nicht die
+        // volle Schwelle reissen, aber die Mehrheit der Laeufe muss stimmen —
+        // sonst war der Gewinn an die Trainingsseeds angepasst.
+        const altB = trStreckenMittel(welt, ki, k, Object.assign({}, akte.trainiert), seedsB);
+        const neuB = trStreckenMittel(welt, ki, k, probe, seedsB);
+        const vB = trVergleich(altB, neuB);
+        if(!vB || vB.mittel <= 0 || vB.anteil < 0.5){
+          akte.verworfen = (akte.verworfen || 0) + 1;
+          continue;
+        }
+        akte.trainiert[par] = +wert.toFixed(4);
+        akte.richtung[par] = richtung;
+        akte.bestKosten.strecke = +erg.kosten.toFixed(2);
+        return {art:'strecke', parameter: par, richtung, nach: +wert.toFixed(3),
+                von: +(wert - richtung * spez.schritt).toFixed(3),
+                alt: +jetzt.kosten.toFixed(2), neu: +erg.kosten.toFixed(2),
+                gewinn: +v.mittel.toFixed(2), besser: v.besser + '/' + v.n,
+                gegenprobe: +vB.mittel.toFixed(2),
+                uebernommen: true, zeitAlt: +jetzt.laeufe[0].zeit.toFixed(1),
+                zeitNeu: +erg.laeufe[0].zeit.toFixed(1)};
+      }
+      akte.richtung[par] = -merk;
+    }
+    akte.bestKosten.strecke = +jetzt.kosten.toFixed(2);
+    return {art:'strecke', uebernommen: false, alt: +jetzt.kosten.toFixed(2), neu: +jetzt.kosten.toFixed(2),
+            zeitAlt: +jetzt.laeufe[0].zeit.toFixed(1)};
+  }
+
+  /* Trainingslager: viele Runden auf der vollen Strecke, verteilt auf Frames,
+     damit die Oberflaeche bedienbar bleibt. Der Rueckgabewert ist eine Promise
+     auf den Verlauf. `abbruch()` liefert true, wenn abgebrochen werden soll. */
+  function lager(besetzung, runden, aufFortschritt, abbruch){
+    const feld = [];
+    for(const b of besetzung){
+      const k = kiFahrer(b.typ, b.bike, (b.seed || 1) + 31, b.name);
+      k.gedaechtnis = {};
+      k.akte = lade(b.typ) || neueAkte(b.typ);
+      k.trainiert = Object.assign(kiNeutral(), k.akte.trainiert);
+      feld.push(k);
+    }
+    const verlauf = feld.map(k => ({typ: k.typ, name: k.name, schritte: [],
+                                    start: null, ende: null}));
+    let runde = 0, idx = 0;
+    laeuft = true;
+    return new Promise(fertig => {
+      const schritt = () => {
+        if(abbruch && abbruch()){ laeuft = false; fertig({verlauf, runden: runde, abgebrochen: true}); return; }
+        if(runde >= runden){
+          // Endstand messen, damit der Fortschritt belegt ist und nicht behauptet
+          for(let i = 0; i < feld.length; i++){
+            const m = trStreckenMittel(welt, ki, feld[i], Object.assign({}, feld[i].akte.trainiert),
+                                       [880001, 880002, 880003]);
+            verlauf[i].ende = m ? {kosten: +m.kosten.toFixed(2),
+                                   zeit: +(m.laeufe.reduce((a,x)=>a+x.zeit,0)/m.laeufe.length).toFixed(1),
+                                   stuerze: +(m.laeufe.reduce((a,x)=>a+x.stuerze,0)/m.laeufe.length).toFixed(2)} : null;
+          }
+          laeuft = false; fertig({verlauf, runden: runde, abgebrochen: false}); return;
+        }
+        if(idx === 0 && runde === 0){
+          // Ausgangsstand messen, mit denselben Seeds wie am Ende
+          for(let i = 0; i < feld.length; i++){
+            const m = trStreckenMittel(welt, ki, feld[i], Object.assign({}, feld[i].akte.trainiert),
+                                       [880001, 880002, 880003]);
+            verlauf[i].start = m ? {kosten: +m.kosten.toFixed(2),
+                                    zeit: +(m.laeufe.reduce((a,x)=>a+x.zeit,0)/m.laeufe.length).toFixed(1),
+                                    stuerze: +(m.laeufe.reduce((a,x)=>a+x.stuerze,0)/m.laeufe.length).toFixed(2)} : null;
+          }
+        }
+        const k = feld[idx];
+        try{
+          const e = trainiereStrecke(k, k.akte, runde);
+          if(e){
+            verlauf[idx].schritte.push({runde: runde + 1, ok: e.uebernommen,
+                                        par: e.parameter || null, alt: e.alt, neu: e.neu});
+            if(e.uebernommen){ k.akte.einheiten++; k.trainiert = Object.assign(kiNeutral(), k.akte.trainiert); }
+          }
+          k.akte.rennen++;
+          sichere(k.typ, k.akte);
+        }catch(err){ console.warn('Lager:', err); }
+        idx++;
+        if(idx >= feld.length){ idx = 0; runde++; }
+        if(aufFortschritt) aufFortschritt(runde * feld.length + idx, runden * feld.length, feld[idx] ? feld[idx].name : '');
+        requestAnimationFrame(schritt);
+      };
+      requestAnimationFrame(schritt);
+    });
+  }
+
   /* Akte lesen, ohne zu trainieren — fuer Anzeige und Tests. */
   function akte(typ){ return lade(typ); }
   function alleAkten(){
@@ -7102,7 +7299,8 @@ function trainerBaue(welt, ki){
     }catch(e){}
   }
 
-  return {ruesteAus, nachRennen, nachRennenVerteilt, akte, alleAkten, vergiss,
+  return {ruesteAus, nachRennen, nachRennenVerteilt, lager, trainiereStrecke,
+          akte, alleAkten, vergiss,
           diagnose: trDiagnose, ziel: trZiel,
           get protokoll(){ return protokoll; },
           get laeuft(){ return laeuft; }};
@@ -7222,6 +7420,19 @@ const UI_CSS = `
 #ui-trainer .fort{font-size:12px;color:var(--dim)}
 #ui-trainer .bal{height:3px;margin-top:8px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden}
 #ui-trainer .bal i{display:block;height:100%;width:0;background:var(--line);transition:width .2s linear}
+/* Trainingslager im Pause-Menue. Es laeuft auf der vollen Strecke und dauert
+   je nach Rundenzahl einige Sekunden — deshalb mit Fortschritt und Abbruch. */
+#ui-lager{margin:16px 0 4px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+#ui-lager h3{margin:0 0 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--line);font-weight:500}
+#ui-lager .erklaer{font-size:11px;color:var(--dim);line-height:1.6;margin:0 0 12px}
+#ui-lager .reihe{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#ui-lager .bal{height:3px;margin-top:10px;background:rgba(255,255,255,.10);border-radius:2px;overflow:hidden}
+#ui-lager .bal i{display:block;height:100%;width:0;background:var(--line);transition:width .15s linear}
+#ui-lager .stand{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.7}
+#ui-lager .stand b{color:var(--fg);font-weight:400}
+#ui-lager .stand .gut{color:var(--line)}
+#ui-lager .stand .schlecht{color:var(--jump)}
 #ui-hilfe{position:fixed;right:18px;top:calc(18px + 139px);padding:8px 13px;font-size:11px;color:var(--dim-hud);
   opacity:0;border-radius:11px;transition:opacity .3s ease;pointer-events:none;z-index:20}
 #ui-hilfe.an{opacity:1}
@@ -7255,6 +7466,7 @@ const UI_HTML = `
     <div class="gross" id="ui-pause-zeit">0:00.0</div>
     <div class="unter" id="ui-pause-wo">— / — m</div>
     <div id="ui-pause-opt"></div>
+    <div id="ui-lager"></div>
     <div class="knopfreihe">
       <button class="haupt" data-tat="weiter">Weiter</button>
       <button data-tat="neustart">Neustart</button>
@@ -7353,6 +7565,74 @@ function uiBaue(ctx, spiel){
   }
 
   const $$ = id => document.getElementById(id);
+  let lagerAbbruch = false, lagerLaeuft = false;
+
+  /* Trainingslager im Pause-Menue aufbauen. Sichtbar nur, wenn Gegner fahren —
+     ohne Fahrer gibt es nichts zu trainieren. */
+  function baueLager(){
+    const box = $$('ui-lager'); if(!box) return;
+    box.innerHTML = '';
+    if(!spiel.lagerMoeglich || !spiel.lagerMoeglich()){ box.hidden = true; return; }
+    box.hidden = false;
+    const kopf = document.createElement('h3'); kopf.textContent = 'Trainingslager';
+    const txt = document.createElement('p'); txt.className = 'erklaer';
+    txt.textContent = 'Die Gegner fahren die Strecke ohne Rendern immer wieder und behalten, ' +
+      'was ihre Rundenzeit messbar verbessert. Der Stand bleibt gespeichert.';
+    const reihe = document.createElement('div'); reihe.className = 'reihe';
+    const stand = document.createElement('div'); stand.className = 'stand';
+    const bal = document.createElement('div'); bal.className = 'bal'; bal.innerHTML = '<i></i>';
+    bal.hidden = true;
+    for(const n of [10, 25, 50]){
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = n + ' Runden';
+      b.addEventListener('click', () => starte(n, reihe, bal, stand));
+      reihe.appendChild(b);
+    }
+    const stopp = document.createElement('button');
+    stopp.type = 'button'; stopp.textContent = 'Abbrechen'; stopp.hidden = true;
+    stopp.addEventListener('click', () => { lagerAbbruch = true; });
+    reihe.appendChild(stopp);
+    box.append(kopf, txt, reihe, bal, stand);
+    zeigeStand(stand);
+  }
+
+  function zeigeStand(stand){
+    const s = spiel.lagerStand ? spiel.lagerStand() : null;
+    if(!s || !s.length){ stand.textContent = 'Noch kein Training auf dieser Strecke.'; return; }
+    stand.innerHTML = s.map(x =>
+      '<div><b>' + x.name + '</b> · ' + x.einheiten + ' gelernt aus ' + x.rennen + ' Runden' +
+      (x.zeit ? ' · zuletzt ' + uiZeit(x.zeit) : '') + '</div>').join('');
+  }
+
+  async function starte(runden, reihe, bal, stand){
+    if(lagerLaeuft) return;
+    lagerLaeuft = true; lagerAbbruch = false;
+    const knoepfe = [...reihe.querySelectorAll('button')];
+    knoepfe.forEach(b => { if(b.textContent === 'Abbrechen') b.hidden = false; else b.disabled = true; });
+    bal.hidden = false;
+    const setzen = (i, n, wer) => {
+      bal.firstElementChild.style.width = Math.round(i/Math.max(1,n)*100) + '%';
+      stand.innerHTML = '<div>läuft … ' + i + ' von ' + n + (wer ? ' · ' + wer : '') + '</div>';
+    };
+    let erg = null;
+    try{ erg = await spiel.lagerStarten(runden, setzen, () => lagerAbbruch); }
+    catch(e){ console.warn('Lager:', e); }
+    lagerLaeuft = false;
+    knoepfe.forEach(b => { if(b.textContent === 'Abbrechen') b.hidden = true; else b.disabled = false; });
+    bal.hidden = true;
+    if(erg && erg.verlauf){
+      stand.innerHTML = erg.verlauf.map(v => {
+        if(!v.start || !v.ende) return '<div><b>' + v.name + '</b> · keine Messung</div>';
+        const d = v.ende.zeit - v.start.zeit;
+        const ds = v.ende.stuerze - v.start.stuerze;
+        const kl = d < -0.3 ? 'gut' : d > 0.3 ? 'schlecht' : '';
+        return '<div><b>' + v.name + '</b> · ' + uiZeit(v.start.zeit) + ' → ' + uiZeit(v.ende.zeit) +
+               ' <span class="' + kl + '">(' + (d > 0 ? '+' : '') + d.toFixed(1) + ' s)</span>' +
+               ' · Stürze ' + v.start.stuerze + ' → ' + v.ende.stuerze +
+               ' · ' + v.schritte.filter(s => s.ok).length + ' gelernt</div>';
+      }).join('') + (erg.abgebrochen ? '<div style="margin-top:6px">Abgebrochen.</div>' : '');
+    } else zeigeStand(stand);
+  }
   const pause = $$('ui-pause'), ziel = $$('ui-ziel');
   const besten = uiBesten();
   let offen = null;            // null | 'pause' | 'ziel'
@@ -7444,6 +7724,7 @@ function uiBaue(ctx, spiel){
       $$('ui-pause-wo').textContent = Math.round(Math.min(f.s, welt.L)) + ' / ' + welt.L + ' m · ' +
         Math.round(f.vMax*3.6) + ' km/h Spitze';
       zeige('pause');
+      try{ baueLager(); }catch(e){ console.warn('Lager-UI:', e); }
     },
     weiter(){ zeige(null); },
     ziel(f, welt, track, bikeName){
@@ -7470,6 +7751,8 @@ function uiBaue(ctx, spiel){
       trainerBox = null;
       zeige('ziel');
     },
+    /* Beim Oeffnen der Pause den Lager-Block neu aufbauen. */
+    lagerAuffrischen(){ try{ baueLager(); }catch(e){ console.warn('Lager-UI:', e); } },
     /* Der Trainer arbeitet: Fortschritt im Ziel-Schirm zeigen. */
     trainerLaeuft(i, n){
       const karte = ziel.querySelector('.karte');
@@ -7950,6 +8233,27 @@ const ui = uiBaue(KONTEXT, {
   /* Das UI fragt die Rangliste ab, statt selbst ins Feld zu greifen. Ohne
      Gegner gibt es null zurueck und die Anzeige bleibt aus. */
   rangliste(){ return (gegner.length && module.ki) ? module.ki.rangliste(fahrer) : null; },
+  /* Trainingslager: nur sinnvoll, wenn ueberhaupt Gegner antreten. */
+  lagerMoeglich(){ return !!(module.trainer && welt && gegnerZahl > 0); },
+  lagerStand(){
+    if(!module.trainer || !module.ki) return null;
+    const raus = [];
+    for(const g of gegner){
+      const a = module.trainer.akte(g.ki.typ);
+      raus.push({name: g.ki.name, einheiten: a ? a.einheiten : 0, rennen: a ? a.rennen : 0,
+                 zeit: a && a.bestKosten && a.bestKosten.strecke ? a.bestKosten.strecke : null});
+    }
+    return raus;
+  },
+  /* Startet das Lager mit der aktuellen Besetzung. Danach bekommen die Fahrer
+     im laufenden Spiel den neuen Stand, ohne dass man neu starten muss. */
+  lagerStarten(runden, aufFortschritt, abbruch){
+    if(!module.trainer || !gegner.length) return Promise.resolve(null);
+    const besetzung = gegner.map((g, i) => ({typ: g.ki.typ, bike: g.ki.fahrer.bike,
+                                             seed: 1000 + i * 7919, name: g.ki.name}));
+    return module.trainer.lager(besetzung, runden, aufFortschritt, abbruch)
+      .then(erg => { module.trainer.ruesteAus(module.ki.feld); return erg; });
+  },
 });
 
 let meldungTimer = 0;
@@ -8156,6 +8460,7 @@ window.bikepark = {querschnittBei, querV, aussenGrenze, profilPunkte, deltaH, ba
                    kiBaue, KI_TYPEN, KI_SEKTION, kiKurvenTempo, kiKandidaten, kiWaehle, KONTEXT,
                    stelleFeld, get gegner(){ return gegner; },
                    trainerBaue, trDiagnose, trZiel, trAbschnitt, trLauf, trMittel, trKosten,
+                   trStreckenlauf, trStreckenMittel,
                    TR_BEREICHE, TR_PARAMETER, KI_TRAINIERBAR, kiNeutral, kiNeueBeobachtung, kiFahrer,
                    get gegnerZahl(){ return gegnerZahl; }, set gegnerZahl(v){ gegnerZahl = Math.max(0, Math.min(8, v|0)); },
                    get steuerung(){ return steuerung; },
